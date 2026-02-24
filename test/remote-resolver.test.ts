@@ -86,6 +86,41 @@ describe('resolveRemoteContributionsForPackage', () => {
     expect(downloadMock.mock.calls.some(call => call[0] === 'onmax/nuxt-skills')).toBe(true)
   })
 
+  it('maps @nuxt/ui to onmax fallback skill', async () => {
+    const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
+    const downloadMock = vi.fn(async (repo: string, _ref: string, sourcePath: string, destinationDir: string) => {
+      if (repo === 'onmax/nuxt-skills' && sourcePath === 'skills/nuxt-ui') {
+        await createSkillFiles(destinationDir, 'nuxt-ui')
+        return { ok: true }
+      }
+      return { ok: false, status: 404, error: 'not found' }
+    })
+
+    vi.resetModules()
+    vi.doMock('../src/remote-fetch', () => ({
+      parseGitHubRepo: vi.fn(() => null),
+      fetchGitHubDefaultBranch: vi.fn(async () => 'main'),
+      fetchGitHubFileText: vi.fn(async () => ({ ok: false, status: 404 })),
+      downloadGitHubDirectory: downloadMock,
+    }))
+
+    const { resolveRemoteContributionsForPackage } = await import('../src/remote-resolver')
+    const result = await resolveRemoteContributionsForPackage({
+      packageName: '@nuxt/ui',
+      version: '4.5.0',
+      repository: undefined,
+    }, {
+      cacheRoot,
+      githubLookupTimeoutMs: 200,
+      enableGithubLookup: true,
+    })
+
+    expect(result.contributions).toHaveLength(1)
+    expect(result.contributions[0]?.skillName).toBe('nuxt-ui')
+    expect(result.contributions[0]?.sourceKind).toBe('fallbackMap')
+    expect(result.contributions[0]?.sourcePath).toBe('skills/nuxt-ui')
+  })
+
   it('uses remote package agents.skills before heuristics', async () => {
     const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
     const downloadMock = vi.fn(async (repo: string, _ref: string, sourcePath: string, destinationDir: string) => {

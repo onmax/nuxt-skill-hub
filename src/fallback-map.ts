@@ -9,6 +9,36 @@ export interface FallbackMapEntry {
 
 const FALLBACK_MAP: FallbackMapEntry[] = [
   {
+    packageName: 'nuxt',
+    skillName: 'nuxt',
+    path: 'skills/nuxt',
+  },
+  {
+    packageName: '@nuxt/ui',
+    skillName: 'nuxt-ui',
+    path: 'skills/nuxt-ui',
+  },
+  {
+    packageName: '@nuxt/content',
+    skillName: 'nuxt-content',
+    path: 'skills/nuxt-content',
+  },
+  {
+    packageName: 'nuxt-seo',
+    skillName: 'nuxt-seo',
+    path: 'skills/nuxt-seo',
+  },
+  {
+    packageName: '@nuxtjs/seo',
+    skillName: 'nuxt-seo',
+    path: 'skills/nuxt-seo',
+  },
+  {
+    packageName: '@onmax/nuxt-better-auth',
+    skillName: 'nuxt-better-auth',
+    path: 'skills/nuxt-better-auth',
+  },
+  {
     packageName: '@nuxthub/core',
     skillName: 'nuxthub',
     path: 'skills/nuxthub',
@@ -22,6 +52,26 @@ const FALLBACK_MAP: FallbackMapEntry[] = [
     packageName: '@vueuse/core',
     skillName: 'vueuse',
     path: 'skills/vueuse',
+  },
+  {
+    packageName: 'vite',
+    skillName: 'vite',
+    path: 'skills/vite',
+  },
+  {
+    packageName: 'vitest',
+    skillName: 'vitest',
+    path: 'skills/vitest',
+  },
+  {
+    packageName: 'tsdown',
+    skillName: 'tsdown',
+    path: 'skills/tsdown',
+  },
+  {
+    packageName: 'vue',
+    skillName: 'vue',
+    path: 'skills/vue',
   },
 ]
 
