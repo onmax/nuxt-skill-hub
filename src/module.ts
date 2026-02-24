@@ -15,42 +15,61 @@ import {
   ensureDir,
   extractModuleSpecifier,
   getTargetSkillRoot,
+  isValidSkillName,
+  normalizeContribution,
   pathExists,
   renderAutomdTemplate,
   resolveContributions,
   resolveTargets,
   shouldIncludeScripts,
   sortAndDedupeContributions,
+  validateResolvedContributions,
   upsertAgentsHint,
   writeFileIfChanged,
 } from './internal'
 import type {
   ModuleOptions,
   ResolvedContribution,
+  SkillManifestSkipped,
   SkillHubContribution,
   SkillHubContributionContext,
+  ValidationIssue,
 } from './types'
 
 function toPosix(path: string): string {
   return path.split(sep).join('/')
 }
 
-async function resolveManualContribution(rootDir: string, contribution: SkillHubContribution): Promise<ResolvedContribution | null> {
+async function resolveManualContribution(rootDir: string, contribution: SkillHubContribution): Promise<ResolvedContribution> {
   const sourceDir = isAbsolute(contribution.sourceDir)
     ? contribution.sourceDir
     : resolve(rootDir, contribution.sourceDir)
 
-  if (!(await pathExists(join(sourceDir, 'SKILL.md')))) {
-    return null
+  return normalizeContribution(contribution, sourceDir, sourceDir)
+}
+
+function issuesToSkipped(issues: ValidationIssue[]): SkillManifestSkipped[] {
+  const byKey = new Map<string, SkillManifestSkipped>()
+
+  for (const issue of issues) {
+    const key = `${issue.packageName}::${issue.skillName}`
+    const previous = byKey.get(key)
+    if (!previous) {
+      byKey.set(key, {
+        packageName: issue.packageName,
+        skillName: issue.skillName,
+        reason: issue.reason,
+      })
+      continue
+    }
+
+    const reasons = new Set(previous.reason.split('; ').filter(Boolean))
+    reasons.add(issue.reason)
+    previous.reason = Array.from(reasons).join('; ')
   }
 
-  return {
-    packageName: contribution.packageName,
-    version: contribution.version,
-    sourceDir,
-    sourceRoot: sourceDir,
-    skillName: contribution.skillName,
-  }
+  return Array.from(byKey.values())
+    .sort((a, b) => `${a.packageName}::${a.skillName}`.localeCompare(`${b.packageName}::${b.skillName}`))
 }
 
 export default defineNuxtModule<ModuleOptions>({
@@ -77,6 +96,14 @@ export default defineNuxtModule<ModuleOptions>({
     }
 
     const logger = useLogger('nuxt-skill-hub')
+    const configuredSkillName = options.skillName?.trim() || 'nuxt'
+    const resolvedSkillName = isValidSkillName(configuredSkillName)
+      ? configuredSkillName
+      : 'nuxt'
+
+    if (resolvedSkillName !== configuredSkillName) {
+      logger.warn(`Invalid skillHub.skillName "${configuredSkillName}". Falling back to "${resolvedSkillName}".`)
+    }
 
     nuxt.hook('modules:done', async () => {
       const manualContributions: SkillHubContribution[] = []
@@ -116,20 +143,29 @@ export default defineNuxtModule<ModuleOptions>({
 
       const discoveredContributions = await resolveContributions(discoveries)
 
-      const resolvedManual = (
-        await Promise.all(
-          manualContributions.map(contribution => resolveManualContribution(nuxt.options.rootDir, contribution)),
-        )
-      ).filter((entry): entry is ResolvedContribution => Boolean(entry))
+      const resolvedManual = await Promise.all(
+        manualContributions.map(contribution => resolveManualContribution(nuxt.options.rootDir, contribution)),
+      )
+      const validatedManual = await validateResolvedContributions(sortAndDedupeContributions(resolvedManual))
 
       const contributions = sortAndDedupeContributions([
-        ...discoveredContributions,
-        ...resolvedManual,
+        ...discoveredContributions.contributions,
+        ...validatedManual.contributions,
       ])
+      const validationIssues = [
+        ...discoveredContributions.issues,
+        ...validatedManual.issues,
+      ]
+      const skipped = issuesToSkipped(validationIssues)
+
+      for (const issue of validationIssues) {
+        logger.warn(`[validation] ${issue.packageName}/${issue.skillName}: ${issue.reason}`)
+      }
 
       const targets = resolveTargets(
         options.targetMode || 'detected',
         options.targets || [],
+        nuxt.options.rootDir,
       )
 
       if (!targets.length) {
@@ -140,7 +176,7 @@ export default defineNuxtModule<ModuleOptions>({
       const generatedAt = new Date().toISOString()
 
       for (const target of targets) {
-        const { targetDir, skillRoot } = getTargetSkillRoot(nuxt.options.rootDir, target, options.skillName || 'nuxt')
+        const { targetDir, skillRoot } = getTargetSkillRoot(nuxt.options.rootDir, target, resolvedSkillName)
         const referencesRoot = join(skillRoot, 'references')
         const coreRoot = join(referencesRoot, 'core')
         const modulesRoot = join(referencesRoot, 'modules')
@@ -149,7 +185,7 @@ export default defineNuxtModule<ModuleOptions>({
         await ensureDir(coreRoot)
         await ensureDir(modulesRoot)
 
-        await writeFileIfChanged(join(skillRoot, 'SKILL.md'), createSkillEntrypoint(options.skillName || 'nuxt'))
+        await writeFileIfChanged(join(skillRoot, 'SKILL.md'), createSkillEntrypoint(resolvedSkillName))
 
         const coreTemplateFiles = await buildCoreTemplateFiles(coreRoot)
         for (const file of coreTemplateFiles) {
@@ -185,7 +221,7 @@ export default defineNuxtModule<ModuleOptions>({
           generatedEntries.push({
             packageName: contribution.packageName,
             version: contribution.version,
-            skillName: contribution.skillName || 'skill',
+            skillName: contribution.skillName,
             sourceDir: contribution.sourceDir,
             destination: toPosix(relative(skillRoot, destination)),
             scriptsIncluded: includeScripts,
@@ -193,7 +229,7 @@ export default defineNuxtModule<ModuleOptions>({
         }
 
         const modulesListPath = join(modulesRoot, '_list.md')
-        await writeFileIfChanged(modulesListPath, createModulesListMarkdown(generatedEntries))
+        await writeFileIfChanged(modulesListPath, createModulesListMarkdown(generatedEntries, skipped))
 
         const referencesIndexTemplate = createReferencesIndexTemplate()
         const referencesIndexTemplatePath = join(referencesRoot, 'index.template.md')
@@ -203,18 +239,19 @@ export default defineNuxtModule<ModuleOptions>({
 
         const manifest = createManifest(
           generatedAt,
-          options.skillName || 'nuxt',
+          resolvedSkillName,
           target,
           toPosix(targetDir),
           generatedEntries,
+          skipped,
         )
         await writeFileIfChanged(join(skillRoot, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`)
 
-        logger.success(`Generated ${options.skillName || 'nuxt'} skill at ${toPosix(skillRoot)}`)
+        logger.success(`Generated ${resolvedSkillName} skill at ${toPosix(skillRoot)}`)
       }
 
       if (options.writeAgentsHint) {
-        await upsertAgentsHint(nuxt.options.rootDir, options.skillName || 'nuxt')
+        await upsertAgentsHint(nuxt.options.rootDir, resolvedSkillName)
       }
     })
   },

@@ -41,3 +41,9 @@ Ship skill updates with package releases.
 
 ### Nuxt-specific caveat
 Treat skill quality as DX surface area of your module.
+
+## Execution checklist
+
+- Inputs to inspect: module options API, hooks usage, packaged `agents.skills`, and release-coupled docs/skills.
+- Verify: runtime behavior stays opt-in, skill scope stays module-specific, and skill updates ship with versions.
+- Stop if: module skill starts adding global Nuxt guidance or relies on undocumented internals.

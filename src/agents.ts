@@ -8,7 +8,7 @@ const claudeHome = process.env.CLAUDE_CONFIG_DIR?.trim() || join(home, '.claude'
 
 export interface AgentTargetConfig {
   projectSkillsDir: string
-  detectInstalled: () => boolean
+  detectInstalled: (rootDir: string) => boolean
 }
 
 export const AGENT_TARGETS = {
@@ -66,7 +66,7 @@ export const AGENT_TARGETS = {
   },
   'github-copilot': {
     projectSkillsDir: '.github/skills',
-    detectInstalled: () => existsSync(join(home, '.copilot')) || existsSync('.github'),
+    detectInstalled: (rootDir: string) => existsSync(join(home, '.copilot')) || existsSync(join(rootDir, '.github')),
   },
   'goose': {
     projectSkillsDir: '.goose/skills',
@@ -148,7 +148,7 @@ export const AGENT_TARGETS = {
 
 export type SkillHubTarget = keyof typeof AGENT_TARGETS
 
-export function detectInstalledTargets(): SkillHubTarget[] {
+export function detectInstalledTargets(rootDir: string): SkillHubTarget[] {
   return (Object.keys(AGENT_TARGETS) as SkillHubTarget[])
-    .filter(target => AGENT_TARGETS[target].detectInstalled())
+    .filter(target => AGENT_TARGETS[target].detectInstalled(rootDir))
 }

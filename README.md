@@ -92,6 +92,21 @@ Modules can ship skill artifacts in package dist via `agents.skills`:
 }
 ```
 
+Validation rules for contributed module skills:
+- `agents.skills[].name` must be strict skill format (`hyphen-case`, lowercase, max 64, no consecutive hyphens).
+- `agents.skills[].path` must resolve inside the package root.
+- Skill directory name must match `agents.skills[].name`.
+- Skill root must include `SKILL.md` with YAML frontmatter containing non-empty `name` and `description`.
+- `SKILL.md` frontmatter `name` must match `agents.skills[].name`.
+
+When validation fails, the module logs warnings and skips the invalid skill. Generation continues.
+
+## Manifest
+
+Generated `manifest.json` includes:
+- `modules`: copied/active module skills.
+- `skipped`: validation-skipped module skills with reasons.
+
 ## Local contribution hook
 
 Projects or local modules can contribute extra skill sources:

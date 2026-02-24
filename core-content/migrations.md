@@ -41,3 +41,9 @@ Run typecheck, targeted runtime tests, and representative route checks.
 
 ### Nuxt-specific caveat
 SSR and client hydration paths must both be validated.
+
+## Execution checklist
+
+- Inputs to inspect: touched deprecated APIs, migration notes, and changed config/runtime paths.
+- Verify: migration steps are reversible, checks run in dev and production-like flows, SSR and hydration both pass.
+- Stop if: a migration change lacks checkpointing or validation coverage on representative routes.

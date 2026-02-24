@@ -41,3 +41,9 @@ Return explicit error states with useful context and fallback behavior.
 
 ### Nuxt-specific caveat
 Prefer Nuxt error utilities and route-level error handling over custom global hacks.
+
+## Execution checklist
+
+- Inputs to inspect: page-level fetch boundaries, duplicated fetch calls, and mutation paths triggering re-fetch.
+- Verify: first load uses SSR data once, independent calls are parallelized, and error states are explicit.
+- Stop if: fetch logic duplicates the same payload across layers or adds immediate post-hydration refetch without need.

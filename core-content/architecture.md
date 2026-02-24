@@ -41,3 +41,9 @@ Use file-based routing and route groups to keep boundaries explicit.
 
 ### Nuxt-specific caveat
 Prefer route-level composition over custom router mutations unless there is a strong reason.
+
+## Execution checklist
+
+- Inputs to inspect: touched files under `pages/`, `server/`, `composables/`, and any `runtimeConfig` access.
+- Verify: secrets stay server-only, request-scoped state avoids module globals, route boundaries are explicit.
+- Stop if: the task requires global router mutation or cross-request mutable state without a documented reason.

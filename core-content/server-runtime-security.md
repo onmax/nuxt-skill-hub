@@ -41,3 +41,9 @@ Use explicit cache primitives and invalidation strategy.
 
 ### Nuxt-specific caveat
 Nitro runtime may vary by platform; document cache behavior assumptions.
+
+## Execution checklist
+
+- Inputs to inspect: `runtimeConfig` additions, new server handlers, and cache/state usage in server code.
+- Verify: only intended public keys are exposed, handler inputs are validated, and cache policy is explicit.
+- Stop if: secrets appear in client-visible config or endpoint payload validation is missing.

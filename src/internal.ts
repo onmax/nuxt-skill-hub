@@ -8,6 +8,9 @@ import type {
   ResolvedContribution,
   SkillHubContribution,
   SkillManifest,
+  SkillManifestSkipped,
+  ValidationIssue,
+  ValidatedContribution,
 } from './types'
 import { loadCoreIndexTemplate, loadCoreRuleFiles } from './core-content'
 import type { SkillHubTarget } from './agents'
@@ -16,12 +19,15 @@ import { AGENT_TARGETS, detectInstalledTargets } from './agents'
 const require = createRequire(import.meta.url)
 const MANAGED_HINT_START = '<!-- nuxt-skill-hub:start -->'
 const MANAGED_HINT_END = '<!-- nuxt-skill-hub:end -->'
+const SKILL_NAME_MAX_LENGTH = 64
+const SKILL_NAME_PATTERN = /^[a-z0-9-]+$/
 
 export interface PackageSkillDiscovery {
   packageName: string
   version?: string
   packageRoot: string
   skills: AgentSkillDeclaration[]
+  issues: ValidationIssue[]
 }
 
 export interface GeneratedModuleEntry {
@@ -88,32 +94,137 @@ function readPackageVersion(pkg: unknown): string | undefined {
   return undefined
 }
 
-export function parseAgentSkillDeclarations(pkg: unknown): AgentSkillDeclaration[] {
+function createValidationIssue(packageName: string, skillName: string, reason: string): ValidationIssue {
+  return {
+    severity: 'warning',
+    packageName,
+    skillName,
+    reason,
+  }
+}
+
+export function isValidSkillName(name: string): boolean {
+  if (!name || name.length > SKILL_NAME_MAX_LENGTH) {
+    return false
+  }
+
+  if (!SKILL_NAME_PATTERN.test(name)) {
+    return false
+  }
+
+  if (name.startsWith('-') || name.endsWith('-') || name.includes('--')) {
+    return false
+  }
+
+  return true
+}
+
+export interface ParsedAgentSkillDeclarations {
+  skills: AgentSkillDeclaration[]
+  issues: ValidationIssue[]
+}
+
+export function parseAgentSkillDeclarations(pkg: unknown, packageName: string): ParsedAgentSkillDeclarations {
   const raw = pkg && typeof pkg === 'object'
     ? (pkg as { agents?: { skills?: unknown } }).agents?.skills
     : undefined
 
   if (!Array.isArray(raw)) {
-    return []
+    return { skills: [], issues: [] }
   }
 
-  const output: AgentSkillDeclaration[] = []
-  for (const entry of raw) {
+  const skills: AgentSkillDeclaration[] = []
+  const issues: ValidationIssue[] = []
+
+  for (const [index, entry] of raw.entries()) {
     if (!entry || typeof entry !== 'object') {
+      issues.push(createValidationIssue(packageName, `entry-${index + 1}`, 'agents.skills entry must be an object'))
       continue
     }
 
     const name = typeof entry.name === 'string' ? entry.name.trim() : ''
     const path = typeof entry.path === 'string' ? entry.path.trim() : ''
 
-    if (!name || !path) {
+    if (!name) {
+      issues.push(createValidationIssue(packageName, `entry-${index + 1}`, 'agents.skills entry is missing a non-empty "name"'))
       continue
     }
 
-    output.push({ name, path })
+    if (!path) {
+      issues.push(createValidationIssue(packageName, name, 'agents.skills entry is missing a non-empty "path"'))
+      continue
+    }
+
+    if (!isValidSkillName(name)) {
+      issues.push(createValidationIssue(packageName, name, 'skill name must be hyphen-case, lowercase, <=64 chars, and cannot contain consecutive hyphens'))
+      continue
+    }
+
+    skills.push({ name, path })
   }
 
-  return output
+  return { skills, issues }
+}
+
+interface SkillFrontmatter {
+  name?: string
+  description?: string
+}
+
+function parseFrontmatterValue(raw: string): string {
+  const value = raw.trim()
+  if (!value) {
+    return ''
+  }
+
+  if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith('\'') && value.endsWith('\''))) {
+    return value.slice(1, -1).trim()
+  }
+
+  return value
+}
+
+export function parseSkillFrontmatter(contents: string): SkillFrontmatter | null {
+  const lines = contents.split(/\r?\n/)
+  if (lines[0]?.trim() !== '---') {
+    return null
+  }
+
+  const endIndex = lines.findIndex((line, index) => index > 0 && line.trim() === '---')
+  if (endIndex === -1) {
+    return null
+  }
+
+  const frontmatter: SkillFrontmatter = {}
+  const body = lines.slice(1, endIndex)
+
+  for (const line of body) {
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith('#')) {
+      continue
+    }
+
+    const separatorIndex = trimmed.indexOf(':')
+    if (separatorIndex <= 0) {
+      continue
+    }
+
+    const key = trimmed.slice(0, separatorIndex).trim()
+    if (!/^[\w-]+$/.test(key)) {
+      continue
+    }
+
+    const value = parseFrontmatterValue(trimmed.slice(separatorIndex + 1))
+
+    if (key === 'name') {
+      frontmatter.name = value
+    }
+    else if (key === 'description') {
+      frontmatter.description = value
+    }
+  }
+
+  return frontmatter
 }
 
 function packageNameFromSpecifier(specifier: string): string {
@@ -186,9 +297,10 @@ export async function discoverPackageSkillsFromSpecifier(specifier: string, root
   const pkg = await readJson(packageJsonPath)
   const packageName = readPackageName(pkg, packageNameFromSpecifier(specifier))
   const version = readPackageVersion(pkg)
-  const skills = parseAgentSkillDeclarations(pkg)
+  const parsed = parseAgentSkillDeclarations(pkg, packageName)
+  const skills = parsed.skills
 
-  if (!skills.length) {
+  if (!skills.length && !parsed.issues.length) {
     return null
   }
 
@@ -197,6 +309,7 @@ export async function discoverPackageSkillsFromSpecifier(specifier: string, root
     version,
     packageRoot,
     skills,
+    issues: parsed.issues,
   }
 }
 
@@ -207,45 +320,128 @@ export async function discoverLocalPackageSkills(rootDir: string): Promise<Packa
   }
 
   const pkg = await readJson(packageJsonPath)
-  const skills = parseAgentSkillDeclarations(pkg)
-  if (!skills.length) {
+  const packageName = readPackageName(pkg, 'local-project')
+  const parsed = parseAgentSkillDeclarations(pkg, packageName)
+  const skills = parsed.skills
+  if (!skills.length && !parsed.issues.length) {
     return null
   }
 
   return {
-    packageName: readPackageName(pkg, 'local-project'),
+    packageName,
     version: readPackageVersion(pkg),
     packageRoot: rootDir,
     skills,
+    issues: parsed.issues,
   }
 }
 
-export async function resolveContributions(discoveries: PackageSkillDiscovery[]): Promise<ResolvedContribution[]> {
+function normalizeSkillName(rawSkillName: string | undefined, sourceDir: string): string {
+  return rawSkillName?.trim() || basename(sourceDir).trim()
+}
+
+export function normalizeContribution(contribution: SkillHubContribution, sourceDir: string, sourceRoot: string): ResolvedContribution {
+  return {
+    packageName: contribution.packageName,
+    version: contribution.version,
+    sourceDir,
+    sourceRoot,
+    skillName: normalizeSkillName(contribution.skillName, sourceDir),
+  }
+}
+
+async function validateContribution(contribution: ResolvedContribution): Promise<ValidatedContribution> {
+  const issues: ValidationIssue[] = []
+
+  if (!isSubPath(contribution.sourceRoot, contribution.sourceDir)) {
+    issues.push(createValidationIssue(contribution.packageName, contribution.skillName, 'skill path must stay within package root'))
+  }
+
+  if (!isValidSkillName(contribution.skillName)) {
+    issues.push(createValidationIssue(contribution.packageName, contribution.skillName, 'skill name must be hyphen-case, lowercase, <=64 chars, and cannot contain consecutive hyphens'))
+  }
+
+  const sourceDirName = basename(contribution.sourceDir)
+  if (sourceDirName !== contribution.skillName) {
+    issues.push(createValidationIssue(contribution.packageName, contribution.skillName, `skill directory name "${sourceDirName}" must match declared skill name`))
+  }
+
+  const skillFilePath = join(contribution.sourceDir, 'SKILL.md')
+  if (!(await pathExists(skillFilePath))) {
+    issues.push(createValidationIssue(contribution.packageName, contribution.skillName, 'SKILL.md is required at skill root'))
+    return { contribution, issues }
+  }
+
+  const skillContents = await fsp.readFile(skillFilePath, 'utf8')
+  const frontmatter = parseSkillFrontmatter(skillContents)
+  if (!frontmatter) {
+    issues.push(createValidationIssue(contribution.packageName, contribution.skillName, 'SKILL.md must include YAML frontmatter'))
+    return { contribution, issues }
+  }
+
+  if (!frontmatter.name) {
+    issues.push(createValidationIssue(contribution.packageName, contribution.skillName, 'SKILL.md frontmatter must include non-empty "name"'))
+  }
+  else if (frontmatter.name !== contribution.skillName) {
+    issues.push(createValidationIssue(contribution.packageName, contribution.skillName, `SKILL.md frontmatter name "${frontmatter.name}" must match declared skill name`))
+  }
+
+  if (!frontmatter.description) {
+    issues.push(createValidationIssue(contribution.packageName, contribution.skillName, 'SKILL.md frontmatter must include non-empty "description"'))
+  }
+
+  return { contribution, issues }
+}
+
+export interface ResolveContributionsResult {
+  contributions: ResolvedContribution[]
+  issues: ValidationIssue[]
+}
+
+export async function validateResolvedContributions(contributions: ResolvedContribution[]): Promise<ResolveContributionsResult> {
+  const valid: ResolvedContribution[] = []
+  const issues: ValidationIssue[] = []
+
+  for (const contribution of contributions) {
+    const validation = await validateContribution(contribution)
+    if (!validation.issues.length) {
+      valid.push(validation.contribution)
+      continue
+    }
+
+    issues.push(...validation.issues)
+  }
+
+  return {
+    contributions: sortAndDedupeContributions(valid),
+    issues,
+  }
+}
+
+export async function resolveContributions(discoveries: PackageSkillDiscovery[]): Promise<ResolveContributionsResult> {
   const contributions: ResolvedContribution[] = []
+  const issues: ValidationIssue[] = []
 
   for (const discovery of discoveries) {
+    issues.push(...discovery.issues)
+
     for (const skill of discovery.skills) {
       const sourceDir = resolve(discovery.packageRoot, skill.path)
-
-      if (!isSubPath(discovery.packageRoot, sourceDir)) {
-        continue
-      }
-
-      if (!(await pathExists(join(sourceDir, 'SKILL.md')))) {
-        continue
-      }
-
-      contributions.push({
+      contributions.push(normalizeContribution({
         packageName: discovery.packageName,
         version: discovery.version,
         sourceDir,
-        sourceRoot: discovery.packageRoot,
         skillName: skill.name,
-      })
+      }, sourceDir, discovery.packageRoot))
     }
   }
 
-  return sortAndDedupeContributions(contributions)
+  const validated = await validateResolvedContributions(contributions)
+
+  return {
+    contributions: validated.contributions,
+    issues: [...issues, ...validated.issues],
+  }
 }
 
 export function sortAndDedupeContributions(contributions: ResolvedContribution[]): ResolvedContribution[] {
@@ -254,7 +450,7 @@ export function sortAndDedupeContributions(contributions: ResolvedContribution[]
   for (const contribution of contributions) {
     const key = [
       contribution.packageName,
-      contribution.skillName || '',
+      contribution.skillName,
       contribution.sourceDir,
     ].join('::')
     byKey.set(key, contribution)
@@ -262,8 +458,8 @@ export function sortAndDedupeContributions(contributions: ResolvedContribution[]
 
   return Array.from(byKey.values())
     .sort((a, b) => {
-      const left = `${a.packageName}::${a.skillName || ''}::${a.sourceDir}`
-      const right = `${b.packageName}::${b.skillName || ''}::${b.sourceDir}`
+      const left = `${a.packageName}::${a.skillName}::${a.sourceDir}`
+      const right = `${b.packageName}::${b.skillName}::${b.sourceDir}`
       return left.localeCompare(right)
     })
 }
@@ -333,12 +529,12 @@ async function copySkillTreeRecursive(sourceRoot: string, sourceDir: string, des
   }
 }
 
-export function resolveTargets(targetMode: 'detected' | 'explicit', explicitTargets: SkillHubTarget[]): SkillHubTarget[] {
+export function resolveTargets(targetMode: 'detected' | 'explicit', explicitTargets: SkillHubTarget[], rootDir: string): SkillHubTarget[] {
   if (targetMode === 'explicit') {
     return Array.from(new Set(explicitTargets))
   }
 
-  return detectInstalledTargets()
+  return detectInstalledTargets(rootDir)
 }
 
 export async function buildCoreTemplateFiles(coreDir: string): Promise<Array<{ path: string, contents: string }>> {
@@ -377,19 +573,31 @@ _Generated by nuxt-skill-hub. Do not edit this file manually._
 `
 }
 
-export function createModulesListMarkdown(entries: GeneratedModuleEntry[]): string {
-  if (!entries.length) {
-    return '_No module skills discovered._\n'
+export function createModulesListMarkdown(entries: GeneratedModuleEntry[], skipped: SkillManifestSkipped[] = []): string {
+  let discovered = '_No module skills discovered._'
+
+  if (entries.length) {
+    discovered = entries
+      .map((entry) => {
+        const packageDir = sanitizeSegment(entry.packageName)
+        const skillDir = sanitizeSegment(entry.skillName)
+        const version = entry.version ? ` \`v${entry.version}\`` : ''
+        return `- **${entry.packageName}**${version} (scope: \`${entry.packageName}\`) -> [${entry.skillName}](./modules/${packageDir}/${skillDir}/SKILL.md)`
+      })
+      .join('\n')
   }
 
-  return entries
+  if (!skipped.length) {
+    return `${discovered}\n`
+  }
+
+  const skippedList = skipped
     .map((entry) => {
-      const packageDir = sanitizeSegment(entry.packageName)
-      const skillDir = sanitizeSegment(entry.skillName)
-      const version = entry.version ? ` \`v${entry.version}\`` : ''
-      return `- **${entry.packageName}**${version} (scope: \`${entry.packageName}\`) -> [${entry.skillName}](./modules/${packageDir}/${skillDir}/SKILL.md)`
+      return `- **${entry.packageName}** / \`${entry.skillName}\`: ${entry.reason}`
     })
-    .join('\n') + '\n'
+    .join('\n')
+
+  return `${discovered}\n\n## Skipped module skills (validation)\n${skippedList}\n`
 }
 
 export async function renderAutomdTemplate(contents: string, dir: string): Promise<string> {
@@ -411,6 +619,7 @@ export function createManifest(
   target: SkillHubTarget,
   targetDir: string,
   modules: GeneratedModuleEntry[],
+  skipped: SkillManifestSkipped[],
 ): SkillManifest {
   return {
     version: 1,
@@ -429,6 +638,9 @@ export function createManifest(
         destination: entry.destination,
         scriptsIncluded: entry.scriptsIncluded,
       })),
+    skipped: skipped
+      .slice()
+      .sort((a, b) => `${a.packageName}::${a.skillName}`.localeCompare(`${b.packageName}::${b.skillName}`)),
   }
 }
 

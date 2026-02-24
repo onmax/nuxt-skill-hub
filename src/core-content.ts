@@ -27,10 +27,15 @@ export async function loadCoreIndexTemplate(): Promise<string> {
   return await fsp.readFile(join(CORE_CONTENT_SOURCE_DIR, 'index.template.md'), 'utf8')
 }
 
+function yamlString(value: string): string {
+  return JSON.stringify(value)
+}
+
 export function createSkillEntrypoint(skillName: string): string {
+  const description = 'Nuxt super-skill for this project. Use as the entry point for Nuxt best practices plus installed module skill extensions.'
   return `---
-name: ${skillName}
-description: Nuxt super-skill for this project. Use as the entry point for Nuxt best practices plus installed module skill extensions.
+name: ${yamlString(skillName)}
+description: ${yamlString(description)}
 ---
 
 # Nuxt Super Skill (Experimental)

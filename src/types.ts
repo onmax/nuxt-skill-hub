@@ -31,7 +31,28 @@ export interface SkillHubContributionContext {
 }
 
 export interface ResolvedContribution extends SkillHubContribution {
+  skillName: string
   sourceRoot: string
+}
+
+export type ValidationSeverity = 'warning'
+
+export interface ValidationIssue {
+  severity: ValidationSeverity
+  packageName: string
+  skillName: string
+  reason: string
+}
+
+export interface ValidatedContribution {
+  contribution: ResolvedContribution
+  issues: ValidationIssue[]
+}
+
+export interface SkillManifestSkipped {
+  packageName: string
+  skillName: string
+  reason: string
 }
 
 export interface SkillManifest {
@@ -48,4 +69,5 @@ export interface SkillManifest {
     destination: string
     scriptsIncluded: boolean
   }>
+  skipped: SkillManifestSkipped[]
 }

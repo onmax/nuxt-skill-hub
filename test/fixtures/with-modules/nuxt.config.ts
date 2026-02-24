@@ -5,6 +5,7 @@ export default defineNuxtConfig({
     SkillHubModule,
     'test-nuxt-ui',
     'test-nuxt-seo',
+    'test-nuxt-bad',
   ],
   skillHub: {
     targetMode: 'explicit',
