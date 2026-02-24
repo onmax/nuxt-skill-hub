@@ -44,17 +44,25 @@ describe('resolveRemoteContributionsForPackage', () => {
     expect(result.contributions[0]?.official).toBe(true)
     expect(result.contributions[0]?.resolver).toBe('githubHeuristic')
     expect(result.skipped).toEqual([])
+    expect(downloadMock.mock.calls.some(call => call[0] === 'onmax/nuxt-skills')).toBe(false)
   })
 
-  it('returns skipped reason when github metadata is unavailable', async () => {
+  it('uses fallback map when github metadata is unavailable', async () => {
     const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
+    const downloadMock = vi.fn(async (repo: string, _ref: string, sourcePath: string, destinationDir: string) => {
+      if (repo === 'onmax/nuxt-skills' && sourcePath === 'skills/reka-ui') {
+        await createSkillFiles(destinationDir, 'reka-ui')
+        return { ok: true }
+      }
+      return { ok: false, status: 404, error: 'not found' }
+    })
 
     vi.resetModules()
     vi.doMock('../src/remote-fetch', () => ({
       parseGitHubRepo: vi.fn(() => null),
       fetchGitHubDefaultBranch: vi.fn(async () => 'main'),
       fetchGitHubFileText: vi.fn(async () => ({ ok: false, status: 404 })),
-      downloadGitHubDirectory: vi.fn(async () => ({ ok: false, status: 404, error: 'not found' })),
+      downloadGitHubDirectory: downloadMock,
     }))
 
     const { resolveRemoteContributionsForPackage } = await import('../src/remote-resolver')
@@ -68,13 +76,14 @@ describe('resolveRemoteContributionsForPackage', () => {
       enableGithubLookup: true,
     })
 
-    expect(result.contributions).toEqual([])
-    expect(result.skipped).toContainEqual({
-      packageName: 'reka-ui',
-      skillName: 'reka-ui',
-      reason: 'No GitHub repository metadata found',
-      sourceKind: 'github',
-    })
+    expect(result.contributions).toHaveLength(1)
+    expect(result.contributions[0]?.sourceKind).toBe('fallbackMap')
+    expect(result.contributions[0]?.official).toBe(false)
+    expect(result.contributions[0]?.resolver).toBe('mapEntry')
+    expect(result.contributions[0]?.sourceRepo).toBe('onmax/nuxt-skills')
+    expect(result.contributions[0]?.sourceRef).toBe('main')
+    expect(result.skipped).toEqual([])
+    expect(downloadMock.mock.calls.some(call => call[0] === 'onmax/nuxt-skills')).toBe(true)
   })
 
   it('uses remote package agents.skills before heuristics', async () => {

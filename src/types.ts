@@ -2,8 +2,8 @@ import type { SkillHubTarget } from './agents'
 
 export type TargetMode = 'detected' | 'explicit'
 export type IncludeScriptsMode = 'never' | 'allowlist' | 'always'
-export type SkillSourceKind = 'dist' | 'github'
-export type SkillResolverKind = 'agentsField' | 'githubHeuristic'
+export type SkillSourceKind = 'dist' | 'github' | 'fallbackMap'
+export type SkillResolverKind = 'agentsField' | 'githubHeuristic' | 'mapEntry'
 
 export interface ModuleOptions {
   enabled?: boolean

@@ -25,7 +25,7 @@ Core best-practices markdown is stored as shareable rule-pack files in:
 - [`core-content/rules/module-authoring.md`](./core-content/rules/module-authoring.md)
 - [`core-content/rules/migrations.md`](./core-content/rules/migrations.md)
 
-## Resolver flow (`dist -> github`)
+## Resolver flow (`dist -> github -> local fallback map`)
 
 For each installed Nuxt module package:
 1. Dist resolver:
@@ -35,8 +35,10 @@ For each installed Nuxt module package:
 - Resolve GitHub repo from package metadata.
 - Try refs in order (`v<version>`, `<version>`, default branch).
 - Read remote `package.json` `agents.skills`, then known-path heuristics.
+3. Local fallback map resolver (used when GitHub had no hit):
+- Use a built-in curated map sourced from [`onmax/nuxt-skills`](https://github.com/onmax/nuxt-skills) on `main`.
 Manifest output records provenance for each resolved module skill:
-- `sourceKind`: `dist | github`
+- `sourceKind`: `dist | github | fallbackMap`
 - `sourceRepo`, `sourceRef`, `sourcePath`
 - `official` and `resolver`
 
