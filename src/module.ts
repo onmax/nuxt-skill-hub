@@ -112,9 +112,6 @@ export default defineNuxtModule<ModuleOptions>({
     discoverDependencySkills: true,
     enableGithubLookup: true,
     githubLookupTimeoutMs: 1500,
-    enableFallbackMap: true,
-    fallbackMapRepo: 'onmax/nuxt-skills',
-    fallbackMapRef: 'main',
     includeScripts: 'never',
     scriptAllowlist: [],
     writeAgentsHint: false,
@@ -195,9 +192,6 @@ export default defineNuxtModule<ModuleOptions>({
           cacheRoot: remoteCacheRoot,
           githubLookupTimeoutMs: options.githubLookupTimeoutMs || 1500,
           enableGithubLookup: options.enableGithubLookup !== false,
-          enableFallbackMap: options.enableFallbackMap !== false,
-          fallbackMapRepo: options.fallbackMapRepo || 'onmax/nuxt-skills',
-          fallbackMapRef: options.fallbackMapRef || 'main',
         })
 
         remoteIssues.push(...remote.issues)

@@ -1,5 +1,4 @@
 import { join } from 'node:path'
-import { findFallbackMapEntry } from './fallback-map'
 import { findGitHubOverride } from './github-overrides'
 import { downloadGitHubDirectory, fetchGitHubDefaultBranch, fetchGitHubFileText, parseGitHubRepo } from './remote-fetch'
 import type { ResolvedContribution, SkillManifestSkipped, SkillSourceKind, ValidationIssue } from './types'
@@ -16,9 +15,6 @@ export interface RemoteResolveOptions {
   cacheRoot: string
   githubLookupTimeoutMs: number
   enableGithubLookup: boolean
-  enableFallbackMap: boolean
-  fallbackMapRepo: string
-  fallbackMapRef: string
 }
 
 export interface RemoteResolveResult {
@@ -34,7 +30,7 @@ interface RemoteSkillCandidate {
   sourceRepo: string
   sourceRef: string
   official: boolean
-  resolver: 'agentsField' | 'githubHeuristic' | 'mapEntry'
+  resolver: 'agentsField' | 'githubHeuristic'
 }
 
 function makeSkip(packageName: string, skillName: string, reason: string, sourceKind?: SkillSourceKind): SkillManifestSkipped {
@@ -267,15 +263,11 @@ async function resolveViaGitHub(
   }
 }
 
-async function resolveViaFallbackMap(
+export async function resolveRemoteContributionsForPackage(
   packageInfo: InstalledPackageInfo,
-  cacheRoot: string,
-  timeoutMs: number,
-  fallbackRepo: string,
-  fallbackRef: string,
+  options: RemoteResolveOptions,
 ): Promise<RemoteResolveResult> {
-  const entry = findFallbackMapEntry(packageInfo.packageName)
-  if (!entry) {
+  if (!options.enableGithubLookup) {
     return {
       contributions: [],
       issues: [],
@@ -283,62 +275,5 @@ async function resolveViaFallbackMap(
     }
   }
 
-  const resolved = await materializeCandidate(packageInfo, {
-    skillName: entry.skillName,
-    sourcePath: entry.path,
-    sourceKind: 'fallbackMap',
-    sourceRepo: fallbackRepo,
-    sourceRef: fallbackRef,
-    official: false,
-    resolver: 'mapEntry',
-  }, cacheRoot, timeoutMs)
-
-  if (resolved) {
-    return {
-      contributions: [resolved],
-      issues: [],
-      skipped: [],
-    }
-  }
-
-  return {
-    contributions: [],
-    issues: [],
-    skipped: [makeSkip(packageInfo.packageName, entry.skillName, 'Fallback map skill path could not be downloaded', 'fallbackMap')],
-  }
-}
-
-export async function resolveRemoteContributionsForPackage(
-  packageInfo: InstalledPackageInfo,
-  options: RemoteResolveOptions,
-): Promise<RemoteResolveResult> {
-  const githubResult = options.enableGithubLookup
-    ? await resolveViaGitHub(packageInfo, options.cacheRoot, options.githubLookupTimeoutMs)
-    : { contributions: [], issues: [], skipped: [] }
-
-  if (githubResult.contributions.length || !options.enableFallbackMap) {
-    return githubResult
-  }
-
-  const fallbackResult = await resolveViaFallbackMap(
-    packageInfo,
-    options.cacheRoot,
-    options.githubLookupTimeoutMs,
-    options.fallbackMapRepo,
-    options.fallbackMapRef,
-  )
-
-  if (fallbackResult.contributions.length) {
-    return {
-      contributions: fallbackResult.contributions,
-      issues: [...githubResult.issues, ...fallbackResult.issues],
-      skipped: fallbackResult.skipped,
-    }
-  }
-
-  return {
-    contributions: [],
-    issues: [...githubResult.issues, ...fallbackResult.issues],
-    skipped: [...githubResult.skipped, ...fallbackResult.skipped],
-  }
+  return await resolveViaGitHub(packageInfo, options.cacheRoot, options.githubLookupTimeoutMs)
 }

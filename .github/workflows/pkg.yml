@@ -1,14 +1,13 @@
-name: ci
+name: pkg.new
 
 on:
   push:
     branches: [main, master]
-    tags: ['v*']
   pull_request:
     branches: [main, master]
 
 jobs:
-  ci:
+  pkg:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -20,6 +19,5 @@ jobs:
 
       - run: pnpm install
       - run: pnpm run dev:prepare
-      - run: pnpm run lint
-      - run: pnpm run typecheck
-      - run: pnpm run test
+      - run: pnpm run prepack
+      - run: pnpm dlx pkg-pr-new publish

@@ -2,8 +2,8 @@ import type { SkillHubTarget } from './agents'
 
 export type TargetMode = 'detected' | 'explicit'
 export type IncludeScriptsMode = 'never' | 'allowlist' | 'always'
-export type SkillSourceKind = 'dist' | 'github' | 'fallbackMap'
-export type SkillResolverKind = 'agentsField' | 'githubHeuristic' | 'mapEntry'
+export type SkillSourceKind = 'dist' | 'github'
+export type SkillResolverKind = 'agentsField' | 'githubHeuristic'
 
 export interface ModuleOptions {
   enabled?: boolean
@@ -13,9 +13,6 @@ export interface ModuleOptions {
   discoverDependencySkills?: boolean
   enableGithubLookup?: boolean
   githubLookupTimeoutMs?: number
-  enableFallbackMap?: boolean
-  fallbackMapRepo?: string
-  fallbackMapRef?: string
   includeScripts?: IncludeScriptsMode
   scriptAllowlist?: string[]
   writeAgentsHint?: boolean

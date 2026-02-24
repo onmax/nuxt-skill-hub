@@ -52,7 +52,7 @@ export interface GeneratedModuleEntry {
   sourceRef?: string
   sourcePath?: string
   official: boolean
-  resolver: 'agentsField' | 'githubHeuristic' | 'mapEntry'
+  resolver: 'agentsField' | 'githubHeuristic'
 }
 
 export async function pathExists(path: string): Promise<boolean> {
