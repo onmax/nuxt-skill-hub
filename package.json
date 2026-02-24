@@ -1,0 +1,57 @@
+{
+  "name": "nuxt-skill-hub",
+  "version": "1.0.0",
+  "description": "Experimental Nuxt module that generates a consolidated super-skill with module extensions.",
+  "repository": "maxi/nuxt-skill-hub",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/types.d.mts",
+      "import": "./dist/module.mjs"
+    }
+  },
+  "main": "./dist/module.mjs",
+  "typesVersions": {
+    "*": {
+      ".": [
+        "./dist/types.d.mts"
+      ]
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "prepack": "nuxt-module-build build",
+    "dev": "npm run dev:prepare && nuxt dev playground",
+    "dev:build": "nuxt build playground",
+    "dev:prepare": "nuxt-module-build build --stub && nuxt-module-build prepare && nuxt prepare playground",
+    "release": "npm run lint && npm run test && npm run prepack && changelogen --release && npm publish && git push --follow-tags",
+    "lint": "eslint .",
+    "test": "pnpm run dev:prepare && vitest run",
+    "test:watch": "vitest watch",
+    "test:types": "pnpm run dev:prepare && vue-tsc --noEmit && cd playground && vue-tsc --noEmit",
+    "typecheck": "pnpm run test:types"
+  },
+  "dependencies": {
+    "@nuxt/kit": "^4.3.1",
+    "automd": "^0.4.3"
+  },
+  "devDependencies": {
+    "@nuxt/devtools": "^3.2.1",
+    "@nuxt/eslint-config": "^1.15.1",
+    "@nuxt/module-builder": "^1.0.2",
+    "@nuxt/schema": "^4.3.1",
+    "@nuxt/test-utils": "^4.0.0",
+    "@types/node": "latest",
+    "@vue/test-utils": "^2.4.6",
+    "changelogen": "^0.6.2",
+    "eslint": "^10.0.1",
+    "happy-dom": "^20.7.0",
+    "nuxt": "^4.3.1",
+    "typescript": "~5.9.3",
+    "vitest": "^4.0.18",
+    "vue-tsc": "^3.2.5"
+  }
+}
