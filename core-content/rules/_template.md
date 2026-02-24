@@ -1,5 +1,8 @@
 ## Rule Card Template
 
+### Rule ID
+Use a stable ID with pack prefix (example: `data-asyncdata-side-effect-free`).
+
 ### When to apply
 State the concrete task conditions.
 

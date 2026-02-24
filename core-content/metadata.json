@@ -1,11 +1,15 @@
 {
   "id": "nuxt-best-practices",
-  "version": "1.2.0",
+  "version": "1.4.0",
   "experimental": true,
   "description": "Nuxt-native best-practice rule packs for AI execution. Complements docs, not a replacement.",
   "sections": [
-    "architecture-boundaries",
     "data-fetching-ssr",
+    "hydration-consistency",
+    "architecture-boundaries",
+    "performance-rendering",
+    "plugins",
+    "nitro-h3-patterns",
     "server-routes-runtime-config",
     "module-authoring",
     "migrations"
