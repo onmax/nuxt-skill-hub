@@ -151,7 +151,7 @@ export default defineNuxtModule<ModuleOptions>({
 
         await writeFileIfChanged(join(skillRoot, 'SKILL.md'), createSkillEntrypoint(options.skillName || 'nuxt'))
 
-        const coreTemplateFiles = buildCoreTemplateFiles(coreRoot)
+        const coreTemplateFiles = await buildCoreTemplateFiles(coreRoot)
         for (const file of coreTemplateFiles) {
           await writeFileIfChanged(file.path, file.contents)
         }

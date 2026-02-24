@@ -9,7 +9,7 @@ import type {
   SkillHubContribution,
   SkillManifest,
 } from './types'
-import { CORE_INDEX_TEMPLATE, CORE_RULE_FILES } from './core-content'
+import { loadCoreIndexTemplate, loadCoreRuleFiles } from './core-content'
 import type { SkillHubTarget } from './agents'
 import { AGENT_TARGETS, detectInstalledTargets } from './agents'
 
@@ -333,11 +333,7 @@ async function copySkillTreeRecursive(sourceRoot: string, sourceDir: string, des
   }
 }
 
-export function resolveTargets(targetMode: 'detected' | 'explicit' | 'all', explicitTargets: SkillHubTarget[]): SkillHubTarget[] {
-  if (targetMode === 'all') {
-    return Object.keys(AGENT_TARGETS) as SkillHubTarget[]
-  }
-
+export function resolveTargets(targetMode: 'detected' | 'explicit', explicitTargets: SkillHubTarget[]): SkillHubTarget[] {
   if (targetMode === 'explicit') {
     return Array.from(new Set(explicitTargets))
   }
@@ -345,15 +341,18 @@ export function resolveTargets(targetMode: 'detected' | 'explicit' | 'all', expl
   return detectInstalledTargets()
 }
 
-export function buildCoreTemplateFiles(coreDir: string): Array<{ path: string, contents: string }> {
-  const files = Object.entries(CORE_RULE_FILES).map(([name, contents]) => ({
+export async function buildCoreTemplateFiles(coreDir: string): Promise<Array<{ path: string, contents: string }>> {
+  const coreRuleFiles = await loadCoreRuleFiles()
+  const coreIndexTemplate = await loadCoreIndexTemplate()
+
+  const files = Object.entries(coreRuleFiles).map(([name, contents]) => ({
     path: join(coreDir, name),
     contents,
   }))
 
   files.push({
     path: join(coreDir, 'index.template.md'),
-    contents: CORE_INDEX_TEMPLATE,
+    contents: coreIndexTemplate,
   })
 
   return files

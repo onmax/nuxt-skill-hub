@@ -13,6 +13,16 @@ This module is intentionally simple and experimental:
 - no automatic fallback packs
 - skills complement docs; they do not replace docs
 
+## Core content source
+
+Core best-practices markdown is stored as shareable source files in:
+- [`core-content/index.template.md`](./core-content/index.template.md)
+- [`core-content/architecture.md`](./core-content/architecture.md)
+- [`core-content/data-fetching-ssr.md`](./core-content/data-fetching-ssr.md)
+- [`core-content/server-runtime-security.md`](./core-content/server-runtime-security.md)
+- [`core-content/module-authoring.md`](./core-content/module-authoring.md)
+- [`core-content/migrations.md`](./core-content/migrations.md)
+
 ## Install
 
 ```bash
@@ -58,7 +68,7 @@ export default defineNuxtConfig({
   skillHub: {
     enabled: true,
     skillName: 'nuxt',
-    targetMode: 'detected', // 'detected' | 'explicit' | 'all'
+    targetMode: 'detected', // 'detected' | 'explicit'
     targets: ['github-copilot'],
     discoverDependencySkills: true,
     includeScripts: 'never', // 'never' | 'allowlist' | 'always'

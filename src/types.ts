@@ -1,6 +1,6 @@
 import type { SkillHubTarget } from './agents'
 
-export type TargetMode = 'detected' | 'explicit' | 'all'
+export type TargetMode = 'detected' | 'explicit'
 export type IncludeScriptsMode = 'never' | 'allowlist' | 'always'
 
 export interface ModuleOptions {

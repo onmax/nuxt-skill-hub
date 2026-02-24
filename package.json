@@ -20,7 +20,8 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "core-content"
   ],
   "scripts": {
     "prepack": "nuxt-module-build build",
