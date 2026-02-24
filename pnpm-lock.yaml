@@ -54,6 +54,9 @@ importers:
       vitest:
         specifier: ^4.0.18
         version: 4.0.18(@types/node@25.3.0)(happy-dom@20.7.0)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.2)
+      vue:
+        specifier: ^3.5.29
+        version: 3.5.29(typescript@5.9.3)
       vue-tsc:
         specifier: ^3.2.5
         version: 3.2.5(typescript@5.9.3)

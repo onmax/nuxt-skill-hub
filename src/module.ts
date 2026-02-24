@@ -9,11 +9,13 @@ import {
   createModuleDestination,
   createModulesListMarkdown,
   createReferencesIndexTemplate,
+  discoverInstalledPackageFromSpecifier,
   discoverLocalPackageSkills,
-  discoverPackageSkillsFromSpecifier,
+  discoverPackageSkillsFromInstalledPackage,
   emptyDir,
   ensureDir,
   extractModuleSpecifier,
+  type GeneratedModuleEntry,
   getTargetSkillRoot,
   isValidSkillName,
   normalizeContribution,
@@ -27,6 +29,7 @@ import {
   upsertAgentsHint,
   writeFileIfChanged,
 } from './internal'
+import { resolveRemoteContributionsForPackage } from './remote-resolver'
 import type {
   ModuleOptions,
   ResolvedContribution,
@@ -59,12 +62,33 @@ function issuesToSkipped(issues: ValidationIssue[]): SkillManifestSkipped[] {
         packageName: issue.packageName,
         skillName: issue.skillName,
         reason: issue.reason,
+        sourceKind: issue.sourceKind,
       })
       continue
     }
 
     const reasons = new Set(previous.reason.split('; ').filter(Boolean))
     reasons.add(issue.reason)
+    previous.reason = Array.from(reasons).join('; ')
+  }
+
+  return Array.from(byKey.values())
+    .sort((a, b) => `${a.packageName}::${a.skillName}`.localeCompare(`${b.packageName}::${b.skillName}`))
+}
+
+function mergeSkippedEntries(entries: SkillManifestSkipped[]): SkillManifestSkipped[] {
+  const byKey = new Map<string, SkillManifestSkipped>()
+
+  for (const entry of entries) {
+    const key = `${entry.packageName}::${entry.skillName}::${entry.sourceKind || ''}`
+    const previous = byKey.get(key)
+    if (!previous) {
+      byKey.set(key, { ...entry })
+      continue
+    }
+
+    const reasons = new Set(previous.reason.split('; ').filter(Boolean))
+    reasons.add(entry.reason)
     previous.reason = Array.from(reasons).join('; ')
   }
 
@@ -86,6 +110,11 @@ export default defineNuxtModule<ModuleOptions>({
     targets: [],
     targetMode: 'detected',
     discoverDependencySkills: true,
+    enableGithubLookup: true,
+    githubLookupTimeoutMs: 1500,
+    enableFallbackMap: true,
+    fallbackMapRepo: 'onmax/nuxt-skills',
+    fallbackMapRef: 'main',
     includeScripts: 'never',
     scriptAllowlist: [],
     writeAgentsHint: false,
@@ -121,6 +150,7 @@ export default defineNuxtModule<ModuleOptions>({
       await callSkillContributeHook('skill-hub:contribute', contributionContext)
 
       const discoveries = []
+      const installedPackages = []
 
       if (options.discoverDependencySkills) {
         const moduleSpecifiers = (nuxt.options.modules || [])
@@ -129,7 +159,13 @@ export default defineNuxtModule<ModuleOptions>({
 
         const seenSpecifiers = Array.from(new Set(moduleSpecifiers))
         for (const specifier of seenSpecifiers) {
-          const discovered = await discoverPackageSkillsFromSpecifier(specifier, nuxt.options.rootDir)
+          const installedPackage = await discoverInstalledPackageFromSpecifier(specifier, nuxt.options.rootDir)
+          if (!installedPackage) {
+            continue
+          }
+
+          installedPackages.push(installedPackage)
+          const discovered = discoverPackageSkillsFromInstalledPackage(installedPackage, 'dist')
           if (discovered) {
             discoveries.push(discovered)
           }
@@ -142,6 +178,34 @@ export default defineNuxtModule<ModuleOptions>({
       }
 
       const discoveredContributions = await resolveContributions(discoveries)
+      const distResolvedPackages = new Set(discoveredContributions.contributions.map(item => item.packageName))
+
+      const remoteIssues: ValidationIssue[] = []
+      const remoteSkipped: SkillManifestSkipped[] = []
+      const remoteContributions: ResolvedContribution[] = []
+      const remoteCacheRoot = join(nuxt.options.rootDir, '.nuxt', 'skill-hub-cache')
+      await emptyDir(remoteCacheRoot)
+
+      for (const pkg of installedPackages) {
+        if (distResolvedPackages.has(pkg.packageName)) {
+          continue
+        }
+
+        const remote = await resolveRemoteContributionsForPackage(pkg, {
+          cacheRoot: remoteCacheRoot,
+          githubLookupTimeoutMs: options.githubLookupTimeoutMs || 1500,
+          enableGithubLookup: options.enableGithubLookup !== false,
+          enableFallbackMap: options.enableFallbackMap !== false,
+          fallbackMapRepo: options.fallbackMapRepo || 'onmax/nuxt-skills',
+          fallbackMapRef: options.fallbackMapRef || 'main',
+        })
+
+        remoteIssues.push(...remote.issues)
+        remoteSkipped.push(...remote.skipped)
+        remoteContributions.push(...remote.contributions)
+      }
+
+      const validatedRemote = await validateResolvedContributions(sortAndDedupeContributions(remoteContributions))
 
       const resolvedManual = await Promise.all(
         manualContributions.map(contribution => resolveManualContribution(nuxt.options.rootDir, contribution)),
@@ -150,13 +214,19 @@ export default defineNuxtModule<ModuleOptions>({
 
       const contributions = sortAndDedupeContributions([
         ...discoveredContributions.contributions,
+        ...validatedRemote.contributions,
         ...validatedManual.contributions,
       ])
       const validationIssues = [
         ...discoveredContributions.issues,
+        ...remoteIssues,
+        ...validatedRemote.issues,
         ...validatedManual.issues,
       ]
-      const skipped = issuesToSkipped(validationIssues)
+      const skipped = mergeSkippedEntries([
+        ...issuesToSkipped(validationIssues),
+        ...remoteSkipped,
+      ])
 
       for (const issue of validationIssues) {
         logger.warn(`[validation] ${issue.packageName}/${issue.skillName}: ${issue.reason}`)
@@ -199,21 +269,16 @@ export default defineNuxtModule<ModuleOptions>({
         const coreIndexContent = await renderAutomdTemplate(coreIndexTemplate, coreRoot)
         await writeFileIfChanged(join(coreRoot, 'index.md'), coreIndexContent)
 
-        const generatedEntries: Array<{
-          packageName: string
-          version?: string
-          skillName: string
-          sourceDir: string
-          destination: string
-          scriptsIncluded: boolean
-        }> = []
+        const generatedEntries: GeneratedModuleEntry[] = []
 
         for (const contribution of contributions) {
-          const includeScripts = shouldIncludeScripts(
-            options.includeScripts || 'never',
-            options.scriptAllowlist || [],
-            contribution.packageName,
-          )
+          const includeScripts = contribution.forceIncludeScripts
+            ? true
+            : shouldIncludeScripts(
+                options.includeScripts || 'never',
+                options.scriptAllowlist || [],
+                contribution.packageName,
+              )
 
           const destination = createModuleDestination(modulesRoot, contribution)
           await copySkillTree(contribution.sourceDir, destination, includeScripts)
@@ -225,6 +290,12 @@ export default defineNuxtModule<ModuleOptions>({
             sourceDir: contribution.sourceDir,
             destination: toPosix(relative(skillRoot, destination)),
             scriptsIncluded: includeScripts,
+            sourceKind: contribution.sourceKind,
+            sourceRepo: contribution.sourceRepo,
+            sourceRef: contribution.sourceRef,
+            sourcePath: contribution.sourcePath,
+            official: contribution.official,
+            resolver: contribution.resolver,
           })
         }
 

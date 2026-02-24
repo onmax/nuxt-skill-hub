@@ -9,6 +9,7 @@ import type {
   SkillHubContribution,
   SkillManifest,
   SkillManifestSkipped,
+  SkillSourceKind,
   ValidationIssue,
   ValidatedContribution,
 } from './types'
@@ -30,6 +31,15 @@ export interface PackageSkillDiscovery {
   issues: ValidationIssue[]
 }
 
+export interface InstalledPackageMetadata {
+  packageName: string
+  version?: string
+  packageRoot: string
+  repository?: string
+  homepage?: string
+  packageData: unknown
+}
+
 export interface GeneratedModuleEntry {
   packageName: string
   version?: string
@@ -37,6 +47,12 @@ export interface GeneratedModuleEntry {
   sourceDir: string
   destination: string
   scriptsIncluded: boolean
+  sourceKind: SkillSourceKind
+  sourceRepo?: string
+  sourceRef?: string
+  sourcePath?: string
+  official: boolean
+  resolver: 'agentsField' | 'githubHeuristic' | 'mapEntry'
 }
 
 export async function pathExists(path: string): Promise<boolean> {
@@ -94,12 +110,13 @@ function readPackageVersion(pkg: unknown): string | undefined {
   return undefined
 }
 
-function createValidationIssue(packageName: string, skillName: string, reason: string): ValidationIssue {
+function createValidationIssue(packageName: string, skillName: string, reason: string, sourceKind?: SkillSourceKind): ValidationIssue {
   return {
     severity: 'warning',
     packageName,
     skillName,
     reason,
+    sourceKind,
   }
 }
 
@@ -124,7 +141,7 @@ export interface ParsedAgentSkillDeclarations {
   issues: ValidationIssue[]
 }
 
-export function parseAgentSkillDeclarations(pkg: unknown, packageName: string): ParsedAgentSkillDeclarations {
+export function parseAgentSkillDeclarations(pkg: unknown, packageName: string, sourceKind?: SkillSourceKind): ParsedAgentSkillDeclarations {
   const raw = pkg && typeof pkg === 'object'
     ? (pkg as { agents?: { skills?: unknown } }).agents?.skills
     : undefined
@@ -138,7 +155,7 @@ export function parseAgentSkillDeclarations(pkg: unknown, packageName: string): 
 
   for (const [index, entry] of raw.entries()) {
     if (!entry || typeof entry !== 'object') {
-      issues.push(createValidationIssue(packageName, `entry-${index + 1}`, 'agents.skills entry must be an object'))
+      issues.push(createValidationIssue(packageName, `entry-${index + 1}`, 'agents.skills entry must be an object', sourceKind))
       continue
     }
 
@@ -146,17 +163,17 @@ export function parseAgentSkillDeclarations(pkg: unknown, packageName: string): 
     const path = typeof entry.path === 'string' ? entry.path.trim() : ''
 
     if (!name) {
-      issues.push(createValidationIssue(packageName, `entry-${index + 1}`, 'agents.skills entry is missing a non-empty "name"'))
+      issues.push(createValidationIssue(packageName, `entry-${index + 1}`, 'agents.skills entry is missing a non-empty "name"', sourceKind))
       continue
     }
 
     if (!path) {
-      issues.push(createValidationIssue(packageName, name, 'agents.skills entry is missing a non-empty "path"'))
+      issues.push(createValidationIssue(packageName, name, 'agents.skills entry is missing a non-empty "path"', sourceKind))
       continue
     }
 
     if (!isValidSkillName(name)) {
-      issues.push(createValidationIssue(packageName, name, 'skill name must be hyphen-case, lowercase, <=64 chars, and cannot contain consecutive hyphens'))
+      issues.push(createValidationIssue(packageName, name, 'skill name must be hyphen-case, lowercase, <=64 chars, and cannot contain consecutive hyphens', sourceKind))
       continue
     }
 
@@ -283,7 +300,34 @@ async function readJson(path: string): Promise<unknown> {
   return JSON.parse(raw) as unknown
 }
 
-export async function discoverPackageSkillsFromSpecifier(specifier: string, rootDir: string): Promise<PackageSkillDiscovery | null> {
+function readRepositoryUrl(pkg: unknown): string | undefined {
+  if (!pkg || typeof pkg !== 'object') {
+    return undefined
+  }
+
+  const repository = (pkg as { repository?: unknown }).repository
+  if (typeof repository === 'string') {
+    return repository
+  }
+
+  if (repository && typeof repository === 'object' && typeof (repository as { url?: unknown }).url === 'string') {
+    return (repository as { url: string }).url
+  }
+
+  return undefined
+}
+
+function readHomepage(pkg: unknown): string | undefined {
+  if (!pkg || typeof pkg !== 'object') {
+    return undefined
+  }
+
+  return typeof (pkg as { homepage?: unknown }).homepage === 'string'
+    ? (pkg as { homepage: string }).homepage
+    : undefined
+}
+
+export async function discoverInstalledPackageFromSpecifier(specifier: string, rootDir: string): Promise<InstalledPackageMetadata | null> {
   if (!isPackageSpecifier(specifier)) {
     return null
   }
@@ -297,7 +341,21 @@ export async function discoverPackageSkillsFromSpecifier(specifier: string, root
   const pkg = await readJson(packageJsonPath)
   const packageName = readPackageName(pkg, packageNameFromSpecifier(specifier))
   const version = readPackageVersion(pkg)
-  const parsed = parseAgentSkillDeclarations(pkg, packageName)
+  return {
+    packageName,
+    version,
+    packageRoot,
+    repository: readRepositoryUrl(pkg),
+    homepage: readHomepage(pkg),
+    packageData: pkg,
+  }
+}
+
+export function discoverPackageSkillsFromInstalledPackage(
+  installedPackage: InstalledPackageMetadata,
+  sourceKind: SkillSourceKind = 'dist',
+): PackageSkillDiscovery | null {
+  const parsed = parseAgentSkillDeclarations(installedPackage.packageData, installedPackage.packageName, sourceKind)
   const skills = parsed.skills
 
   if (!skills.length && !parsed.issues.length) {
@@ -305,12 +363,21 @@ export async function discoverPackageSkillsFromSpecifier(specifier: string, root
   }
 
   return {
-    packageName,
-    version,
-    packageRoot,
+    packageName: installedPackage.packageName,
+    version: installedPackage.version,
+    packageRoot: installedPackage.packageRoot,
     skills,
     issues: parsed.issues,
   }
+}
+
+export async function discoverPackageSkillsFromSpecifier(specifier: string, rootDir: string): Promise<PackageSkillDiscovery | null> {
+  const installedPackage = await discoverInstalledPackageFromSpecifier(specifier, rootDir)
+  if (!installedPackage) {
+    return null
+  }
+
+  return discoverPackageSkillsFromInstalledPackage(installedPackage, 'dist')
 }
 
 export async function discoverLocalPackageSkills(rootDir: string): Promise<PackageSkillDiscovery | null> {
@@ -321,7 +388,7 @@ export async function discoverLocalPackageSkills(rootDir: string): Promise<Packa
 
   const pkg = await readJson(packageJsonPath)
   const packageName = readPackageName(pkg, 'local-project')
-  const parsed = parseAgentSkillDeclarations(pkg, packageName)
+  const parsed = parseAgentSkillDeclarations(pkg, packageName, 'dist')
   const skills = parsed.skills
   if (!skills.length && !parsed.issues.length) {
     return null
@@ -347,6 +414,13 @@ export function normalizeContribution(contribution: SkillHubContribution, source
     sourceDir,
     sourceRoot,
     skillName: normalizeSkillName(contribution.skillName, sourceDir),
+    sourceKind: contribution.sourceKind || 'dist',
+    sourceRepo: contribution.sourceRepo,
+    sourceRef: contribution.sourceRef,
+    sourcePath: contribution.sourcePath,
+    official: contribution.official ?? true,
+    resolver: contribution.resolver || 'agentsField',
+    forceIncludeScripts: contribution.forceIncludeScripts ?? false,
   }
 }
 
@@ -354,40 +428,40 @@ async function validateContribution(contribution: ResolvedContribution): Promise
   const issues: ValidationIssue[] = []
 
   if (!isSubPath(contribution.sourceRoot, contribution.sourceDir)) {
-    issues.push(createValidationIssue(contribution.packageName, contribution.skillName, 'skill path must stay within package root'))
+    issues.push(createValidationIssue(contribution.packageName, contribution.skillName, 'skill path must stay within package root', contribution.sourceKind))
   }
 
   if (!isValidSkillName(contribution.skillName)) {
-    issues.push(createValidationIssue(contribution.packageName, contribution.skillName, 'skill name must be hyphen-case, lowercase, <=64 chars, and cannot contain consecutive hyphens'))
+    issues.push(createValidationIssue(contribution.packageName, contribution.skillName, 'skill name must be hyphen-case, lowercase, <=64 chars, and cannot contain consecutive hyphens', contribution.sourceKind))
   }
 
   const sourceDirName = basename(contribution.sourceDir)
   if (sourceDirName !== contribution.skillName) {
-    issues.push(createValidationIssue(contribution.packageName, contribution.skillName, `skill directory name "${sourceDirName}" must match declared skill name`))
+    issues.push(createValidationIssue(contribution.packageName, contribution.skillName, `skill directory name "${sourceDirName}" must match declared skill name`, contribution.sourceKind))
   }
 
   const skillFilePath = join(contribution.sourceDir, 'SKILL.md')
   if (!(await pathExists(skillFilePath))) {
-    issues.push(createValidationIssue(contribution.packageName, contribution.skillName, 'SKILL.md is required at skill root'))
+    issues.push(createValidationIssue(contribution.packageName, contribution.skillName, 'SKILL.md is required at skill root', contribution.sourceKind))
     return { contribution, issues }
   }
 
   const skillContents = await fsp.readFile(skillFilePath, 'utf8')
   const frontmatter = parseSkillFrontmatter(skillContents)
   if (!frontmatter) {
-    issues.push(createValidationIssue(contribution.packageName, contribution.skillName, 'SKILL.md must include YAML frontmatter'))
+    issues.push(createValidationIssue(contribution.packageName, contribution.skillName, 'SKILL.md must include YAML frontmatter', contribution.sourceKind))
     return { contribution, issues }
   }
 
   if (!frontmatter.name) {
-    issues.push(createValidationIssue(contribution.packageName, contribution.skillName, 'SKILL.md frontmatter must include non-empty "name"'))
+    issues.push(createValidationIssue(contribution.packageName, contribution.skillName, 'SKILL.md frontmatter must include non-empty "name"', contribution.sourceKind))
   }
   else if (frontmatter.name !== contribution.skillName) {
-    issues.push(createValidationIssue(contribution.packageName, contribution.skillName, `SKILL.md frontmatter name "${frontmatter.name}" must match declared skill name`))
+    issues.push(createValidationIssue(contribution.packageName, contribution.skillName, `SKILL.md frontmatter name "${frontmatter.name}" must match declared skill name`, contribution.sourceKind))
   }
 
   if (!frontmatter.description) {
-    issues.push(createValidationIssue(contribution.packageName, contribution.skillName, 'SKILL.md frontmatter must include non-empty "description"'))
+    issues.push(createValidationIssue(contribution.packageName, contribution.skillName, 'SKILL.md frontmatter must include non-empty "description"', contribution.sourceKind))
   }
 
   return { contribution, issues }
@@ -582,7 +656,8 @@ export function createModulesListMarkdown(entries: GeneratedModuleEntry[], skipp
         const packageDir = sanitizeSegment(entry.packageName)
         const skillDir = sanitizeSegment(entry.skillName)
         const version = entry.version ? ` \`v${entry.version}\`` : ''
-        return `- **${entry.packageName}**${version} (scope: \`${entry.packageName}\`) -> [${entry.skillName}](./modules/${packageDir}/${skillDir}/SKILL.md)`
+        const source = `source: \`${entry.sourceKind}\``
+        return `- **${entry.packageName}**${version} (${source}, scope: \`${entry.packageName}\`) -> [${entry.skillName}](./modules/${packageDir}/${skillDir}/SKILL.md)`
       })
       .join('\n')
   }
@@ -593,7 +668,8 @@ export function createModulesListMarkdown(entries: GeneratedModuleEntry[], skipp
 
   const skippedList = skipped
     .map((entry) => {
-      return `- **${entry.packageName}** / \`${entry.skillName}\`: ${entry.reason}`
+      const source = entry.sourceKind ? ` (\`${entry.sourceKind}\`)` : ''
+      return `- **${entry.packageName}**${source} / \`${entry.skillName}\`: ${entry.reason}`
     })
     .join('\n')
 
@@ -637,6 +713,12 @@ export function createManifest(
         sourceDir: entry.sourceDir,
         destination: entry.destination,
         scriptsIncluded: entry.scriptsIncluded,
+        sourceKind: entry.sourceKind,
+        sourceRepo: entry.sourceRepo,
+        sourceRef: entry.sourceRef,
+        sourcePath: entry.sourcePath,
+        official: entry.official,
+        resolver: entry.resolver,
       })),
     skipped: skipped
       .slice()

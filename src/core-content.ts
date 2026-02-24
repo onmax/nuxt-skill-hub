@@ -2,23 +2,37 @@ import { promises as fsp } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const CONTENT_FILES = [
-  'architecture.md',
-  'data-fetching-ssr.md',
-  'server-runtime-security.md',
-  'module-authoring.md',
-  'migrations.md',
-] as const
-
 export const CORE_CONTENT_SOURCE_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '../core-content')
 
+async function readFilesRecursively(dir: string, prefix = ''): Promise<Array<[string, string]>> {
+  const entries = await fsp.readdir(dir, { withFileTypes: true })
+  const files: Array<[string, string]> = []
+
+  for (const entry of entries) {
+    if (entry.name.startsWith('.')) {
+      continue
+    }
+
+    const relativePath = prefix ? `${prefix}/${entry.name}` : entry.name
+    const absolutePath = join(dir, entry.name)
+
+    if (entry.isDirectory()) {
+      const nested = await readFilesRecursively(absolutePath, relativePath)
+      files.push(...nested)
+      continue
+    }
+
+    if (entry.isFile() && relativePath !== 'index.template.md') {
+      files.push([relativePath, await fsp.readFile(absolutePath, 'utf8')])
+    }
+  }
+
+  return files
+}
+
 export async function loadCoreRuleFiles(): Promise<Record<string, string>> {
-  const entries = await Promise.all(
-    CONTENT_FILES.map(async (file) => {
-      const contents = await fsp.readFile(join(CORE_CONTENT_SOURCE_DIR, file), 'utf8')
-      return [file, contents] as const
-    }),
-  )
+  const entries = await readFilesRecursively(CORE_CONTENT_SOURCE_DIR)
+  entries.sort((a, b) => a[0].localeCompare(b[0]))
 
   return Object.fromEntries(entries)
 }

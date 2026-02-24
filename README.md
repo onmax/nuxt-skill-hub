@@ -5,23 +5,43 @@
 [![License][license-src]][license-href]
 [![Nuxt][nuxt-src]][nuxt-href]
 
-Experimental Nuxt module that generates one consolidated project skill entrypoint (`nuxt`) and expands it with installed module skills discovered from `package.json -> agents.skills`.
+Experimental Nuxt module that generates one consolidated project skill entrypoint (`nuxt`) and expands it with installed module skills.
 
 This module is intentionally simple and experimental:
 - Nuxt-first best-practices core
 - module-scoped extensions under `references/modules/<pkg>/<skill>/`
-- no automatic fallback packs
 - skills complement docs; they do not replace docs
 
 ## Core content source
 
-Core best-practices markdown is stored as shareable source files in:
+Core best-practices markdown is stored as shareable rule-pack files in:
+- [`core-content/metadata.json`](./core-content/metadata.json)
 - [`core-content/index.template.md`](./core-content/index.template.md)
-- [`core-content/architecture.md`](./core-content/architecture.md)
-- [`core-content/data-fetching-ssr.md`](./core-content/data-fetching-ssr.md)
-- [`core-content/server-runtime-security.md`](./core-content/server-runtime-security.md)
-- [`core-content/module-authoring.md`](./core-content/module-authoring.md)
-- [`core-content/migrations.md`](./core-content/migrations.md)
+- [`core-content/rules/_sections.md`](./core-content/rules/_sections.md)
+- [`core-content/rules/_template.md`](./core-content/rules/_template.md)
+- [`core-content/rules/architecture-boundaries.md`](./core-content/rules/architecture-boundaries.md)
+- [`core-content/rules/data-fetching-ssr.md`](./core-content/rules/data-fetching-ssr.md)
+- [`core-content/rules/server-routes-runtime-config.md`](./core-content/rules/server-routes-runtime-config.md)
+- [`core-content/rules/module-authoring.md`](./core-content/rules/module-authoring.md)
+- [`core-content/rules/migrations.md`](./core-content/rules/migrations.md)
+
+## Resolver flow (`dist -> github -> fallback map`)
+
+For each installed Nuxt module package:
+1. Dist resolver:
+- Read local installed `package.json`.
+- Parse and validate `agents.skills`.
+2. GitHub resolver (default enabled if dist had no valid skill):
+- Resolve GitHub repo from package metadata.
+- Try refs in order (`v<version>`, `<version>`, default branch).
+- Read remote `package.json` `agents.skills`, then known-path heuristics.
+3. Fallback map resolver (default enabled if GitHub unresolved):
+- Use built-in curated map sourced from [`onmax/nuxt-skills`](https://github.com/onmax/nuxt-skills).
+
+Manifest output records provenance for each resolved module skill:
+- `sourceKind`: `dist | github | fallbackMap`
+- `sourceRepo`, `sourceRef`, `sourcePath`
+- `official` and `resolver`
 
 ## Install
 
@@ -71,6 +91,11 @@ export default defineNuxtConfig({
     targetMode: 'detected', // 'detected' | 'explicit'
     targets: ['github-copilot'],
     discoverDependencySkills: true,
+    enableGithubLookup: true,
+    githubLookupTimeoutMs: 1500,
+    enableFallbackMap: true,
+    fallbackMapRepo: 'onmax/nuxt-skills',
+    fallbackMapRef: 'main',
     includeScripts: 'never', // 'never' | 'allowlist' | 'always'
     scriptAllowlist: ['my-module'],
     writeAgentsHint: false,
@@ -101,11 +126,16 @@ Validation rules for contributed module skills:
 
 When validation fails, the module logs warnings and skips the invalid skill. Generation continues.
 
+Scope rule for module authors:
+- Module skills should only document module-specific behavior.
+- Core guidance remains default.
+- Module guidance overrides core only in explicit module scope.
+
 ## Manifest
 
 Generated `manifest.json` includes:
-- `modules`: copied/active module skills.
-- `skipped`: validation-skipped module skills with reasons.
+- `modules`: copied/active module skills with source metadata.
+- `skipped`: validation/network-skipped module skills with reasons.
 
 ## Local contribution hook
 

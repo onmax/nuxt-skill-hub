@@ -98,17 +98,21 @@ describe('module-expanded generation', () => {
     await expect(fsp.readFile(join(skillRoot, 'references/modules/test-nuxt-seo/nuxt-seo/scripts/check.sh'), 'utf8')).resolves.toContain('seo')
 
     const manifest = JSON.parse(manifestRaw) as {
-      modules: Array<{ packageName: string, scriptsIncluded: boolean }>
-      skipped: Array<{ packageName: string, skillName: string, reason: string }>
+      modules: Array<{ packageName: string, scriptsIncluded: boolean, sourceKind: string, resolver: string, official: boolean }>
+      skipped: Array<{ packageName: string, skillName: string, reason: string, sourceKind?: string }>
     }
 
     expect(manifest.modules.map(m => m.packageName)).toEqual(['test-nuxt-seo', 'test-nuxt-ui'])
     expect(manifest.modules.find(m => m.packageName === 'test-nuxt-seo')?.scriptsIncluded).toBe(true)
     expect(manifest.modules.find(m => m.packageName === 'test-nuxt-ui')?.scriptsIncluded).toBe(false)
+    expect(manifest.modules.every(m => m.sourceKind === 'dist')).toBe(true)
+    expect(manifest.modules.every(m => m.resolver === 'agentsField')).toBe(true)
+    expect(manifest.modules.every(m => m.official)).toBe(true)
     expect(manifest.skipped).toContainEqual({
       packageName: 'test-nuxt-bad',
       skillName: 'nuxt-bad',
       reason: 'SKILL.md frontmatter must include non-empty "description"',
+      sourceKind: 'dist',
     })
   })
 })

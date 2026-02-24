@@ -1,26 +1,14 @@
 # Nuxt Best Practices
 
-These notes are for AI execution quality in this repository.
-They complement docs; they do not replace official documentation.
+These notes improve execution quality for AI agents in this repository.
+They complement Nuxt docs; they do not replace official documentation.
 
 ## How to use this file
-- Start with the section that matches your task.
-- Apply core guidance by default.
-- Module guidance can override core guidance only inside module scope.
+- Read one relevant rule-pack section, not everything.
+- Core guidance is default.
+- Module guidance overrides core only inside explicit module scope.
 
-## Sections
+## Rule Packs
 
-<!-- automd:file src="./architecture.md" -->
-<!-- /automd -->
-
-<!-- automd:file src="./data-fetching-ssr.md" -->
-<!-- /automd -->
-
-<!-- automd:file src="./server-runtime-security.md" -->
-<!-- /automd -->
-
-<!-- automd:file src="./module-authoring.md" -->
-<!-- /automd -->
-
-<!-- automd:file src="./migrations.md" -->
+<!-- automd:file src="./rules/_sections.md" -->
 <!-- /automd -->
