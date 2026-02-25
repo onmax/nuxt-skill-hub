@@ -81,7 +81,7 @@ describe('module-expanded generation', () => {
     const html = await $fetch('/')
     expect(html).toContain('<div>with-modules</div>')
 
-    const skillRoot = join(rootDir, '.github/skills/nuxt')
+    const skillRoot = join(rootDir, '.claude/skills/nuxt')
     const index = await fsp.readFile(join(skillRoot, 'references/index.md'), 'utf8')
     const manifestRaw = await fsp.readFile(join(skillRoot, 'manifest.json'), 'utf8')
 

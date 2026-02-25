@@ -13,7 +13,7 @@ describe('core-only generation', () => {
     const html = await $fetch('/')
     expect(html).toContain('<div>core-only</div>')
 
-    const skillRoot = join(rootDir, '.github/skills/nuxt')
+    const skillRoot = join(rootDir, '.claude/skills/nuxt')
     const entry = await fsp.readFile(join(skillRoot, 'SKILL.md'), 'utf8')
     const index = await fsp.readFile(join(skillRoot, 'references/index.md'), 'utf8')
     const core = await fsp.readFile(join(skillRoot, 'references/core/index.md'), 'utf8')

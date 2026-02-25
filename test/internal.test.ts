@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
+  getTargetSkillRoot,
   isValidSkillName,
   parseAgentSkillDeclarations,
   parseSkillFrontmatter,
@@ -138,5 +139,25 @@ describe('shouldIncludeScripts', () => {
     expect(shouldIncludeScripts('allowlist', ['test-nuxt-seo'], 'test-nuxt-seo')).toBe(true)
     expect(shouldIncludeScripts('allowlist', ['test-nuxt-seo'], 'test-nuxt-ui')).toBe(false)
     expect(shouldIncludeScripts('always', [], 'test-nuxt-ui')).toBe(true)
+  })
+})
+
+describe('getTargetSkillRoot', () => {
+  it('mirrors claude-code skills dir to project-local path', () => {
+    const root = '/tmp/project'
+    const resolved = getTargetSkillRoot(root, 'claude-code', 'nuxt')
+
+    expect(resolved.targetDir).toBe(join(root, '.claude', 'skills'))
+    expect(resolved.skillRoot).toBe(join(root, '.claude', 'skills', 'nuxt'))
+    expect(resolved.warning).toBeUndefined()
+  })
+
+  it('falls back to sanitized target path when target cannot be resolved', () => {
+    const root = '/tmp/project'
+    const resolved = getTargetSkillRoot(root, 'unknown-target', 'nuxt')
+
+    expect(resolved.targetDir).toBe(join(root, '.unknown-target', 'skills'))
+    expect(resolved.skillRoot).toBe(join(root, '.unknown-target', 'skills', 'nuxt'))
+    expect(resolved.warning).toContain('cannot be resolved from unagent')
   })
 })

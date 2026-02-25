@@ -226,11 +226,20 @@ export default defineNuxtModule<ModuleOptions>({
         logger.warn(`[validation] ${issue.packageName}/${issue.skillName}: ${issue.reason}`)
       }
 
-      const targets = resolveTargets(
+      const targetResolution = resolveTargets(
         options.targetMode || 'detected',
         options.targets || [],
         nuxt.options.rootDir,
       )
+      const targets = targetResolution.targets
+
+      for (const invalidTarget of targetResolution.invalidTargets) {
+        if (invalidTarget.reason === 'unknown-target') {
+          logger.warn(`Target "${invalidTarget.target}" is unknown in unagent and was skipped.`)
+          continue
+        }
+        logger.warn(`Target "${invalidTarget.target}" has no skillsDir in unagent and was skipped.`)
+      }
 
       if (!targets.length) {
         logger.warn('No detected targets. Set skillHub.targetMode="explicit" with skillHub.targets to force export.')
@@ -240,7 +249,10 @@ export default defineNuxtModule<ModuleOptions>({
       const generatedAt = new Date().toISOString()
 
       for (const target of targets) {
-        const { targetDir, skillRoot } = getTargetSkillRoot(nuxt.options.rootDir, target, resolvedSkillName)
+        const { targetDir, skillRoot, warning } = getTargetSkillRoot(nuxt.options.rootDir, target, resolvedSkillName)
+        if (warning) {
+          logger.warn(warning)
+        }
         const referencesRoot = join(skillRoot, 'references')
         const coreRoot = join(referencesRoot, 'core')
         const modulesRoot = join(referencesRoot, 'modules')

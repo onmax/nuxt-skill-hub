@@ -1,5 +1,6 @@
 import { createRequire } from 'node:module'
 import { promises as fsp } from 'node:fs'
+import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { transform } from 'automd'
 import type {
@@ -14,8 +15,8 @@ import type {
   ValidatedContribution,
 } from './types'
 import { loadCoreIndexTemplate, loadCoreRuleFiles } from './core-content'
-import type { SkillHubTarget } from './agents'
-import { AGENT_TARGETS, detectInstalledTargets } from './agents'
+import type { InvalidTarget, SkillHubTarget } from './agents'
+import { detectInstalledTargets, resolveAgentTargetConfig, validateTargets } from './agents'
 
 const require = createRequire(import.meta.url)
 const MANAGED_HINT_START = '<!-- nuxt-skill-hub:start -->'
@@ -603,12 +604,23 @@ async function copySkillTreeRecursive(sourceRoot: string, sourceDir: string, des
   }
 }
 
-export function resolveTargets(targetMode: 'detected' | 'explicit', explicitTargets: SkillHubTarget[], rootDir: string): SkillHubTarget[] {
+export function resolveTargets(
+  targetMode: 'detected' | 'explicit',
+  explicitTargets: SkillHubTarget[],
+  rootDir: string,
+): { targets: SkillHubTarget[], invalidTargets: InvalidTarget[] } {
   if (targetMode === 'explicit') {
-    return Array.from(new Set(explicitTargets))
+    const { valid, invalid } = validateTargets(explicitTargets)
+    return {
+      targets: valid,
+      invalidTargets: invalid,
+    }
   }
 
-  return detectInstalledTargets(rootDir)
+  return {
+    targets: detectInstalledTargets(rootDir),
+    invalidTargets: [],
+  }
 }
 
 export async function buildCoreTemplateFiles(coreDir: string): Promise<Array<{ path: string, contents: string }>> {
@@ -726,10 +738,42 @@ export function createManifest(
   }
 }
 
-export function getTargetSkillRoot(rootDir: string, target: SkillHubTarget, skillName: string): { targetDir: string, skillRoot: string } {
-  const targetDir = resolve(rootDir, AGENT_TARGETS[target].projectSkillsDir)
+export function getTargetSkillRoot(
+  rootDir: string,
+  target: SkillHubTarget,
+  skillName: string,
+): { targetDir: string, skillRoot: string, warning?: string } {
+  const targetConfig = resolveAgentTargetConfig(target)
+  if (!targetConfig) {
+    const targetDir = resolve(rootDir, `.${sanitizeSegment(target)}`, 'skills')
+    const skillRoot = join(targetDir, skillName)
+    return {
+      targetDir,
+      skillRoot,
+      warning: `Target "${target}" cannot be resolved from unagent; using fallback path "${normalizeRelativePath(relative(rootDir, targetDir))}".`,
+    }
+  }
+
+  const home = homedir()
+  const relativeConfigDir = normalizeRelativePath(relative(home, targetConfig.configDir))
+  const canMirrorConfigDir = Boolean(relativeConfigDir)
+    && !relativeConfigDir.startsWith('..')
+    && !relativeConfigDir.includes('/../')
+    && !isAbsolute(relativeConfigDir)
+
+  if (canMirrorConfigDir) {
+    const targetDir = resolve(rootDir, relativeConfigDir, targetConfig.skillsDir)
+    const skillRoot = join(targetDir, skillName)
+    return { targetDir, skillRoot }
+  }
+
+  const targetDir = resolve(rootDir, `.${sanitizeSegment(target)}`, targetConfig.skillsDir)
   const skillRoot = join(targetDir, skillName)
-  return { targetDir, skillRoot }
+  return {
+    targetDir,
+    skillRoot,
+    warning: `Target "${target}" configDir "${targetConfig.configDir}" is not under home "${home}"; using fallback path "${normalizeRelativePath(relative(rootDir, targetDir))}".`,
+  }
 }
 
 export async function upsertAgentsHint(rootDir: string, skillName: string): Promise<void> {

@@ -9,7 +9,7 @@ export default defineNuxtConfig({
   ],
   skillHub: {
     targetMode: 'explicit',
-    targets: ['github-copilot'],
+    targets: ['claude-code'],
     includeScripts: 'allowlist',
     scriptAllowlist: ['test-nuxt-seo'],
   },

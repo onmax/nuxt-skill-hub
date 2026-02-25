@@ -4,6 +4,6 @@ export default defineNuxtConfig({
   compatibilityDate: 'latest',
   skillHub: {
     targetMode: 'explicit',
-    targets: ['github-copilot'],
+    targets: ['claude-code'],
   },
 })

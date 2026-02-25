@@ -11,6 +11,7 @@ This module is intentionally simple and experimental:
 - Nuxt-first best-practices core
 - module-scoped extensions under `references/modules/<pkg>/<skill>/`
 - skills complement docs; they do not replace docs
+- agent detection and target paths are sourced from [`unagent`](https://www.npmjs.com/package/unagent)
 
 ## Core content source
 
@@ -78,10 +79,12 @@ For each selected target, the module writes:
     └── modules/
 ```
 
-Example for GitHub Copilot target:
+Example targets:
 
 ```txt
-.github/skills/nuxt/
+.claude/skills/nuxt/
+.cursor/rules/nuxt/
+.codeium/windsurf/rules/nuxt/
 ```
 
 ## Configuration
@@ -92,7 +95,7 @@ export default defineNuxtConfig({
     enabled: true,
     skillName: 'nuxt',
     targetMode: 'detected', // 'detected' | 'explicit'
-    targets: ['github-copilot'],
+    targets: ['claude-code'],
     discoverDependencySkills: true,
     enableGithubLookup: true,
     githubLookupTimeoutMs: 1500,
@@ -102,6 +105,29 @@ export default defineNuxtConfig({
   },
 })
 ```
+
+## Target IDs and Detection
+
+`nuxt-skill-hub` now uses `unagent` as the source of truth for agent IDs and skills directories.
+
+- `skillHub.targets` accepts `unagent` agent IDs.
+- `targetMode: 'detected'` includes only agents with config presence (`config` or `both`, not `env`-only), and only when a `skillsDir` is defined.
+- Generated output is always project-local, mirroring the agent config path + skills dir shape.
+
+Examples:
+- `~/.claude` + `skills` => `<root>/.claude/skills`
+- `~/.cursor` + `rules` => `<root>/.cursor/rules`
+- `~/.codeium/windsurf` + `rules` => `<root>/.codeium/windsurf/rules`
+
+If a target is unknown or does not expose `skillsDir` in `unagent`, it is skipped with a warning.
+If a target config directory is not under the user home directory, a project-local fallback path is used.
+
+## Migration Note (Breaking)
+
+- Legacy hardcoded target IDs are removed.
+- Hard switch to `unagent` target IDs (no legacy ID compatibility map).
+- Synthetic GitHub Copilot `.github/skills` target is removed.
+- Legacy compatibility path writes are removed.
 
 ## Module author contract
 

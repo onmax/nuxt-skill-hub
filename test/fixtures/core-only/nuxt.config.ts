@@ -4,6 +4,6 @@ export default defineNuxtConfig({
   modules: [SkillHubModule],
   skillHub: {
     targetMode: 'explicit',
-    targets: ['github-copilot'],
+    targets: ['claude-code'],
   },
 })

@@ -1,154 +1,96 @@
-import { homedir } from 'node:os'
-import { existsSync } from 'node:fs'
-import { join } from 'node:path'
+import {
+  detectInstalledAgents as detectUnagentInstalledAgents,
+  expandPath,
+  getAgentConfig as getUnagentAgentConfig,
+  getAgentIds,
+  type AgentConfig,
+} from 'unagent/env'
 
-const home = homedir()
-const codexHome = process.env.CODEX_HOME?.trim() || join(home, '.codex')
-const claudeHome = process.env.CLAUDE_CONFIG_DIR?.trim() || join(home, '.claude')
+export type SkillHubTarget = string
 
-export interface AgentTargetConfig {
-  projectSkillsDir: string
-  detectInstalled: (rootDir: string) => boolean
+export interface ResolvedAgentTargetConfig {
+  target: SkillHubTarget
+  configDir: string
+  skillsDir: string
 }
 
-export const AGENT_TARGETS = {
-  'amp': {
-    projectSkillsDir: '.agents/skills',
-    detectInstalled: () => existsSync(join(home, '.config/amp')),
-  },
-  'antigravity': {
-    projectSkillsDir: '.agent/skills',
-    detectInstalled: () => existsSync(join(home, '.gemini/antigravity')),
-  },
-  'claude-code': {
-    projectSkillsDir: '.claude/skills',
-    detectInstalled: () => existsSync(claudeHome),
-  },
-  'moltbot': {
-    projectSkillsDir: 'skills',
-    detectInstalled: () => existsSync(join(home, '.moltbot')) || existsSync(join(home, '.clawdbot')),
-  },
-  'cline': {
-    projectSkillsDir: '.cline/skills',
-    detectInstalled: () => existsSync(join(home, '.cline')),
-  },
-  'codebuddy': {
-    projectSkillsDir: '.codebuddy/skills',
-    detectInstalled: () => existsSync(join(home, '.codebuddy')),
-  },
-  'codex': {
-    projectSkillsDir: '.codex/skills',
-    detectInstalled: () => existsSync(codexHome) || existsSync('/etc/codex'),
-  },
-  'command-code': {
-    projectSkillsDir: '.commandcode/skills',
-    detectInstalled: () => existsSync(join(home, '.commandcode')),
-  },
-  'continue': {
-    projectSkillsDir: '.continue/skills',
-    detectInstalled: () => existsSync(join(home, '.continue')),
-  },
-  'crush': {
-    projectSkillsDir: '.crush/skills',
-    detectInstalled: () => existsSync(join(home, '.config/crush')),
-  },
-  'cursor': {
-    projectSkillsDir: '.cursor/skills',
-    detectInstalled: () => existsSync(join(home, '.cursor')),
-  },
-  'droid': {
-    projectSkillsDir: '.factory/skills',
-    detectInstalled: () => existsSync(join(home, '.factory')),
-  },
-  'gemini-cli': {
-    projectSkillsDir: '.gemini/skills',
-    detectInstalled: () => existsSync(join(home, '.gemini')),
-  },
-  'github-copilot': {
-    projectSkillsDir: '.github/skills',
-    detectInstalled: (rootDir: string) => existsSync(join(home, '.copilot')) || existsSync(join(rootDir, '.github')),
-  },
-  'goose': {
-    projectSkillsDir: '.goose/skills',
-    detectInstalled: () => existsSync(join(home, '.config/goose')),
-  },
-  'junie': {
-    projectSkillsDir: '.junie/skills',
-    detectInstalled: () => existsSync(join(home, '.junie')),
-  },
-  'kilo': {
-    projectSkillsDir: '.kilocode/skills',
-    detectInstalled: () => existsSync(join(home, '.kilocode')),
-  },
-  'kimi-cli': {
-    projectSkillsDir: '.agents/skills',
-    detectInstalled: () => existsSync(join(home, '.kimi')),
-  },
-  'kiro-cli': {
-    projectSkillsDir: '.kiro/skills',
-    detectInstalled: () => existsSync(join(home, '.kiro')),
-  },
-  'kode': {
-    projectSkillsDir: '.kode/skills',
-    detectInstalled: () => existsSync(join(home, '.kode')),
-  },
-  'mcpjam': {
-    projectSkillsDir: '.mcpjam/skills',
-    detectInstalled: () => existsSync(join(home, '.mcpjam')),
-  },
-  'mux': {
-    projectSkillsDir: '.mux/skills',
-    detectInstalled: () => existsSync(join(home, '.mux')),
-  },
-  'opencode': {
-    projectSkillsDir: '.opencode/skills',
-    detectInstalled: () => existsSync(join(home, '.config/opencode')) || existsSync(claudeHome),
-  },
-  'openhands': {
-    projectSkillsDir: '.openhands/skills',
-    detectInstalled: () => existsSync(join(home, '.openhands')),
-  },
-  'pi': {
-    projectSkillsDir: '.pi/skills',
-    detectInstalled: () => existsSync(join(home, '.pi/agent')),
-  },
-  'qoder': {
-    projectSkillsDir: '.qoder/skills',
-    detectInstalled: () => existsSync(join(home, '.qoder')),
-  },
-  'qwen-code': {
-    projectSkillsDir: '.qwen/skills',
-    detectInstalled: () => existsSync(join(home, '.qwen')),
-  },
-  'roo': {
-    projectSkillsDir: '.roo/skills',
-    detectInstalled: () => existsSync(join(home, '.roo')),
-  },
-  'trae': {
-    projectSkillsDir: '.trae/skills',
-    detectInstalled: () => existsSync(join(home, '.trae')),
-  },
-  'windsurf': {
-    projectSkillsDir: '.windsurf/skills',
-    detectInstalled: () => existsSync(join(home, '.codeium/windsurf')),
-  },
-  'zencoder': {
-    projectSkillsDir: '.zencoder/skills',
-    detectInstalled: () => existsSync(join(home, '.zencoder')),
-  },
-  'neovate': {
-    projectSkillsDir: '.neovate/skills',
-    detectInstalled: () => existsSync(join(home, '.neovate')),
-  },
-  'pochi': {
-    projectSkillsDir: '.pochi/skills',
-    detectInstalled: () => existsSync(join(home, '.pochi')),
-  },
-} as const satisfies Record<string, AgentTargetConfig>
+export type InvalidTargetReason = 'unknown-target' | 'missing-skills-dir'
 
-export type SkillHubTarget = keyof typeof AGENT_TARGETS
+export interface InvalidTarget {
+  target: SkillHubTarget
+  reason: InvalidTargetReason
+}
+
+function normalizeTarget(target: string): string {
+  return target.trim()
+}
+
+function getRawTargetConfig(target: SkillHubTarget): AgentConfig | undefined {
+  return getUnagentAgentConfig(target)
+}
+
+export function getSupportedTargets(): SkillHubTarget[] {
+  return getAgentIds()
+    .filter((target) => {
+      const config = getRawTargetConfig(target)
+      return Boolean(config?.skillsDir)
+    })
+    .sort((a, b) => a.localeCompare(b))
+}
+
+export function resolveAgentTargetConfig(target: SkillHubTarget): ResolvedAgentTargetConfig | undefined {
+  const normalized = normalizeTarget(target)
+  if (!normalized) {
+    return undefined
+  }
+
+  const config = getRawTargetConfig(normalized)
+  if (!config?.skillsDir) {
+    return undefined
+  }
+
+  return {
+    target: normalized,
+    configDir: expandPath(config.configDir),
+    skillsDir: config.skillsDir,
+  }
+}
+
+export function validateTargets(targets: SkillHubTarget[]): { valid: SkillHubTarget[], invalid: InvalidTarget[] } {
+  const uniqueTargets = Array.from(new Set(targets.map(normalizeTarget).filter(Boolean)))
+  const valid: SkillHubTarget[] = []
+  const invalid: InvalidTarget[] = []
+
+  for (const target of uniqueTargets) {
+    const config = getRawTargetConfig(target)
+    if (!config) {
+      invalid.push({
+        target,
+        reason: 'unknown-target',
+      })
+      continue
+    }
+
+    if (!config.skillsDir) {
+      invalid.push({
+        target,
+        reason: 'missing-skills-dir',
+      })
+      continue
+    }
+
+    valid.push(target)
+  }
+
+  return { valid, invalid }
+}
 
 export function detectInstalledTargets(rootDir: string): SkillHubTarget[] {
-  return (Object.keys(AGENT_TARGETS) as SkillHubTarget[])
-    .filter(target => AGENT_TARGETS[target].detectInstalled(rootDir))
+  void rootDir
+
+  const detected = detectUnagentInstalledAgents()
+    .filter(agent => (agent.detected === 'config' || agent.detected === 'both') && agent.config.skillsDir)
+    .map(agent => agent.id)
+
+  return Array.from(new Set(detected)).sort((a, b) => a.localeCompare(b))
 }
