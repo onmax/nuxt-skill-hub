@@ -1,0 +1,35 @@
+packages:
+  - '.'
+  - 'playground'
+
+catalogs:
+  runtime:
+    automd: ^0.4.3
+    unagent: ^0.0.8
+  nuxt:
+    '@nuxt/devtools': ^3.2.1
+    '@nuxt/eslint-config': ^1.15.1
+    '@nuxt/kit': ^4.3.1
+    '@nuxt/module-builder': ^1.0.2
+    '@nuxt/schema': ^4.3.1
+    '@nuxt/test-utils': ^4.0.0
+    nuxt: ^4.3.1
+  quality:
+    '@types/node': latest
+    '@vue/test-utils': ^2.4.6
+    eslint: ^10.0.1
+    happy-dom: ^20.7.0
+    typescript: ~5.9.3
+    vitest: ^4.0.18
+    vue-tsc: ^3.2.5
+  frontend:
+    '@nuxt/ui': ^4.5.0
+    tailwindcss: ^4.2.1
+    vue: ^3.5.29
+  auth:
+    '@onmax/nuxt-better-auth': 0.0.2-alpha.29
+    better-auth: ^1.4.19
+  cloud:
+    '@nuxthub/core': ^0.10.6
+  release:
+    changelogen: ^0.6.2

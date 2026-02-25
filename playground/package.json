@@ -8,7 +8,12 @@
     "generate": "nuxt generate"
   },
   "dependencies": {
-    "nuxt-skill-hub": "latest",
-    "nuxt": "^4.3.1"
+    "@nuxt/ui": "catalog:frontend",
+    "@nuxthub/core": "catalog:cloud",
+    "@onmax/nuxt-better-auth": "catalog:auth",
+    "better-auth": "catalog:auth",
+    "nuxt": "catalog:nuxt",
+    "nuxt-skill-hub": "workspace:*",
+    "tailwindcss": "catalog:frontend"
   }
 }
