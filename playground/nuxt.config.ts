@@ -5,17 +5,17 @@ export default defineNuxtConfig({
     '@nuxthub/core',
     '@onmax/nuxt-better-auth',
   ],
-  css: ['~/assets/css/main.css'],
   devtools: { enabled: true },
-  compatibilityDate: 'latest',
-  auth: {
-    clientOnly: true,
-  },
+  css: ['~/assets/css/main.css'],
   runtimeConfig: {
     betterAuthSecret: 'dev-secret-for-playground-minimum-32-characters',
     public: {
       siteUrl: 'http://localhost:3000',
     },
+  },
+  compatibilityDate: 'latest',
+  auth: {
+    clientOnly: true,
   },
   skillHub: {
     targetMode: 'explicit',
