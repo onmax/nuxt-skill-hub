@@ -18,7 +18,6 @@ export default defineNuxtConfig({
     clientOnly: true,
   },
   skillHub: {
-    targetMode: 'explicit',
-    targets: ['claude-code'],
+    targetMode: 'detected',
   },
 })

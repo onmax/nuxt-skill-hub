@@ -18,9 +18,11 @@ describe('core-only generation', () => {
     const index = await fsp.readFile(join(skillRoot, 'references/index.md'), 'utf8')
     const core = await fsp.readFile(join(skillRoot, 'references/core/index.md'), 'utf8')
 
-    expect(entry).toContain('# Nuxt Super Skill (Experimental)')
+    expect(entry).toContain('# Nuxt Super Skill')
     expect(index).toContain('Nuxt Best Practices')
     expect(index).toContain('_No module skills discovered._')
     expect(core).toContain('# Nuxt Best Practices')
+    await expect(fsp.access(join(skillRoot, 'references/core/rules/_sections.md'))).rejects.toBeDefined()
+    await expect(fsp.access(join(skillRoot, 'references/core/rules/_template.md'))).rejects.toBeDefined()
   })
 })

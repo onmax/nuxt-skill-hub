@@ -1,7 +1,9 @@
 import { promises as fsp } from 'node:fs'
 import { dirname, join } from 'node:path'
+import { execFileSync } from 'node:child_process'
 
 const GITHUB_API_BASE = 'https://api.github.com'
+let cachedGitHubToken: string | null | undefined
 
 interface GitHubContentEntry {
   type: 'file' | 'dir' | 'symlink' | 'submodule'
@@ -29,17 +31,44 @@ async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Respons
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), timeoutMs)
   try {
+    const token = resolveGitHubToken()
     return await fetch(url, {
       signal: controller.signal,
       headers: {
         'Accept': 'application/vnd.github+json',
         'User-Agent': 'nuxt-skill-hub',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
     })
   }
   finally {
     clearTimeout(timeout)
   }
+}
+
+function resolveGitHubToken(): string | undefined {
+  if (cachedGitHubToken !== undefined) {
+    return cachedGitHubToken || undefined
+  }
+
+  const envToken = process.env.GITHUB_TOKEN?.trim() || process.env.GH_TOKEN?.trim()
+  if (envToken) {
+    cachedGitHubToken = envToken
+    return cachedGitHubToken
+  }
+
+  try {
+    const token = execFileSync('gh', ['auth', 'token'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim()
+    cachedGitHubToken = token || null
+  }
+  catch {
+    cachedGitHubToken = null
+  }
+
+  return cachedGitHubToken || undefined
 }
 
 async function fetchJson<T>(url: string, timeoutMs: number): Promise<FetchJsonResult<T>> {

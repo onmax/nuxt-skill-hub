@@ -21,6 +21,18 @@ export interface InvalidTarget {
   reason: InvalidTargetReason
 }
 
+function resolveSkillsDir(target: SkillHubTarget, config: AgentConfig | undefined): string | undefined {
+  if (config?.skillsDir) {
+    return config.skillsDir
+  }
+
+  if (target === 'codex') {
+    return 'skills'
+  }
+
+  return undefined
+}
+
 function normalizeTarget(target: string): string {
   return target.trim()
 }
@@ -33,7 +45,7 @@ export function getSupportedTargets(): SkillHubTarget[] {
   return getAgentIds()
     .filter((target) => {
       const config = getRawTargetConfig(target)
-      return Boolean(config?.skillsDir)
+      return Boolean(resolveSkillsDir(target, config))
     })
     .sort((a, b) => a.localeCompare(b))
 }
@@ -45,14 +57,15 @@ export function resolveAgentTargetConfig(target: SkillHubTarget): ResolvedAgentT
   }
 
   const config = getRawTargetConfig(normalized)
-  if (!config?.skillsDir) {
+  const skillsDir = resolveSkillsDir(normalized, config)
+  if (!config || !skillsDir) {
     return undefined
   }
 
   return {
     target: normalized,
     configDir: expandPath(config.configDir),
-    skillsDir: config.skillsDir,
+    skillsDir,
   }
 }
 
@@ -71,7 +84,7 @@ export function validateTargets(targets: SkillHubTarget[]): { valid: SkillHubTar
       continue
     }
 
-    if (!config.skillsDir) {
+    if (!resolveSkillsDir(target, config)) {
       invalid.push({
         target,
         reason: 'missing-skills-dir',
@@ -89,8 +102,12 @@ export function detectInstalledTargets(rootDir: string): SkillHubTarget[] {
   void rootDir
 
   const detected = detectUnagentInstalledAgents()
-    .filter(agent => agent.detected === 'config' && agent.config.skillsDir)
+    .filter(agent => agent.detected === 'config' && resolveSkillsDir(agent.id, agent.config))
     .map(agent => agent.id)
+
+  if (process.env.CODEX_SHELL === '1' && detected.includes('codex')) {
+    return ['codex']
+  }
 
   return Array.from(new Set(detected)).sort((a, b) => a.localeCompare(b))
 }

@@ -1,5 +1,5 @@
 import { createRequire } from 'node:module'
-import { promises as fsp } from 'node:fs'
+import { existsSync, promises as fsp } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { transform } from 'automd'
@@ -283,13 +283,49 @@ function isSubPath(parent: string, child: string): boolean {
 }
 
 function resolvePackageJsonPath(specifier: string, rootDir: string): string | null {
+  const expectedPackageName = packageNameFromSpecifier(specifier)
   const attempts = [specifier, packageNameFromSpecifier(specifier)]
+
+  function findNearestPackageJson(startPath: string): string | null {
+    let current = dirname(startPath)
+
+    while (true) {
+      const candidate = join(current, 'package.json')
+      if (existsSync(candidate)) {
+        return candidate
+      }
+
+      const parent = dirname(current)
+      if (parent === current) {
+        return null
+      }
+
+      current = parent
+    }
+  }
+
   for (const attempt of attempts) {
     try {
       return require.resolve(`${attempt}/package.json`, { paths: [rootDir] })
     }
     catch {
-      // continue
+      try {
+        const entryPath = require.resolve(attempt, { paths: [rootDir] })
+        const packageJsonPath = findNearestPackageJson(entryPath)
+        if (packageJsonPath) {
+          return packageJsonPath
+        }
+      }
+      catch {
+        // continue
+      }
+    }
+  }
+
+  if (expectedPackageName) {
+    const localPackageJsonPath = join(rootDir, 'node_modules', expectedPackageName, 'package.json')
+    if (existsSync(localPackageJsonPath)) {
+      return localPackageJsonPath
     }
   }
 

@@ -18,8 +18,6 @@ This module is intentionally simple and experimental:
 Core best-practices markdown is stored as shareable rule-pack files in:
 - [`core-content/metadata.json`](./core-content/metadata.json)
 - [`core-content/index.template.md`](./core-content/index.template.md)
-- [`core-content/rules/_sections.md`](./core-content/rules/_sections.md)
-- [`core-content/rules/_template.md`](./core-content/rules/_template.md)
 - [`core-content/rules/data-fetching-ssr.md`](./core-content/rules/data-fetching-ssr.md)
 - [`core-content/rules/hydration-consistency.md`](./core-content/rules/hydration-consistency.md)
 - [`core-content/rules/architecture-boundaries.md`](./core-content/rules/architecture-boundaries.md)
@@ -95,7 +93,7 @@ export default defineNuxtConfig({
     enabled: true,
     skillName: 'nuxt',
     targetMode: 'detected', // 'detected' | 'explicit'
-    targets: ['claude-code'],
+    targets: ['codex'],
     discoverDependencySkills: true,
     enableGithubLookup: true,
     githubLookupTimeoutMs: 1500,
@@ -111,7 +109,8 @@ export default defineNuxtConfig({
 `nuxt-skill-hub` now uses `unagent` as the source of truth for agent IDs and skills directories.
 
 - `skillHub.targets` accepts `unagent` agent IDs.
-- `targetMode: 'detected'` includes only agents detected as `config` (strict config-only), and only when a `skillsDir` is defined.
+- `targetMode: 'detected'` includes only agents detected as `config` (strict config-only).
+- `codex` is treated as writable with an inferred `skills` directory (`~/.codex/skills`) even though `unagent` does not currently expose `skillsDir` for `codex`.
 - Generated output is always project-local, mirroring the agent config path + skills dir shape.
 
 Examples:
@@ -119,8 +118,7 @@ Examples:
 - `~/.cursor` + `rules` => `<root>/.cursor/rules`
 - `~/.codeium/windsurf` + `rules` => `<root>/.codeium/windsurf/rules`
 
-If a target is unknown or does not expose `skillsDir` in `unagent`, it is skipped with a warning.
-Only targets exposing `skillsDir` are writable.
+If a target is unknown or does not expose `skillsDir` in `unagent` (except `codex`), it is skipped with a warning.
 If a target config directory is not under the user home directory, a project-local fallback path is used.
 
 ## Migration Note (Breaking)

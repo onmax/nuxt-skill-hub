@@ -184,6 +184,10 @@ export default defineNuxtModule<ModuleOptions>({
       await emptyDir(remoteCacheRoot)
 
       for (const pkg of installedPackages) {
+        if (pkg.packageName === 'nuxt-skill-hub') {
+          continue
+        }
+
         if (distResolvedPackages.has(pkg.packageName)) {
           continue
         }

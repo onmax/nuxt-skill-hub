@@ -51,10 +51,10 @@ dist
 **/.opencode/skills
 
 # Keep generated playground skill output under version control for fixture validation.
-!playground/.claude/
-!playground/.claude/skills/
-!playground/.claude/skills/nuxt/
-!playground/.claude/skills/nuxt/**
+!playground/.codex/
+!playground/.codex/skills/
+!playground/.codex/skills/nuxt/
+!playground/.codex/skills/nuxt/**
 
 # Env
 .env

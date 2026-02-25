@@ -8,6 +8,13 @@ export interface GitHubOverride {
 
 export const GITHUB_OVERRIDES: GitHubOverride[] = [
   {
+    packageName: '@nuxt/ui',
+    repo: 'nuxt/ui',
+    ref: 'v4',
+    path: 'skills/nuxt-ui',
+    skillName: 'nuxt-ui',
+  },
+  {
     packageName: '@vueuse/core',
     repo: 'vueuse/vueuse',
     ref: 'main',
