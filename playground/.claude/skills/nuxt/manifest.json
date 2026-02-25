@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "generatedAt": "2026-02-25T07:42:26.013Z",
+  "skillName": "nuxt",
+  "target": "claude-code",
+  "targetDir": "/Users/maxi/nuxt/nuxt-skill-hub/playground/.claude/skills",
+  "modules": [],
+  "skipped": []
+}
