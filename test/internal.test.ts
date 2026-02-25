@@ -1,7 +1,7 @@
 import { promises as fsp } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   getTargetSkillRoot,
   isValidSkillName,
@@ -12,6 +12,11 @@ import {
   shouldIncludeScripts,
   sortAndDedupeContributions,
 } from '../src/internal'
+
+afterEach(() => {
+  vi.unmock('../src/agents')
+  vi.resetModules()
+})
 
 describe('parseAgentSkillDeclarations', () => {
   it('returns valid entries and reports invalid declarations', () => {
@@ -152,12 +157,33 @@ describe('getTargetSkillRoot', () => {
     expect(resolved.warning).toBeUndefined()
   })
 
-  it('falls back to sanitized target path when target cannot be resolved', () => {
+  it('mirrors nested windsurf config path to project-local rules dir', () => {
     const root = '/tmp/project'
-    const resolved = getTargetSkillRoot(root, 'unknown-target', 'nuxt')
+    const resolved = getTargetSkillRoot(root, 'windsurf', 'nuxt')
 
-    expect(resolved.targetDir).toBe(join(root, '.unknown-target', 'skills'))
-    expect(resolved.skillRoot).toBe(join(root, '.unknown-target', 'skills', 'nuxt'))
-    expect(resolved.warning).toContain('cannot be resolved from unagent')
+    expect(resolved.targetDir).toBe(join(root, '.codeium', 'windsurf', 'rules'))
+    expect(resolved.skillRoot).toBe(join(root, '.codeium', 'windsurf', 'rules', 'nuxt'))
+    expect(resolved.warning).toBeUndefined()
+  })
+
+  it('falls back when target configDir is outside the home directory', async () => {
+    vi.resetModules()
+    vi.doMock('../src/agents', () => ({
+      detectInstalledTargets: vi.fn(() => []),
+      validateTargets: vi.fn(() => ({ valid: [], invalid: [] })),
+      resolveAgentTargetConfig: vi.fn(() => ({
+        target: 'custom-agent',
+        configDir: '/opt/custom-agent-config',
+        skillsDir: 'rules',
+      })),
+    }))
+
+    const { getTargetSkillRoot: getTargetSkillRootWithMock } = await import('../src/internal')
+    const root = '/tmp/project'
+    const resolved = getTargetSkillRootWithMock(root, 'custom-agent', 'nuxt')
+
+    expect(resolved.targetDir).toBe(join(root, '.custom-agent', 'rules'))
+    expect(resolved.skillRoot).toBe(join(root, '.custom-agent', 'rules', 'nuxt'))
+    expect(resolved.warning).toContain('is not under home')
   })
 })

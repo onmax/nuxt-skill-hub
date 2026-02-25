@@ -89,7 +89,7 @@ export function detectInstalledTargets(rootDir: string): SkillHubTarget[] {
   void rootDir
 
   const detected = detectUnagentInstalledAgents()
-    .filter(agent => (agent.detected === 'config' || agent.detected === 'both') && agent.config.skillsDir)
+    .filter(agent => agent.detected === 'config' && agent.config.skillsDir)
     .map(agent => agent.id)
 
   return Array.from(new Set(detected)).sort((a, b) => a.localeCompare(b))

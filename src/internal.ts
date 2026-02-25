@@ -756,8 +756,7 @@ export function getTargetSkillRoot(
 
   const home = homedir()
   const relativeConfigDir = normalizeRelativePath(relative(home, targetConfig.configDir))
-  const canMirrorConfigDir = Boolean(relativeConfigDir)
-    && !relativeConfigDir.startsWith('..')
+  const canMirrorConfigDir = !relativeConfigDir.startsWith('..')
     && !relativeConfigDir.includes('/../')
     && !isAbsolute(relativeConfigDir)
 
