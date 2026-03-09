@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
-import { join, relative } from 'node:path'
+import { join, relative, sep } from 'node:path'
+import { useLogger } from '@nuxt/kit'
 import { createConsola } from 'consola'
 import type { Nuxt } from '@nuxt/schema'
 import { detectInstalledTargets, getSupportedTargets } from './agents'
@@ -22,12 +23,15 @@ function isCancelled(value: unknown): boolean {
 }
 
 function toPosix(path: string): string {
-  return path.split(/[\\/]/).join('/')
+  return path.split(sep).join('/')
 }
 
 export async function runInstallWizard(nuxt: Nuxt): Promise<void> {
+  const logger = useLogger('nuxt-skill-hub')
+
   // Skip in CI or non-interactive environments
   if (process.env.CI || process.env.CODEX_SHELL === '1' || !process.stdout.isTTY) {
+    logger.info('Non-interactive environment detected, skipping install wizard.')
     return
   }
 
@@ -41,7 +45,7 @@ export async function runInstallWizard(nuxt: Nuxt): Promise<void> {
     + `Let's configure AI agent skills for your Nuxt project.`,
   )
 
-  // ── Step 1: Detect agents ──────────────────────────────────────────────
+  // ── Step 1: Detect agents ──
   const detectedTargets = detectInstalledTargets(rootDir)
   const allTargets = getSupportedTargets()
 
@@ -85,7 +89,7 @@ export async function runInstallWizard(nuxt: Nuxt): Promise<void> {
     }
   }
 
-  // ── Step 2: Module skills ──────────────────────────────────────────────
+  // ── Step 2: Module skills ──
   const moduleSpecifiers = (nuxt.options.modules || [])
     .map(entry => extractModuleSpecifier(entry))
     .filter((entry): entry is string => Boolean(entry))
@@ -105,7 +109,6 @@ export async function runInstallWizard(nuxt: Nuxt): Promise<void> {
   }
 
   if (availableSkills.length) {
-    // Dedupe by skillName (multiple packages can map to same skill)
     const seen = new Set<string>()
     const deduped = availableSkills.filter((s) => {
       if (seen.has(s.skillName))
@@ -130,16 +133,15 @@ export async function runInstallWizard(nuxt: Nuxt): Promise<void> {
       return
     }
 
-    // If user wants to exclude some skills, they can configure excludeSkills in nuxt.config later
     if (!includeAll) {
-      consola.info('You can exclude specific skills via skillHub.excludeSkills in nuxt.config.ts')
+      consola.info('You can configure `skillHub.discoverDependencySkills` in nuxt.config.ts to disable auto-discovery.')
     }
   }
   else {
     consola.info('No module skills found in fallback map. Skills will be resolved at build time.')
   }
 
-  // ── Step 3: .gitignore ─────────────────────────────────────────────────
+  // ── Step 3: .gitignore ──
   const gitignorePath = join(rootDir, '.gitignore')
   const gitignoreExists = existsSync(gitignorePath)
   const currentGitignore = gitignoreExists ? readFileSync(gitignorePath, 'utf8') : ''
@@ -177,7 +179,7 @@ export async function runInstallWizard(nuxt: Nuxt): Promise<void> {
     }
   }
 
-  // ── Step 4: CLAUDE.md / AGENTS.md hint ─────────────────────────────────
+  // ── Step 4: CLAUDE.md / AGENTS.md hint ──
   const hintBlock = `${MANAGED_HINT_START}\nUse the \`${skillName}\` skill as the first entrypoint for Nuxt tasks in this repository.\n${MANAGED_HINT_END}`
 
   const hintFileChoice = await consola.prompt('Add a skill hint to help agents discover the skill?', {
@@ -216,7 +218,7 @@ export async function runInstallWizard(nuxt: Nuxt): Promise<void> {
     pendingWrites.push({
       file: filename,
       absPath: filePath,
-      description: `Add skill hint block`,
+      description: 'Add skill hint block',
       content: newContent,
       action: exists ? 'modify' : 'create',
     })
@@ -229,10 +231,10 @@ export async function runInstallWizard(nuxt: Nuxt): Promise<void> {
     await addToFile('AGENTS.md')
   }
 
-  // ── Step 5: Summary + Confirmation ─────────────────────────────────────
+  // ── Step 5: Summary + Confirmation ──
   if (!pendingWrites.length) {
     consola.success('No file changes needed. Setup complete!')
-    consola.info(`Run \`nuxt dev\` or \`nuxt prepare\` to generate skills.`)
+    consola.info('Run `nuxt dev` or `nuxt prepare` to generate skills.')
     return
   }
 
@@ -255,7 +257,7 @@ export async function runInstallWizard(nuxt: Nuxt): Promise<void> {
     return
   }
 
-  // ── Step 6: Execute writes ─────────────────────────────────────────────
+  // ── Step 6: Execute writes ──
   for (const write of pendingWrites) {
     writeFileSync(write.absPath, write.content, 'utf8')
     const verb = write.action === 'create' ? 'Created' : 'Updated'
