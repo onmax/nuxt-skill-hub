@@ -33,9 +33,6 @@ catalogs:
     '@nuxt/eslint-config':
       specifier: ^1.15.1
       version: 1.15.2
-    '@nuxt/kit':
-      specifier: ^4.3.1
-      version: 4.3.1
     '@nuxt/module-builder':
       specifier: ^1.0.2
       version: 1.0.2
@@ -74,26 +71,19 @@ catalogs:
     changelogen:
       specifier: ^0.6.2
       version: 0.6.2
-  runtime:
-    automd:
-      specifier: ^0.4.3
-      version: 0.4.3
-    unagent:
-      specifier: ^0.0.8
-      version: 0.0.8
 
 importers:
 
   .:
     dependencies:
       '@nuxt/kit':
-        specifier: catalog:nuxt
+        specifier: ^4.3.1
         version: 4.3.1(magicast@0.5.2)
       automd:
-        specifier: catalog:runtime
+        specifier: ^0.4.3
         version: 0.4.3(magicast@0.5.2)
       unagent:
-        specifier: catalog:runtime
+        specifier: ^0.0.8
         version: 0.0.8(pg@8.18.0)(unstorage@1.17.4(db0@0.3.4(@electric-sql/pglite@0.3.15)(drizzle-orm@0.41.0(@cloudflare/workers-types@4.20260304.0)(@electric-sql/pglite@0.3.15)(@prisma/client@5.22.0(prisma@7.4.1(@types/react@19.2.14)(magicast@0.5.2)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(typescript@5.9.3)))(@types/pg@8.16.0)(kysely@0.28.11)(mysql2@3.15.3)(pg@8.18.0)(postgres@3.4.7)(prisma@7.4.1(@types/react@19.2.14)(magicast@0.5.2)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(typescript@5.9.3)))(mysql2@3.15.3))(ioredis@5.9.3))
     devDependencies:
       '@nuxt/devtools':
