@@ -1,7 +1,7 @@
-import { createRequire } from 'node:module'
 import { existsSync, promises as fsp } from 'node:fs'
 import { homedir } from 'node:os'
-import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { basename, dirname, isAbsolute, join, relative, resolve } from 'pathe'
+import { readPackageJSON, resolvePackageJSON } from 'pkg-types'
 import { transform } from 'automd'
 import type {
   AgentSkillDeclaration,
@@ -18,9 +18,9 @@ import { loadCoreIndexTemplate, loadCoreRuleFiles } from './core-content'
 import type { InvalidTarget, SkillHubTarget } from './agents'
 import { detectInstalledTargets, resolveAgentTargetConfig, validateTargets } from './agents'
 
-const require = createRequire(import.meta.url)
-const MANAGED_HINT_START = '<!-- nuxt-skill-hub:start -->'
-const MANAGED_HINT_END = '<!-- nuxt-skill-hub:end -->'
+export const MANAGED_HINT_START = '<!-- nuxt-skill-hub:start -->'
+export const MANAGED_HINT_END = '<!-- nuxt-skill-hub:end -->'
+
 const SKILL_NAME_MAX_LENGTH = 64
 const SKILL_NAME_PATTERN = /^[a-z0-9-]+$/
 
@@ -97,21 +97,7 @@ export async function writeFileIfChanged(path: string, contents: string): Promis
   await fsp.writeFile(path, contents, 'utf8')
 }
 
-function readPackageName(pkg: unknown, fallback: string): string {
-  if (pkg && typeof pkg === 'object' && typeof (pkg as { name?: unknown }).name === 'string') {
-    return (pkg as { name: string }).name
-  }
-  return fallback
-}
-
-function readPackageVersion(pkg: unknown): string | undefined {
-  if (pkg && typeof pkg === 'object' && typeof (pkg as { version?: unknown }).version === 'string') {
-    return (pkg as { version: string }).version
-  }
-  return undefined
-}
-
-function createValidationIssue(packageName: string, skillName: string, reason: string, sourceKind?: SkillSourceKind): ValidationIssue {
+export function createValidationIssue(packageName: string, skillName: string, reason: string, sourceKind?: SkillSourceKind): ValidationIssue {
   return {
     severity: 'warning',
     packageName,
@@ -282,86 +268,10 @@ function isSubPath(parent: string, child: string): boolean {
   return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel))
 }
 
-function resolvePackageJsonPath(specifier: string, rootDir: string): string | null {
-  const expectedPackageName = packageNameFromSpecifier(specifier)
-  const attempts = [specifier, packageNameFromSpecifier(specifier)]
-
-  function findNearestPackageJson(startPath: string): string | null {
-    let current = dirname(startPath)
-
-    while (true) {
-      const candidate = join(current, 'package.json')
-      if (existsSync(candidate)) {
-        return candidate
-      }
-
-      const parent = dirname(current)
-      if (parent === current) {
-        return null
-      }
-
-      current = parent
-    }
-  }
-
-  for (const attempt of attempts) {
-    try {
-      return require.resolve(`${attempt}/package.json`, { paths: [rootDir] })
-    }
-    catch {
-      try {
-        const entryPath = require.resolve(attempt, { paths: [rootDir] })
-        const packageJsonPath = findNearestPackageJson(entryPath)
-        if (packageJsonPath) {
-          return packageJsonPath
-        }
-      }
-      catch {
-        // continue
-      }
-    }
-  }
-
-  if (expectedPackageName) {
-    const localPackageJsonPath = join(rootDir, 'node_modules', expectedPackageName, 'package.json')
-    if (existsSync(localPackageJsonPath)) {
-      return localPackageJsonPath
-    }
-  }
-
-  return null
-}
-
-async function readJson(path: string): Promise<unknown> {
-  const raw = await fsp.readFile(path, 'utf8')
-  return JSON.parse(raw) as unknown
-}
-
-function readRepositoryUrl(pkg: unknown): string | undefined {
-  if (!pkg || typeof pkg !== 'object') {
-    return undefined
-  }
-
-  const repository = (pkg as { repository?: unknown }).repository
-  if (typeof repository === 'string') {
-    return repository
-  }
-
-  if (repository && typeof repository === 'object' && typeof (repository as { url?: unknown }).url === 'string') {
-    return (repository as { url: string }).url
-  }
-
+function readRepositoryUrl(repository: string | { url?: string } | undefined): string | undefined {
+  if (typeof repository === 'string') return repository
+  if (repository && typeof repository.url === 'string') return repository.url
   return undefined
-}
-
-function readHomepage(pkg: unknown): string | undefined {
-  if (!pkg || typeof pkg !== 'object') {
-    return undefined
-  }
-
-  return typeof (pkg as { homepage?: unknown }).homepage === 'string'
-    ? (pkg as { homepage: string }).homepage
-    : undefined
 }
 
 export async function discoverInstalledPackageFromSpecifier(specifier: string, rootDir: string): Promise<InstalledPackageMetadata | null> {
@@ -369,21 +279,23 @@ export async function discoverInstalledPackageFromSpecifier(specifier: string, r
     return null
   }
 
-  const packageJsonPath = resolvePackageJsonPath(specifier, rootDir)
-  if (!packageJsonPath) {
-    return null
+  let packageJsonPath: string
+  try {
+    packageJsonPath = await resolvePackageJSON(specifier, { url: rootDir })
+  }
+  catch {
+    const fallback = join(rootDir, 'node_modules', packageNameFromSpecifier(specifier), 'package.json')
+    if (!existsSync(fallback)) return null
+    packageJsonPath = fallback
   }
 
-  const packageRoot = dirname(packageJsonPath)
-  const pkg = await readJson(packageJsonPath)
-  const packageName = readPackageName(pkg, packageNameFromSpecifier(specifier))
-  const version = readPackageVersion(pkg)
+  const pkg = await readPackageJSON(packageJsonPath)
   return {
-    packageName,
-    version,
-    packageRoot,
-    repository: readRepositoryUrl(pkg),
-    homepage: readHomepage(pkg),
+    packageName: pkg.name || packageNameFromSpecifier(specifier),
+    version: pkg.version,
+    packageRoot: dirname(packageJsonPath),
+    repository: readRepositoryUrl(pkg.repository as string | { url?: string } | undefined),
+    homepage: pkg.homepage,
     packageData: pkg,
   }
 }
@@ -423,19 +335,18 @@ export async function discoverLocalPackageSkills(rootDir: string): Promise<Packa
     return null
   }
 
-  const pkg = await readJson(packageJsonPath)
-  const packageName = readPackageName(pkg, 'local-project')
+  const pkg = await readPackageJSON(packageJsonPath)
+  const packageName = pkg.name || 'local-project'
   const parsed = parseAgentSkillDeclarations(pkg, packageName, 'dist')
-  const skills = parsed.skills
-  if (!skills.length && !parsed.issues.length) {
+  if (!parsed.skills.length && !parsed.issues.length) {
     return null
   }
 
   return {
     packageName,
-    version: readPackageVersion(pkg),
+    version: pkg.version,
     packageRoot: rootDir,
-    skills,
+    skills: parsed.skills,
     issues: parsed.issues,
   }
 }
@@ -594,12 +505,8 @@ export function resolveGuidancePrecedence(taskModuleScope: string | undefined, c
   return 'core'
 }
 
-function sanitizeSegment(value: string): string {
+export function sanitizeSegment(value: string): string {
   return value.replace(/[^\w.-]+/g, '-').replace(/^-+|-+$/g, '') || 'unknown'
-}
-
-function normalizeRelativePath(path: string): string {
-  return path.split(sep).join('/')
 }
 
 export async function copySkillTree(sourceDir: string, destinationDir: string, includeScripts: boolean): Promise<void> {
@@ -616,7 +523,7 @@ async function copySkillTreeRecursive(sourceRoot: string, sourceDir: string, des
     }
 
     const sourcePath = join(sourceDir, entry.name)
-    const relativePath = normalizeRelativePath(relative(sourceRoot, sourcePath))
+    const relativePath = (relative(sourceRoot, sourcePath))
 
     if (relativePath.split('/').includes('..')) {
       continue
@@ -786,12 +693,12 @@ export function getTargetSkillRoot(
     return {
       targetDir,
       skillRoot,
-      warning: `Target "${target}" cannot be resolved from unagent; using fallback path "${normalizeRelativePath(relative(rootDir, targetDir))}".`,
+      warning: `Target "${target}" cannot be resolved from unagent; using fallback path "${(relative(rootDir, targetDir))}".`,
     }
   }
 
   const home = homedir()
-  const relativeConfigDir = normalizeRelativePath(relative(home, targetConfig.configDir))
+  const relativeConfigDir = (relative(home, targetConfig.configDir))
   const canMirrorConfigDir = !relativeConfigDir.startsWith('..')
     && !relativeConfigDir.includes('/../')
     && !isAbsolute(relativeConfigDir)
@@ -807,7 +714,7 @@ export function getTargetSkillRoot(
   return {
     targetDir,
     skillRoot,
-    warning: `Target "${target}" configDir "${targetConfig.configDir}" is not under home "${home}"; using fallback path "${normalizeRelativePath(relative(rootDir, targetDir))}".`,
+    warning: `Target "${target}" configDir "${targetConfig.configDir}" is not under home "${home}"; using fallback path "${(relative(rootDir, targetDir))}".`,
   }
 }
 

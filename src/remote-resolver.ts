@@ -1,9 +1,9 @@
-import { join } from 'node:path'
+import { join } from 'pathe'
 import { FALLBACK_REF, FALLBACK_REPO, findFallbackMapEntry } from './fallback-map'
 import { findGitHubOverride } from './github-overrides'
 import { downloadGitHubDirectory, fetchGitHubDefaultBranch, fetchGitHubFileText, parseGitHubRepo } from './remote-fetch'
 import type { ResolvedContribution, SkillManifestSkipped, SkillSourceKind, ValidationIssue } from './types'
-import { normalizeContribution, pathExists } from './internal'
+import { createValidationIssue, normalizeContribution, pathExists, sanitizeSegment } from './internal'
 
 export interface InstalledPackageInfo {
   packageName: string
@@ -36,16 +36,6 @@ interface RemoteSkillCandidate {
 
 function makeSkip(packageName: string, skillName: string, reason: string, sourceKind?: SkillSourceKind): SkillManifestSkipped {
   return {
-    packageName,
-    skillName,
-    reason,
-    sourceKind,
-  }
-}
-
-function makeIssue(packageName: string, skillName: string, reason: string, sourceKind: SkillSourceKind): ValidationIssue {
-  return {
-    severity: 'warning',
     packageName,
     skillName,
     reason,
@@ -90,10 +80,6 @@ function dedupe(values: string[]): string[] {
   return output
 }
 
-function safeSegment(value: string): string {
-  return value.replace(/[^\w.-]+/g, '-').replace(/^-+|-+$/g, '') || 'unknown'
-}
-
 async function materializeCandidate(
   packageInfo: InstalledPackageInfo,
   candidate: RemoteSkillCandidate,
@@ -103,10 +89,10 @@ async function materializeCandidate(
   const targetDir = join(
     cacheRoot,
     candidate.sourceKind,
-    safeSegment(candidate.sourceRepo),
-    safeSegment(candidate.sourceRef),
-    safeSegment(packageInfo.packageName),
-    safeSegment(candidate.skillName),
+    sanitizeSegment(candidate.sourceRepo),
+    sanitizeSegment(candidate.sourceRef),
+    sanitizeSegment(packageInfo.packageName),
+    sanitizeSegment(candidate.skillName),
   )
 
   const downloaded = await downloadGitHubDirectory(
@@ -231,7 +217,7 @@ async function resolveViaGitHub(
         }
       }
       catch {
-        issues.push(makeIssue(packageInfo.packageName, packageInfo.packageName, 'Failed to parse remote package.json', 'github'))
+        issues.push(createValidationIssue(packageInfo.packageName, packageInfo.packageName, 'Failed to parse remote package.json', 'github'))
       }
     }
 

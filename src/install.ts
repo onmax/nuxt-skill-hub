@@ -1,14 +1,11 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
-import { join, relative, sep } from 'node:path'
+import { join, relative } from 'pathe'
 import { useLogger } from '@nuxt/kit'
 import { createConsola } from 'consola'
 import type { Nuxt } from '@nuxt/schema'
 import { detectInstalledTargets, getSupportedTargets } from './agents'
-import { extractModuleSpecifier, discoverInstalledPackageFromSpecifier, getTargetSkillRoot, pathExists } from './internal'
+import { extractModuleSpecifier, discoverInstalledPackageFromSpecifier, getTargetSkillRoot, MANAGED_HINT_END, MANAGED_HINT_START, pathExists } from './internal'
 import { findFallbackMapEntry } from './fallback-map'
-
-const MANAGED_HINT_START = '<!-- nuxt-skill-hub:start -->'
-const MANAGED_HINT_END = '<!-- nuxt-skill-hub:end -->'
 
 interface PendingWrite {
   file: string
@@ -20,10 +17,6 @@ interface PendingWrite {
 
 function isCancelled(value: unknown): boolean {
   return value === null || typeof value === 'symbol'
-}
-
-function toPosix(path: string): string {
-  return path.split(sep).join('/')
 }
 
 export async function runInstallWizard(nuxt: Nuxt): Promise<void> {
@@ -149,7 +142,7 @@ export async function runInstallWizard(nuxt: Nuxt): Promise<void> {
   const missingPatterns: string[] = []
   for (const target of selectedTargets) {
     const { targetDir } = getTargetSkillRoot(rootDir, target, skillName)
-    const pattern = toPosix(relative(rootDir, targetDir)).replace(/\/?$/, '/')
+    const pattern = relative(rootDir, targetDir).replace(/\/?$/, '/')
     if (!currentGitignore.includes(pattern)) {
       missingPatterns.push(pattern)
     }

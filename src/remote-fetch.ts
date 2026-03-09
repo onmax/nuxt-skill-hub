@@ -1,6 +1,7 @@
 import { promises as fsp } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { dirname, join } from 'pathe'
 import { execFileSync } from 'node:child_process'
+import { ofetch, type FetchOptions } from 'ofetch'
 
 const GITHUB_API_BASE = 'https://api.github.com'
 let cachedGitHubToken: string | null | undefined
@@ -12,38 +13,12 @@ interface GitHubContentEntry {
   download_url?: string | null
 }
 
-export interface FetchJsonResult<T> {
-  ok: boolean
-  status: number
-  data?: T
-  error?: string
-}
-
 function encodeGitHubPath(path: string): string {
   return path
     .split('/')
     .filter(Boolean)
     .map(segment => encodeURIComponent(segment))
     .join('/')
-}
-
-async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Response> {
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), timeoutMs)
-  try {
-    const token = resolveGitHubToken()
-    return await fetch(url, {
-      signal: controller.signal,
-      headers: {
-        'Accept': 'application/vnd.github+json',
-        'User-Agent': 'nuxt-skill-hub',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-    })
-  }
-  finally {
-    clearTimeout(timeout)
-  }
 }
 
 function resolveGitHubToken(): string | undefined {
@@ -71,55 +46,15 @@ function resolveGitHubToken(): string | undefined {
   return cachedGitHubToken || undefined
 }
 
-async function fetchJson<T>(url: string, timeoutMs: number): Promise<FetchJsonResult<T>> {
-  try {
-    const response = await fetchWithTimeout(url, timeoutMs)
-    if (!response.ok) {
-      return {
-        ok: false,
-        status: response.status,
-        error: `HTTP ${response.status}`,
-      }
-    }
-
-    return {
-      ok: true,
-      status: response.status,
-      data: await response.json() as T,
-    }
-  }
-  catch (error) {
-    return {
-      ok: false,
-      status: 0,
-      error: (error as Error).message,
-    }
-  }
-}
-
-async function fetchText(url: string, timeoutMs: number): Promise<FetchJsonResult<string>> {
-  try {
-    const response = await fetchWithTimeout(url, timeoutMs)
-    if (!response.ok) {
-      return {
-        ok: false,
-        status: response.status,
-        error: `HTTP ${response.status}`,
-      }
-    }
-
-    return {
-      ok: true,
-      status: response.status,
-      data: await response.text(),
-    }
-  }
-  catch (error) {
-    return {
-      ok: false,
-      status: 0,
-      error: (error as Error).message,
-    }
+function githubFetchOptions(timeoutMs: number): FetchOptions {
+  const token = resolveGitHubToken()
+  return {
+    timeout: timeoutMs,
+    headers: {
+      'Accept': 'application/vnd.github+json',
+      'User-Agent': 'nuxt-skill-hub',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
   }
 }
 
@@ -172,12 +107,13 @@ export async function fetchGitHubDefaultBranch(repo: string, timeoutMs: number):
     return null
   }
 
-  const response = await fetchJson<{ default_branch?: string }>(`${GITHUB_API_BASE}/repos/${repoPath}`, timeoutMs)
-  if (!response.ok || !response.data?.default_branch) {
+  try {
+    const data = await ofetch<{ default_branch?: string }>(`${GITHUB_API_BASE}/repos/${repoPath}`, githubFetchOptions(timeoutMs))
+    return data.default_branch || null
+  }
+  catch {
     return null
   }
-
-  return response.data.default_branch
 }
 
 export async function fetchGitHubFileText(
@@ -185,51 +121,35 @@ export async function fetchGitHubFileText(
   ref: string,
   filePath: string,
   timeoutMs: number,
-): Promise<FetchJsonResult<string>> {
+): Promise<{ ok: boolean, data?: string, status?: number, error?: string }> {
   const repoPath = toRepoPath(repo)
   if (!repoPath) {
-    return {
-      ok: false,
-      status: 0,
-      error: 'Invalid GitHub repository format',
-    }
+    return { ok: false, error: 'Invalid GitHub repository format' }
   }
 
   const encodedPath = encodeGitHubPath(filePath)
   const url = `${GITHUB_API_BASE}/repos/${repoPath}/contents/${encodedPath}?ref=${encodeURIComponent(ref)}`
-  const response = await fetchJson<{ type?: string, content?: string, encoding?: string, download_url?: string | null }>(url, timeoutMs)
-  if (!response.ok || !response.data) {
-    return {
-      ok: false,
-      status: response.status,
-      error: response.error,
+
+  try {
+    const data = await ofetch<{ type?: string, content?: string, encoding?: string, download_url?: string | null }>(url, githubFetchOptions(timeoutMs))
+
+    if (data.type !== 'file') {
+      return { ok: false, error: 'Requested path is not a file' }
     }
-  }
 
-  if (response.data.type !== 'file') {
-    return {
-      ok: false,
-      status: response.status,
-      error: 'Requested path is not a file',
+    if (data.encoding === 'base64' && data.content) {
+      return { ok: true, data: Buffer.from(data.content, 'base64').toString('utf8') }
     }
-  }
 
-  if (response.data.encoding === 'base64' && response.data.content) {
-    return {
-      ok: true,
-      status: response.status,
-      data: Buffer.from(response.data.content, 'base64').toString('utf8'),
+    if (data.download_url) {
+      const text = await ofetch<string>(data.download_url, { ...githubFetchOptions(timeoutMs), responseType: 'text' })
+      return { ok: true, data: text }
     }
-  }
 
-  if (response.data.download_url) {
-    return await fetchText(response.data.download_url, timeoutMs)
+    return { ok: false, error: 'No readable content for remote file' }
   }
-
-  return {
-    ok: false,
-    status: response.status,
-    error: 'No readable content for remote file',
+  catch (error) {
+    return { ok: false, error: (error as Error).message }
   }
 }
 
@@ -248,35 +168,30 @@ export async function downloadGitHubDirectory(
 ): Promise<DownloadResult> {
   const repoPath = toRepoPath(repo)
   if (!repoPath) {
-    return {
-      ok: false,
-      error: 'Invalid GitHub repository format',
-    }
+    return { ok: false, error: 'Invalid GitHub repository format' }
   }
 
   const normalizedSourcePath = sourcePath.replace(/^\/+/, '').replace(/\/+$/, '')
   const stack = [normalizedSourcePath]
   await fsp.mkdir(destinationDir, { recursive: true })
+  const opts = githubFetchOptions(timeoutMs)
 
   while (stack.length) {
     const current = stack.pop() || ''
     const encodedCurrent = encodeGitHubPath(current)
     const url = `${GITHUB_API_BASE}/repos/${repoPath}/contents/${encodedCurrent}?ref=${encodeURIComponent(ref)}`
-    const response = await fetchJson<GitHubContentEntry[] | GitHubContentEntry>(url, timeoutMs)
-    if (!response.ok || !response.data) {
-      return {
-        ok: false,
-        status: response.status,
-        error: response.error,
-      }
+
+    let entries: GitHubContentEntry[]
+    try {
+      const data = await ofetch<GitHubContentEntry[] | GitHubContentEntry>(url, opts)
+      entries = Array.isArray(data) ? data : [data]
+    }
+    catch (error) {
+      return { ok: false, error: (error as Error).message }
     }
 
-    const entries = Array.isArray(response.data) ? response.data : [response.data]
     if (!entries.length) {
-      return {
-        ok: false,
-        error: 'No entries returned for remote path',
-      }
+      return { ok: false, error: 'No entries returned for remote path' }
     }
 
     for (const entry of entries) {
@@ -289,24 +204,21 @@ export async function downloadGitHubDirectory(
         continue
       }
 
-      const fileText = await fetchText(entry.download_url, timeoutMs)
-      if (!fileText.ok || fileText.data === undefined) {
-        return {
-          ok: false,
-          status: fileText.status,
-          error: fileText.error,
+      try {
+        const fileText = await ofetch<string>(entry.download_url, { ...opts, responseType: 'text' })
+        const relativeFilePath = normalizedSourcePath
+          ? entry.path.slice(normalizedSourcePath.length).replace(/^\/+/, '')
+          : entry.path
+        if (!relativeFilePath || relativeFilePath.includes('..') || relativeFilePath.startsWith('/')) {
+          continue
         }
+        const targetPath = join(destinationDir, relativeFilePath)
+        await fsp.mkdir(dirname(targetPath), { recursive: true })
+        await fsp.writeFile(targetPath, fileText, 'utf8')
       }
-
-      const relativeFilePath = normalizedSourcePath
-        ? entry.path.slice(normalizedSourcePath.length).replace(/^\/+/, '')
-        : entry.path
-      if (!relativeFilePath || relativeFilePath.includes('..') || relativeFilePath.startsWith('/')) {
-        continue
+      catch (error) {
+        return { ok: false, error: (error as Error).message }
       }
-      const targetPath = join(destinationDir, relativeFilePath)
-      await fsp.mkdir(dirname(targetPath), { recursive: true })
-      await fsp.writeFile(targetPath, fileText.data, 'utf8')
     }
   }
 

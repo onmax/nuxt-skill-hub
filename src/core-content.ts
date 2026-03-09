@@ -1,5 +1,5 @@
 import { promises as fsp } from 'node:fs'
-import { basename, dirname, join, resolve } from 'node:path'
+import { basename, dirname, join, resolve } from 'pathe'
 import { fileURLToPath } from 'node:url'
 
 export const CORE_CONTENT_SOURCE_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '../core-content')

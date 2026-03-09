@@ -1,5 +1,5 @@
 import { promises as fsp } from 'node:fs'
-import { isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { isAbsolute, join, relative, resolve } from 'pathe'
 import { defineNuxtModule, useLogger } from '@nuxt/kit'
 import { runInstallWizard } from './install'
 import { createSkillEntrypoint } from './core-content'
@@ -39,10 +39,6 @@ import type {
   SkillHubContributionContext,
   ValidationIssue,
 } from './types'
-
-function toPosix(path: string): string {
-  return path.split(sep).join('/')
-}
 
 async function resolveManualContribution(rootDir: string, contribution: SkillHubContribution): Promise<ResolvedContribution> {
   const sourceDir = isAbsolute(contribution.sourceDir)
@@ -303,7 +299,7 @@ export default defineNuxtModule<ModuleOptions>({
             version: contribution.version,
             skillName: contribution.skillName,
             sourceDir: contribution.sourceDir,
-            destination: toPosix(relative(skillRoot, destination)),
+            destination: (relative(skillRoot, destination)),
             scriptsIncluded: includeScripts,
             sourceKind: contribution.sourceKind,
             sourceRepo: contribution.sourceRepo,
@@ -327,13 +323,13 @@ export default defineNuxtModule<ModuleOptions>({
           generatedAt,
           resolvedSkillName,
           target,
-          toPosix(targetDir),
+          (targetDir),
           generatedEntries,
           skipped,
         )
         await writeFileIfChanged(join(skillRoot, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`)
 
-        logger.success(`Generated ${resolvedSkillName} skill at ${toPosix(skillRoot)}`)
+        logger.success(`Generated ${resolvedSkillName} skill at ${(skillRoot)}`)
       }
 
       if (options.writeAgentsHint) {
