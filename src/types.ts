@@ -16,6 +16,7 @@ export interface ModuleOptions {
   includeScripts?: IncludeScriptsMode
   scriptAllowlist?: string[]
   writeAgentsHint?: boolean
+  additionalPackages?: string[]
 }
 
 export interface AgentSkillDeclaration {

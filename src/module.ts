@@ -117,6 +117,7 @@ export default defineNuxtModule<ModuleOptions>({
     includeScripts: 'never',
     scriptAllowlist: [],
     writeAgentsHint: false,
+    additionalPackages: [],
   },
   async setup(options, nuxt) {
     if (!options.enabled) {
@@ -165,7 +166,10 @@ export default defineNuxtModule<ModuleOptions>({
           .map(entry => extractModuleSpecifier(entry))
           .filter((entry): entry is string => Boolean(entry))
 
-        const seenSpecifiers = Array.from(new Set(moduleSpecifiers))
+        const seenSpecifiers = Array.from(new Set([
+          ...moduleSpecifiers,
+          ...(options.additionalPackages || []),
+        ]))
         for (const specifier of seenSpecifiers) {
           const installedPackage = await discoverInstalledPackageFromSpecifier(specifier, nuxt.options.rootDir)
           if (!installedPackage) {
