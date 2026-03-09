@@ -49,9 +49,39 @@ const FALLBACK_MAP: FallbackMapEntry[] = [
     path: 'skills/reka-ui',
   },
   {
+    packageName: 'reka-ui/nuxt',
+    skillName: 'reka-ui',
+    path: 'skills/reka-ui',
+  },
+  {
     packageName: '@vueuse/core',
     skillName: 'vueuse',
     path: 'skills/vueuse',
+  },
+  {
+    packageName: '@vueuse/nuxt',
+    skillName: 'vueuse',
+    path: 'skills/vueuse',
+  },
+  {
+    packageName: 'motion-v',
+    skillName: 'motion',
+    path: 'skills/motion',
+  },
+  {
+    packageName: 'motion-v/nuxt',
+    skillName: 'motion',
+    path: 'skills/motion',
+  },
+  {
+    packageName: 'nuxt-studio',
+    skillName: 'nuxt-studio',
+    path: 'skills/nuxt-studio',
+  },
+  {
+    packageName: 'pnpm',
+    skillName: 'pnpm',
+    path: 'skills/pnpm',
   },
   {
     packageName: 'vite',
