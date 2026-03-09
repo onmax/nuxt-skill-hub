@@ -1,6 +1,7 @@
 import { promises as fsp } from 'node:fs'
 import { isAbsolute, join, relative, resolve } from 'pathe'
 import { defineNuxtModule, useLogger } from '@nuxt/kit'
+import { readPackageJSON } from 'pkg-types'
 import { runInstallWizard } from './install'
 import { createSkillEntrypoint } from './core-content'
 import {
@@ -107,7 +108,7 @@ export default defineNuxtModule<ModuleOptions>({
   },
   defaults: {
     enabled: true,
-    skillName: 'nuxt',
+    skillName: '',
     targets: [],
     targetMode: 'detected',
     discoverDependencySkills: true,
@@ -123,13 +124,22 @@ export default defineNuxtModule<ModuleOptions>({
     }
 
     const logger = useLogger('nuxt-skill-hub')
-    const configuredSkillName = options.skillName?.trim() || 'nuxt'
-    const resolvedSkillName = isValidSkillName(configuredSkillName)
-      ? configuredSkillName
-      : 'nuxt'
+    const configuredSkillName = options.skillName?.trim()
+    let resolvedSkillName: string
 
-    if (resolvedSkillName !== configuredSkillName) {
-      logger.warn(`Invalid skillHub.skillName "${configuredSkillName}". Falling back to "${resolvedSkillName}".`)
+    if (configuredSkillName && isValidSkillName(configuredSkillName)) {
+      resolvedSkillName = configuredSkillName
+    }
+    else {
+      if (configuredSkillName) {
+        logger.warn(`Invalid skillHub.skillName "${configuredSkillName}". Deriving from package.json.`)
+      }
+      const pkg = await readPackageJSON(nuxt.options.rootDir).catch(() => ({}))
+      const projectName = (pkg.name || '').replace(/^@[^/]+\//, '').replace(/[^\w-]+/g, '-').replace(/^-+|-+$/g, '')
+      resolvedSkillName = projectName ? `nuxt-${projectName}` : 'nuxt'
+      if (!isValidSkillName(resolvedSkillName)) {
+        resolvedSkillName = 'nuxt'
+      }
     }
 
     nuxt.hook('modules:done', async () => {

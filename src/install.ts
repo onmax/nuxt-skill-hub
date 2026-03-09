@@ -2,9 +2,10 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, relative } from 'pathe'
 import { useLogger } from '@nuxt/kit'
 import { createConsola } from 'consola'
+import { readPackageJSON } from 'pkg-types'
 import type { Nuxt } from '@nuxt/schema'
 import { detectInstalledTargets, getSupportedTargets } from './agents'
-import { extractModuleSpecifier, discoverInstalledPackageFromSpecifier, getTargetSkillRoot, MANAGED_HINT_END, MANAGED_HINT_START, pathExists } from './internal'
+import { extractModuleSpecifier, discoverInstalledPackageFromSpecifier, getTargetSkillRoot, isValidSkillName, MANAGED_HINT_END, MANAGED_HINT_START, pathExists } from './internal'
 import { findFallbackMapEntry } from './fallback-map'
 
 interface PendingWrite {
@@ -30,7 +31,10 @@ export async function runInstallWizard(nuxt: Nuxt): Promise<void> {
 
   const consola = createConsola()
   const rootDir = nuxt.options.rootDir
-  const skillName = 'nuxt'
+  const pkg = await readPackageJSON(rootDir).catch(() => ({}))
+  const projectName = (pkg.name || '').replace(/^@[^/]+\//, '').replace(/[^\w-]+/g, '-').replace(/^-+|-+$/g, '')
+  let skillName = projectName ? `nuxt-${projectName}` : 'nuxt'
+  if (!isValidSkillName(skillName)) skillName = 'nuxt'
   const pendingWrites: PendingWrite[] = []
 
   consola.box(
