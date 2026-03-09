@@ -4,7 +4,7 @@ import { useLogger } from '@nuxt/kit'
 import { createConsola } from 'consola'
 import { readPackageJSON } from 'pkg-types'
 import type { Nuxt } from '@nuxt/schema'
-import { detectInstalledTargets, getSupportedTargets } from './agents'
+import { detectCurrentTarget, detectInstalledTargets, getSupportedTargets } from './agents'
 import { extractModuleSpecifier, discoverInstalledPackageFromSpecifier, getTargetSkillRoot, isValidSkillName, MANAGED_HINT_END, MANAGED_HINT_START, pathExists } from './internal'
 import { findFallbackMapEntry } from './fallback-map'
 
@@ -43,46 +43,54 @@ export async function runInstallWizard(nuxt: Nuxt): Promise<void> {
   )
 
   // ── Step 1: Detect agents ──
-  const detectedTargets = detectInstalledTargets(rootDir)
-  const allTargets = getSupportedTargets()
+  const currentTarget = detectCurrentTarget()
+  let selectedTargets: string[]
 
-  if (!detectedTargets.length && !allTargets.length) {
-    consola.warn('No AI agents detected. Skills will be generated when an agent is detected.')
-    consola.info('Supported agents: claude-code, codex, cursor, codeium, windsurf')
-    return
+  if (currentTarget) {
+    consola.info(`Running inside ${currentTarget}, auto-selecting it.`)
+    selectedTargets = [currentTarget]
   }
+  else {
+    const detectedTargets = detectInstalledTargets(rootDir)
+    const allTargets = getSupportedTargets()
 
-  consola.info(`Detected agents: ${detectedTargets.length ? detectedTargets.join(', ') : 'none'}`)
-
-  let selectedTargets = detectedTargets
-
-  if (detectedTargets.length > 1) {
-    const keepAll = await consola.prompt('Generate skills for all detected agents?', {
-      type: 'confirm',
-      initial: true,
-      cancel: 'null',
-    })
-
-    if (isCancelled(keepAll)) {
-      consola.info('Setup cancelled.')
+    if (!detectedTargets.length && !allTargets.length) {
+      consola.warn('No AI agents detected. Skills will be generated when an agent is detected.')
+      consola.info('Supported agents: claude-code, codex, cursor, codeium, windsurf')
       return
     }
 
-    if (!keepAll) {
-      const chosen = await consola.prompt('Select agents to generate skills for:', {
-        type: 'multiselect',
-        options: detectedTargets.map(t => ({ label: t, value: t })),
-        initial: detectedTargets,
-        required: true,
+    consola.info(`Detected agents: ${detectedTargets.length ? detectedTargets.join(', ') : 'none'}`)
+    selectedTargets = detectedTargets
+
+    if (detectedTargets.length > 1) {
+      const keepAll = await consola.prompt('Generate skills for all detected agents?', {
+        type: 'confirm',
+        initial: true,
         cancel: 'null',
       })
 
-      if (isCancelled(chosen)) {
+      if (isCancelled(keepAll)) {
         consola.info('Setup cancelled.')
         return
       }
 
-      selectedTargets = (chosen as unknown as Array<{ label: string, value: string }>).map(c => c.value)
+      if (!keepAll) {
+        const chosen = await consola.prompt('Select agents to generate skills for:', {
+          type: 'multiselect',
+          options: detectedTargets.map(t => ({ label: t, value: t })),
+          initial: detectedTargets,
+          required: true,
+          cancel: 'null',
+        })
+
+        if (isCancelled(chosen)) {
+          consola.info('Setup cancelled.')
+          return
+        }
+
+        selectedTargets = (chosen as unknown as Array<{ label: string, value: string }>).map(c => c.value)
+      }
     }
   }
 

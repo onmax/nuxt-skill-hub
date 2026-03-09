@@ -101,6 +101,23 @@ export function parseGitHubRepo(input: string | undefined | null): string | null
   return toRepoPath(input)
 }
 
+export async function listGitHubDirectory(repo: string, ref: string, dirPath: string, timeoutMs: number): Promise<string[]> {
+  const repoPath = toRepoPath(repo)
+  if (!repoPath) return []
+
+  const encodedPath = encodeGitHubPath(dirPath)
+  const url = `${GITHUB_API_BASE}/repos/${repoPath}/contents/${encodedPath}?ref=${encodeURIComponent(ref)}`
+
+  try {
+    const data = await ofetch<GitHubContentEntry[] | GitHubContentEntry>(url, githubFetchOptions(timeoutMs))
+    const entries = Array.isArray(data) ? data : [data]
+    return entries.filter(e => e.type === 'dir').map(e => e.name)
+  }
+  catch {
+    return []
+  }
+}
+
 export async function fetchGitHubDefaultBranch(repo: string, timeoutMs: number): Promise<string | null> {
   const repoPath = toRepoPath(repo)
   if (!repoPath) {

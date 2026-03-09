@@ -1,7 +1,7 @@
 import { join } from 'pathe'
 import { FALLBACK_REF, FALLBACK_REPO, findFallbackMapEntry } from './fallback-map'
 import { findGitHubOverride } from './github-overrides'
-import { downloadGitHubDirectory, fetchGitHubDefaultBranch, fetchGitHubFileText, parseGitHubRepo } from './remote-fetch'
+import { downloadGitHubDirectory, fetchGitHubDefaultBranch, fetchGitHubFileText, listGitHubDirectory, parseGitHubRepo } from './remote-fetch'
 import type { ResolvedContribution, SkillManifestSkipped, SkillSourceKind, ValidationIssue } from './types'
 import { createValidationIssue, normalizeContribution, pathExists, sanitizeSegment } from './internal'
 
@@ -218,6 +218,29 @@ async function resolveViaGitHub(
       }
       catch {
         issues.push(createValidationIssue(packageInfo.packageName, packageInfo.packageName, 'Failed to parse remote package.json', 'github'))
+      }
+    }
+
+    // List skills/ directory at repo root to discover all skills
+    const skillsDirs = await listGitHubDirectory(repo, ref, 'skills', timeoutMs)
+    if (skillsDirs.length) {
+      const contributions: ResolvedContribution[] = []
+      for (const skillName of skillsDirs) {
+        const resolved = await materializeCandidate(packageInfo, {
+          skillName,
+          sourcePath: `skills/${skillName}`,
+          sourceKind: 'github',
+          sourceRepo: repo,
+          sourceRef: ref,
+          official: true,
+          resolver: 'githubHeuristic',
+        }, cacheRoot, timeoutMs)
+        if (resolved) {
+          contributions.push(resolved)
+        }
+      }
+      if (contributions.length) {
+        return { contributions, issues, skipped }
       }
     }
 

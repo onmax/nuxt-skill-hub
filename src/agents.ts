@@ -1,4 +1,5 @@
 import {
+  detectCurrentAgent as detectUnagentCurrentAgent,
   detectInstalledAgents as detectUnagentInstalledAgents,
   expandPath,
   getAgentConfig as getUnagentAgentConfig,
@@ -96,6 +97,13 @@ export function validateTargets(targets: SkillHubTarget[]): { valid: SkillHubTar
   }
 
   return { valid, invalid }
+}
+
+export function detectCurrentTarget(): SkillHubTarget | undefined {
+  const current = detectUnagentCurrentAgent()
+  if (!current) return undefined
+  const skillsDir = resolveSkillsDir(current.id, current.config)
+  return skillsDir ? current.id : undefined
 }
 
 export function detectInstalledTargets(rootDir: string): SkillHubTarget[] {

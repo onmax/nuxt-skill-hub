@@ -25,6 +25,7 @@ describe('resolveRemoteContributionsForPackage', () => {
       parseGitHubRepo: vi.fn((input: string) => input || null),
       fetchGitHubDefaultBranch: vi.fn(async () => 'main'),
       fetchGitHubFileText: vi.fn(async () => ({ ok: false, status: 404 })),
+      listGitHubDirectory: vi.fn(async () => ['reka-ui']),
       downloadGitHubDirectory: downloadMock,
     }))
 
@@ -62,6 +63,7 @@ describe('resolveRemoteContributionsForPackage', () => {
       parseGitHubRepo: vi.fn(() => null),
       fetchGitHubDefaultBranch: vi.fn(async () => 'main'),
       fetchGitHubFileText: vi.fn(async () => ({ ok: false, status: 404 })),
+      listGitHubDirectory: vi.fn(async () => []),
       downloadGitHubDirectory: downloadMock,
     }))
 
@@ -101,6 +103,7 @@ describe('resolveRemoteContributionsForPackage', () => {
       parseGitHubRepo: vi.fn(() => null),
       fetchGitHubDefaultBranch: vi.fn(async () => 'main'),
       fetchGitHubFileText: vi.fn(async () => ({ ok: false, status: 404 })),
+      listGitHubDirectory: vi.fn(async () => []),
       downloadGitHubDirectory: downloadMock,
     }))
 
@@ -135,6 +138,7 @@ describe('resolveRemoteContributionsForPackage', () => {
     vi.doMock('../src/remote-fetch', () => ({
       parseGitHubRepo: vi.fn((input: string) => input || null),
       fetchGitHubDefaultBranch: vi.fn(async () => 'main'),
+      listGitHubDirectory: vi.fn(async () => []),
       fetchGitHubFileText: vi.fn(async () => ({
         ok: true,
         status: 200,
