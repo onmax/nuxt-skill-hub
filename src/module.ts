@@ -1,6 +1,7 @@
 import { promises as fsp } from 'node:fs'
 import { isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { defineNuxtModule, useLogger } from '@nuxt/kit'
+import { runInstallWizard } from './install'
 import { createSkillEntrypoint } from './core-content'
 import {
   buildCoreTemplateFiles,
@@ -99,10 +100,14 @@ function mergeSkippedEntries(entries: SkillManifestSkipped[]): SkillManifestSkip
 export default defineNuxtModule<ModuleOptions>({
   meta: {
     name: 'nuxt-skill-hub',
+    version: '1.0.0',
     configKey: 'skillHub',
     compatibility: {
       nuxt: '>=4.3.0',
     },
+  },
+  async onInstall(nuxt) {
+    await runInstallWizard(nuxt)
   },
   defaults: {
     enabled: true,

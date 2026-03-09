@@ -39,6 +39,7 @@
   "dependencies": {
     "@nuxt/kit": "^4.3.1",
     "automd": "^0.4.3",
+    "consola": "^3.4.0",
     "unagent": "^0.0.8"
   },
   "devDependencies": {
