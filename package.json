@@ -37,9 +37,9 @@
     "typecheck": "pnpm run test:types"
   },
   "dependencies": {
-    "@nuxt/kit": "catalog:nuxt",
-    "automd": "catalog:runtime",
-    "unagent": "catalog:runtime"
+    "@nuxt/kit": "^4.3.1",
+    "automd": "^0.4.3",
+    "unagent": "^0.0.8"
   },
   "devDependencies": {
     "@nuxt/devtools": "catalog:nuxt",
