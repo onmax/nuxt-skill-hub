@@ -5,6 +5,7 @@ import { readPackageJSON } from 'pkg-types'
 import { runInstallWizard } from './install'
 import { createSkillEntrypoint } from './core-content'
 import {
+  discoverInstalledPackageFromDirectory,
   buildCoreTemplateFiles,
   copySkillTree,
   createManifest,
@@ -30,6 +31,7 @@ import {
   validateResolvedContributions,
   upsertAgentsHint,
   writeFileIfChanged,
+  type InstalledPackageMetadata,
 } from './internal'
 import { resolveRemoteContributionsForPackage } from './remote-resolver'
 import type {
@@ -159,7 +161,22 @@ export default defineNuxtModule<ModuleOptions>({
       await callSkillContributeHook('skill-hub:contribute', contributionContext)
 
       const discoveries = []
-      const installedPackages = []
+      const installedPackages: InstalledPackageMetadata[] = []
+      const seenPackageRoots = new Set<string>()
+
+      const addInstalledPackage = (installedPackage: InstalledPackageMetadata | null) => {
+        if (!installedPackage || seenPackageRoots.has(installedPackage.packageRoot)) {
+          return
+        }
+
+        seenPackageRoots.add(installedPackage.packageRoot)
+        installedPackages.push(installedPackage)
+
+        const discovered = discoverPackageSkillsFromInstalledPackage(installedPackage, 'dist')
+        if (discovered) {
+          discoveries.push(discovered)
+        }
+      }
 
       if (options.discoverDependencySkills) {
         const moduleSpecifiers = (nuxt.options.modules || [])
@@ -171,16 +188,17 @@ export default defineNuxtModule<ModuleOptions>({
           ...(options.additionalPackages || []),
         ]))
         for (const specifier of seenSpecifiers) {
-          const installedPackage = await discoverInstalledPackageFromSpecifier(specifier, nuxt.options.rootDir)
-          if (!installedPackage) {
-            continue
-          }
+          addInstalledPackage(await discoverInstalledPackageFromSpecifier(specifier, nuxt.options.rootDir))
+        }
 
-          installedPackages.push(installedPackage)
-          const discovered = discoverPackageSkillsFromInstalledPackage(installedPackage, 'dist')
-          if (discovered) {
-            discoveries.push(discovered)
-          }
+        const layerDirectories = Array.from(new Set(
+          nuxt.options._layers
+            .map(layer => resolve(layer.cwd || layer.config.rootDir || ''))
+            .filter(layerDir => layerDir && layerDir !== resolve(nuxt.options.rootDir)),
+        ))
+
+        for (const layerDirectory of layerDirectories) {
+          addInstalledPackage(await discoverInstalledPackageFromDirectory(layerDirectory))
         }
       }
 

@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  discoverInstalledPackageFromDirectory,
   getTargetSkillRoot,
   isValidSkillName,
   parseAgentSkillDeclarations,
@@ -34,6 +35,29 @@ describe('parseAgentSkillDeclarations', () => {
     expect(parsed.skills).toEqual([{ name: 'nuxt-ui', path: './skills/nuxt-ui' }])
     expect(parsed.issues).toHaveLength(3)
     expect(parsed.issues.map(issue => issue.packageName)).toEqual(['test-module', 'test-module', 'test-module'])
+  })
+})
+
+describe('discoverInstalledPackageFromDirectory', () => {
+  it('reads package metadata from a resolved layer directory', async () => {
+    const root = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-layer-'))
+    await fsp.writeFile(join(root, 'package.json'), JSON.stringify({
+      name: 'docus',
+      version: '5.8.0',
+      repository: {
+        type: 'git',
+        url: 'git+https://github.com/nuxt-content/docus.git',
+      },
+    }, null, 2), 'utf8')
+
+    const result = await discoverInstalledPackageFromDirectory(root)
+
+    expect(result).toMatchObject({
+      packageName: 'docus',
+      version: '5.8.0',
+      packageRoot: root,
+      repository: 'git+https://github.com/nuxt-content/docus.git',
+    })
   })
 })
 

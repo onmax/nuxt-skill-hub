@@ -289,9 +289,22 @@ export async function discoverInstalledPackageFromSpecifier(specifier: string, r
     packageJsonPath = fallback
   }
 
+  return readInstalledPackageMetadata(packageJsonPath, specifier)
+}
+
+export async function discoverInstalledPackageFromDirectory(directory: string): Promise<InstalledPackageMetadata | null> {
+  const packageJsonPath = join(directory, 'package.json')
+  if (!(await pathExists(packageJsonPath))) {
+    return null
+  }
+
+  return readInstalledPackageMetadata(packageJsonPath)
+}
+
+async function readInstalledPackageMetadata(packageJsonPath: string, fallbackSpecifier?: string): Promise<InstalledPackageMetadata> {
   const pkg = await readPackageJSON(packageJsonPath)
   return {
-    packageName: pkg.name || packageNameFromSpecifier(specifier),
+    packageName: pkg.name || (fallbackSpecifier ? packageNameFromSpecifier(fallbackSpecifier) : basename(dirname(packageJsonPath))),
     version: pkg.version,
     packageRoot: dirname(packageJsonPath),
     repository: readRepositoryUrl(pkg.repository as string | { url?: string } | undefined),

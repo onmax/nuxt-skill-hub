@@ -169,4 +169,41 @@ describe('resolveRemoteContributionsForPackage', () => {
     expect(result.contributions[0]?.resolver).toBe('agentsField')
     expect(result.contributions[0]?.sourcePath).toBe('skills/nuxt-module')
   })
+
+  it('discovers all root github skills for docus', async () => {
+    const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
+    const downloadMock = vi.fn(async (repo: string, _ref: string, sourcePath: string, destinationDir: string) => {
+      if (repo === 'nuxt-content/docus' && (sourcePath === 'skills/create-docs' || sourcePath === 'skills/review-docs')) {
+        await createSkillFiles(destinationDir, sourcePath.split('/').pop() || 'unknown')
+        return { ok: true }
+      }
+      return { ok: false, status: 404, error: 'not found' }
+    })
+
+    vi.resetModules()
+    vi.doMock('../src/remote-fetch', () => ({
+      parseGitHubRepo: vi.fn((input: string) => input || null),
+      fetchGitHubDefaultBranch: vi.fn(async () => 'main'),
+      fetchGitHubFileText: vi.fn(async () => ({ ok: false, status: 404 })),
+      listGitHubDirectory: vi.fn(async () => ['create-docs', 'review-docs']),
+      downloadGitHubDirectory: downloadMock,
+    }))
+
+    const { resolveRemoteContributionsForPackage } = await import('../src/remote-resolver')
+    const result = await resolveRemoteContributionsForPackage({
+      packageName: 'docus',
+      version: '5.8.0',
+      repository: 'nuxt-content/docus',
+    }, {
+      cacheRoot,
+      githubLookupTimeoutMs: 200,
+      enableGithubLookup: true,
+    })
+
+    expect(result.contributions).toHaveLength(2)
+    expect(result.contributions.map(item => item.skillName)).toEqual(['create-docs', 'review-docs'])
+    expect(result.contributions.every(item => item.sourceKind === 'github')).toBe(true)
+    expect(result.contributions.every(item => item.official)).toBe(true)
+    expect(result.skipped).toEqual([])
+  })
 })
