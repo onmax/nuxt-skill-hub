@@ -686,9 +686,11 @@ Start with [Module Authoring Conventions](./references/nuxt/rules/module-authori
   const activationFlow = `1. Explore the project first: inspect the real page, component, route, server handler, collection, or module surface you are changing.
 2. Use the routing sections in this file and load the smallest matching Nuxt pack.
 3. If the remaining work is mainly Vue component, composable, reactivity, or SFC work, open [Vue Best Practices](./references/vue/SKILL.md).
-4. If module authoring is part of the task, load [Module Authoring Conventions](./references/nuxt/rules/module-authoring.md) before changing \`defineNuxtModule\`, runtime extensions, hooks, or release scaffolding.${includeModuleSections ? `
+4. If module authoring is part of the task, load [Module Authoring Conventions](./references/nuxt/rules/module-authoring.md) before changing \`defineNuxtModule\`, runtime extensions, hooks, or release scaffolding.${includeModuleSections
+  ? `
 5. If an installed module owns the problem, open its entry under [references/modules](./references/modules).
-6. Apply module guidance as delta-only rules inside that module's APIs, config, runtime behavior, and owned files.` : ''}`
+6. Apply module guidance as delta-only rules inside that module's APIs, config, runtime behavior, and owned files.`
+  : ''}`
   const frequencyBullets = profile.includeModuleAuthoring
     ? `- If the task changes module boot or heavy setup work, prefer lightweight \`setup\` plus lifecycle hooks before adding blocking async work.
 - If the module exposes routes, composables, components, or config, prefix public surfaces with module identity before shipping generic names.
@@ -704,8 +706,10 @@ Start with [Module Authoring Conventions](./references/nuxt/rules/module-authori
 - If runtime config, tokens, secrets, or privileged API calls are involved, keep them server-side and expose only a server route or the minimum public config.
 - If hydration, browser-only APIs, time, randomness, or cookies are involved, use SSR-safe primitives first and isolate browser-only work behind \`ClientOnly\` or \`onMounted\`.
 - If the fix touches errors, fallback UI, or recovery flow, check both global and local surfaces before concluding the work is complete.
-- If the solution looks correct but uses generic Vue or hand-rolled HTML, confirm Nuxt, Nuxt Content, or Nuxt UI does not already own that abstraction.${includeModuleSections ? `
-- If the task is module-specific, use the module entry and keep module guidance scoped; do not replace broad Nuxt rules with module-specific rules.` : ''}`
+- If the solution looks correct but uses generic Vue or hand-rolled HTML, confirm Nuxt, Nuxt Content, or Nuxt UI does not already own that abstraction.${includeModuleSections
+  ? `
+- If the task is module-specific, use the module entry and keep module guidance scoped; do not replace broad Nuxt rules with module-specific rules.`
+  : ''}`
     : `- If the task touches SSR, initial page load, or route-driven data, prefer \`useFetch\` or \`useAsyncData\` before \`onMounted\` plus \`$fetch\`.
 - If the task changes page options, layout selection, route middleware, or page-level behavior, check \`definePageMeta\` before adding ad hoc wiring.
 - If the task changes title, meta tags, canonical URLs, or OG data, check \`useHead\` or \`useSeoMeta\` before page-meta or template markup.
@@ -714,8 +718,10 @@ Start with [Module Authoring Conventions](./references/nuxt/rules/module-authori
 - If runtime config, tokens, secrets, or privileged API calls are involved, keep them server-side and expose only a server route or the minimum public config.
 - If hydration, browser-only APIs, time, randomness, or cookies are involved, use SSR-safe primitives first and isolate browser-only work behind \`ClientOnly\` or \`onMounted\`.
 - If the fix touches errors, fallback UI, or recovery flow, check both global and local surfaces before concluding the work is complete.
-- If the solution looks correct but uses generic Vue or hand-rolled HTML, confirm Nuxt, Nuxt Content, or Nuxt UI does not already own that abstraction.${includeModuleSections ? `
-- If the task is module-specific, use the module entry and keep module guidance scoped; do not replace broad Nuxt rules with module-specific rules.` : ''}`
+- If the solution looks correct but uses generic Vue or hand-rolled HTML, confirm Nuxt, Nuxt Content, or Nuxt UI does not already own that abstraction.${includeModuleSections
+  ? `
+- If the task is module-specific, use the module entry and keep module guidance scoped; do not replace broad Nuxt rules with module-specific rules.`
+  : ''}`
   const beforeCompletion = profile.includeModuleAuthoring
     ? `- Did I start from Nuxt Kit and documented lifecycle hooks before reaching for private internals?
 - Did I keep public APIs collision-resistant and module-scoped?
