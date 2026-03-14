@@ -50,12 +50,6 @@ dist
 **/.kiro/skills
 **/.opencode/skills
 
-# Keep generated playground skill output under version control for fixture validation.
-!playground/.codex/
-!playground/.codex/skills/
-!playground/.codex/skills/nuxt/
-!playground/.codex/skills/nuxt/**
-
 # Env
 .env
 .nuxtrc
