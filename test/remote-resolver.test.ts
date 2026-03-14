@@ -231,7 +231,8 @@ describe('resolveRemoteContributionsForPackage', () => {
     expect(result.contributions[0]?.docsUrl).toBe('https://a11y.nuxt.com/')
     expect(result.skipped).toEqual([])
     await expect(fsp.readFile(join(result.contributions[0]!.sourceDir, 'SKILL.md'), 'utf8')).resolves.toContain('This skill was generated from package metadata')
-    await expect(fsp.readFile(join(result.contributions[0]!.sourceDir, 'references/index.md'), 'utf8')).resolves.toContain('Official docs')
+    await expect(fsp.readFile(join(result.contributions[0]!.sourceDir, 'SKILL.md'), 'utf8')).resolves.toContain('## Upstream sources')
+    await expect(fsp.access(join(result.contributions[0]!.sourceDir, 'references/index.md'))).rejects.toBeDefined()
   })
 
   it('keeps package skipped when metadata cannot produce a router skill', async () => {

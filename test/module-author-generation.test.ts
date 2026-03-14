@@ -16,16 +16,16 @@ describe('module-author generation', () => {
 
     const skillRoot = join(workspaceRoot, '.claude', 'skills', 'nuxt-module-author-fixture')
     const entry = await fsp.readFile(join(skillRoot, 'SKILL.md'), 'utf8')
-    const index = await fsp.readFile(join(skillRoot, 'references/index.md'), 'utf8')
 
     expect(entry).toContain('## Module Author Focus')
     expect(entry).toContain('## High-Frequency Nuxt Decisions')
     expect(entry).toContain('adds an authoring layer for repositories that build Nuxt modules')
     expect(entry).toContain('before changing `defineNuxtModule`, runtime extensions, hooks, or release scaffolding')
-
-    expect(index).toContain('## Module author focus')
-    expect(index).toContain('Writing, refactoring, or publishing a Nuxt module')
-    expect(index).toContain('Module Authoring Conventions')
+    expect(entry).toContain('## Common forks in the road')
+    expect(entry).toContain('## Module author focus')
+    expect(entry).toContain('Writing, refactoring, or publishing a Nuxt module')
+    expect(entry).toContain('Module Authoring Conventions')
+    await expect(fsp.access(join(skillRoot, 'references/index.md'))).rejects.toBeDefined()
     await expect(fsp.access(join(skillRoot, 'manifest.json'))).rejects.toBeDefined()
   })
 })

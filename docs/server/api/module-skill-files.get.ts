@@ -22,6 +22,7 @@ interface GitHubTreeItem {
 }
 
 interface CacheEntry {
+  paths: string[]
   files: Record<string, string>
   at: number
 }
@@ -43,39 +44,67 @@ async function fetchSkillTree(skillName: string): Promise<string[]> {
     .filter(p => !EXCLUDED_DIRS.has(p.split('/')[0]!) && (p.endsWith('.md') || p.endsWith('.json')))
 }
 
-async function fetchModuleSkillFiles(moduleId: string): Promise<Record<string, string>> {
+async function fetchModuleSkillIndex(moduleId: string): Promise<CacheEntry> {
   const skillName = MODULE_SKILL_MAP[moduleId]
-  if (!skillName) return {}
+  if (!skillName) {
+    return { paths: [], files: {}, at: Date.now() }
+  }
 
   const cached = cache.get(moduleId)
-  if (cached && Date.now() - cached.at < CACHE_TTL) return cached.files
-
-  const paths = await fetchSkillTree(skillName)
-  const files: Record<string, string> = {}
-  // Fetch in parallel with concurrency limit
-  const chunks = []
-  for (let i = 0; i < paths.length; i += 10) {
-    chunks.push(paths.slice(i, i + 10))
-  }
-  for (const chunk of chunks) {
-    const results = await Promise.all(chunk.map(async (p) => {
-      try { return [p, await fetchFileContent(skillName, p)] as const }
-      catch { return null }
-    }))
-    for (const r of results) { if (r) files[r[0]] = r[1] }
+  if (cached && Date.now() - cached.at < CACHE_TTL) {
+    return cached
   }
 
-  cache.set(moduleId, { files, at: Date.now() })
-  return files
+  const entry: CacheEntry = {
+    paths: await fetchSkillTree(skillName),
+    files: {},
+    at: Date.now(),
+  }
+  cache.set(moduleId, entry)
+  return entry
+}
+
+async function fetchModuleSkillFile(moduleId: string, filePath: string): Promise<string | null> {
+  const skillName = MODULE_SKILL_MAP[moduleId]
+  if (!skillName) {
+    return null
+  }
+
+  const entry = await fetchModuleSkillIndex(moduleId)
+  if (!entry.paths.includes(filePath)) {
+    return null
+  }
+
+  if (entry.files[filePath]) {
+    return entry.files[filePath]
+  }
+
+  try {
+    const content = await fetchFileContent(skillName, filePath)
+    entry.files[filePath] = content
+    entry.at = Date.now()
+    cache.set(moduleId, entry)
+    return content
+  }
+  catch {
+    return null
+  }
 }
 
 export default defineEventHandler(async (event) => {
   const query = getQuery(event)
   const moduleId = query.module as string
+  const filePath = query.path as string | undefined
+
   if (!moduleId || !MODULE_SKILL_MAP[moduleId]) {
-    return { files: {}, availableModules: Object.keys(MODULE_SKILL_MAP) }
+    return { files: {}, paths: [], availableModules: Object.keys(MODULE_SKILL_MAP) }
   }
 
-  const files = await fetchModuleSkillFiles(moduleId)
-  return { files }
+  if (filePath) {
+    const content = await fetchModuleSkillFile(moduleId, filePath)
+    return { path: filePath, content }
+  }
+
+  const entry = await fetchModuleSkillIndex(moduleId)
+  return { files: {}, paths: entry.paths }
 })

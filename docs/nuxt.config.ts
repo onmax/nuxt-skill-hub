@@ -1,10 +1,16 @@
 export default defineNuxtConfig({
-  modules: ['@nuxt/ui', '@vueuse/nuxt', 'motion-v/nuxt', '@nuxtjs/mdc', 'nuxt-og-image'],
+  modules: ['@nuxt/ui', '@vueuse/nuxt', 'motion-v/nuxt', '@nuxtjs/mdc'],
   app: {
     head: {
       title: 'nuxt-skill-hub — Teach your AI agent the Nuxt way.',
       meta: [
         { name: 'description', content: 'Install one module. Your agent gets Nuxt best practices, module APIs, and project-specific guidance before it changes your code.' },
+        { property: 'og:title', content: 'nuxt-skill-hub — Teach your AI agent the Nuxt way.' },
+        { property: 'og:description', content: 'Install one module. Your agent gets Nuxt best practices, module APIs, and project-specific guidance before it changes your code.' },
+        { property: 'og:image', content: 'https://nuxt-skill.onmax.me/og-image.png' },
+        { property: 'og:type', content: 'website' },
+        { name: 'twitter:card', content: 'summary_large_image' },
+        { name: 'twitter:image', content: 'https://nuxt-skill.onmax.me/og-image.png' },
       ],
       link: [
         { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
@@ -14,7 +20,6 @@ export default defineNuxtConfig({
     },
   },
   css: ['~/assets/css/main.css'],
-  site: { url: 'https://nuxt-skill.onmax.me' },
   colorMode: { preference: 'system' },
   compatibilityDate: '2025-01-01',
   icon: {
@@ -23,7 +28,4 @@ export default defineNuxtConfig({
       dir: './app/assets/icons',
     }],
   },
-  ogImage: {
-    fonts: ['Geist:400', 'Geist:500', 'Geist:600', 'Geist:700', 'JetBrains+Mono:400', 'JetBrains+Mono:500', 'JetBrains+Mono:600', 'JetBrains+Mono:700'],
-  } as any,
 })

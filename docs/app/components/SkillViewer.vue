@@ -28,7 +28,22 @@ function findTreeItem(items: SkillFileTree[], path: string): SkillFileTree | und
   }
 }
 
+function serializeTree(items: SkillFileTree[]): string {
+  return items.map((item) => {
+    const value = item.value || item.label
+    const children = item.children?.length ? `(${serializeTree(item.children)})` : ''
+    return `${value}${children}`
+  }).join('|')
+}
+
 const selected = ref<SkillFileTree | undefined>(findTreeItem(props.fileTree, props.activeFilePath))
+const treeKey = computed(() => serializeTree(props.fileTree))
+const treeUi = {
+  link: 'font-mono text-xs group/tl',
+  linkLeadingIcon: 'size-3.5',
+  linkTrailingIcon: 'opacity-80 group-hover/tl:opacity-90 transition-all duration-200 group-data-expanded/tl:opacity-100 group-data-expanded/tl:rotate-90',
+  listWithChildren: 'ms-2 ps-0.5',
+}
 
 watch(selected, (val) => {
   if (val?.value && !val.value.startsWith('dir:')) {
@@ -150,16 +165,13 @@ onUnmounted(() => clearInterval(interval))
         </div>
         <div class="min-h-0 flex-1 overflow-auto p-2">
           <UTree
+            :key="`mobile:${treeKey}`"
             v-model="selected"
             :items="fileTree"
             color="primary"
             size="xs"
             trailing-icon="i-lucide-chevron-right"
-            :ui="{
-              link: 'font-mono text-xs group/tl',
-              linkLeadingIcon: 'size-3.5',
-              linkTrailingIcon: 'opacity-80 group-hover/tl:opacity-90 transition-all duration-200 group-data-expanded/tl:opacity-100 group-data-expanded/tl:rotate-90',
-            }"
+            :ui="treeUi"
           />
         </div>
       </div>
@@ -263,16 +275,13 @@ onUnmounted(() => clearInterval(interval))
       </div>
       <div class="min-h-0 flex-1 overflow-auto p-2">
         <UTree
+          :key="`desktop:${treeKey}`"
           v-model="selected"
           :items="fileTree"
           color="primary"
           size="xs"
           trailing-icon="i-lucide-chevron-right"
-          :ui="{
-            link: 'font-mono text-xs group/tl',
-            linkLeadingIcon: 'size-3.5',
-            linkTrailingIcon: 'opacity-80 group-hover/tl:opacity-90 group-data-expanded/tl:opacity-100 group-data-expanded/tl:rotate-90 transition-all duration-200',
-          }"
+          :ui="treeUi"
         />
       </div>
     </div>

@@ -4,13 +4,13 @@ import { defineNuxtModule, useLogger } from '@nuxt/kit'
 import { readPackageJSON } from 'pkg-types'
 import { PACKAGE_VERSION } from './package-info'
 import { runInstallWizard } from './install'
-import { loadCoreMetadata } from './core-content'
+import { loadNuxtMetadata } from './nuxt-content'
 import {
   discoverInstalledPackageFromDirectory,
   copySkillTree,
   createModuleDestination,
-  buildCoreTemplateFiles,
-  createReferencesIndexTemplate,
+  buildNuxtTemplateFiles,
+  buildVueTemplateFiles,
   discoverInstalledPackageFromSpecifier,
   discoverLocalPackageSkills,
   discoverPackageSkillsFromInstalledPackage,
@@ -37,7 +37,6 @@ import { resolveRemoteContributionsForPackage } from './remote-resolver'
 import {
   createModuleWrapperContent,
   createModulesListMarkdown,
-  createReferencesIndexContent,
   createSkillEntrypoint,
   getSourceLabel,
   getTrustLevel,
@@ -277,31 +276,36 @@ export default defineNuxtModule<ModuleOptions>({
         return
       }
 
-      const coreMetadata = await loadCoreMetadata()
+      const nuxtMetadata = await loadNuxtMetadata()
 
       for (const target of targets) {
         const { skillRoot } = getTargetSkillRoot(exportRoot, target, resolvedSkillName)
         const referencesRoot = join(skillRoot, 'references')
-        const coreRoot = join(referencesRoot, 'core')
+        const nuxtRoot = join(referencesRoot, 'nuxt')
+        const vueRoot = join(referencesRoot, 'vue')
         const modulesRoot = join(referencesRoot, 'modules')
 
         await emptyDir(skillRoot)
-        await ensureDir(coreRoot)
+        await ensureDir(nuxtRoot)
+        await ensureDir(vueRoot)
         await ensureDir(modulesRoot)
 
-        await writeFileIfChanged(join(skillRoot, 'SKILL.md'), createSkillEntrypoint(resolvedSkillName, coreMetadata, monorepoScopePath, Boolean(options.moduleAuthoring)))
-
-        const coreTemplateFiles = await buildCoreTemplateFiles(coreRoot)
-        for (const file of coreTemplateFiles) {
+        const nuxtTemplateFiles = await buildNuxtTemplateFiles(nuxtRoot)
+        for (const file of nuxtTemplateFiles) {
           await writeFileIfChanged(file.path, file.contents)
         }
 
-        const coreIndexTemplatePath = join(coreRoot, 'index.template.md')
-        const coreIndexTemplate = await pathExists(coreIndexTemplatePath)
-          ? await fsp.readFile(coreIndexTemplatePath, 'utf8')
+        const nuxtIndexTemplatePath = join(nuxtRoot, 'index.template.md')
+        const nuxtIndexTemplate = await pathExists(nuxtIndexTemplatePath)
+          ? await fsp.readFile(nuxtIndexTemplatePath, 'utf8')
           : ''
-        const coreIndexContent = await renderAutomdTemplate(coreIndexTemplate, coreRoot)
-        await writeFileIfChanged(join(coreRoot, 'index.md'), coreIndexContent)
+        const nuxtIndexContent = await renderAutomdTemplate(nuxtIndexTemplate, nuxtRoot)
+        await writeFileIfChanged(join(nuxtRoot, 'index.md'), nuxtIndexContent)
+
+        const vueTemplateFiles = await buildVueTemplateFiles(vueRoot)
+        for (const file of vueTemplateFiles) {
+          await writeFileIfChanged(file.path, file.contents)
+        }
 
         const generatedEntries: GeneratedModuleEntry[] = []
 
@@ -368,11 +372,14 @@ export default defineNuxtModule<ModuleOptions>({
 
         const modulesListPath = join(modulesRoot, '_list.md')
         await writeFileIfChanged(modulesListPath, createModulesListMarkdown(generatedEntries, skipped))
-
-        const referencesIndexTemplate = createReferencesIndexTemplate()
-        const referencesIndexTemplatePath = join(referencesRoot, 'index.template.md')
-        await writeFileIfChanged(referencesIndexTemplatePath, referencesIndexTemplate)
-        await writeFileIfChanged(join(referencesRoot, 'index.md'), createReferencesIndexContent(coreMetadata, generatedEntries, skipped, Boolean(options.moduleAuthoring)))
+        await writeFileIfChanged(join(skillRoot, 'SKILL.md'), createSkillEntrypoint(
+          resolvedSkillName,
+          nuxtMetadata,
+          monorepoScopePath,
+          Boolean(options.moduleAuthoring),
+          generatedEntries,
+          skipped,
+        ))
 
         logger.success(`Generated ${resolvedSkillName} skill at ${(skillRoot)}`)
       }

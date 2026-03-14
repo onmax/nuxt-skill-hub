@@ -30,7 +30,7 @@ describe('docs boundaries', () => {
     for (const file of files) {
       const contents = await fsp.readFile(file, 'utf8')
       expect(contents, file).not.toMatch(/(?:\.\.\/)+src\//)
-      expect(contents, file).not.toMatch(/from ['"][^'"]*src\/(?:frontmatter|render-content|core-content)/)
+      expect(contents, file).not.toMatch(/from ['"][^'"]*src\/(?:frontmatter|render-content|core-content|nuxt-content|vue-content)/)
     }
   })
 })

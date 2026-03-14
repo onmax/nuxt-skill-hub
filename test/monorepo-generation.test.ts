@@ -16,13 +16,13 @@ describe('monorepo generation', () => {
 
     const skillRoot = join(workspaceRoot, '.claude', 'skills', 'nuxt-web-fixture')
     const entry = await fsp.readFile(join(skillRoot, 'SKILL.md'), 'utf8')
-    const index = await fsp.readFile(join(skillRoot, 'references/index.md'), 'utf8')
 
     expect(entry).toContain('## Monorepo Scope')
     expect(entry).toContain('This skill applies only to the `apps/web` subtree of this monorepo.')
     expect(entry).toContain('Treat files and tasks outside `apps/web` as out of scope unless the user explicitly redirects you there.')
     expect(entry).toContain('## Precedence')
-    expect(index).toContain('## Common forks in the road')
+    expect(entry).toContain('## Common forks in the road')
+    await expect(fsp.access(join(skillRoot, 'references/index.md'))).rejects.toBeDefined()
 
     await expect(fsp.access(join(rootDir, '.claude', 'skills', 'nuxt-web-fixture'))).rejects.toBeDefined()
   })

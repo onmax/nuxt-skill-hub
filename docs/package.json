@@ -16,9 +16,5 @@
     "shiki": "^3.0.0",
     "tailwindcss": "catalog:frontend"
   },
-  "devDependencies": {
-    "@resvg/resvg-js": "catalog:frontend",
-    "nuxt-og-image": "catalog:frontend",
-    "satori": "catalog:frontend"
-  }
+  "devDependencies": {}
 }

@@ -12,7 +12,7 @@ They complement Nuxt docs; they do not replace official documentation.
 2. Apply rule IDs directly; do not paraphrase away Nuxt-specific caveats.
 3. Treat the first six packs as disambiguation overlays before broader infra packs.
 4. Keep scope narrow: open only the sections needed for the current change.
-5. Core guidance is default; module guidance overrides core only inside explicit module scope.
+5. Nuxt guidance is default; module guidance overrides it only inside explicit module scope.
 
 ## Rule Packs by Priority
 
@@ -21,18 +21,16 @@ They complement Nuxt docs; they do not replace official documentation.
 | 1 | Abstraction Disambiguation | Choose framework-owned primitives before generic Vue or raw HTML | `disambiguation-` |
 | 2 | Page Meta, Head, and Layout | Separate page behavior, document metadata, and layout structure | `page-` |
 | 3 | Error Surfaces and Recovery | Cover both global and local error surfaces with the right recovery utilities | `error-` |
-| 4 | Content Modeling and Navigation | Model structured content correctly and use collection navigation primitives | `content-` |
-| 5 | Nuxt UI Primitives | Prefer Nuxt UI components and current API shapes over hand-rolled markup | `ui-` |
-| 6 | Verification and Finish | Re-check paired surfaces and verify framework behavior before concluding | `verify-` |
-| 7 | Data Fetching and SSR | Deduplication, payload correctness, and request safety | `data-` |
-| 8 | Hydration and SSR Consistency | SSR and CSR determinism and client-only boundaries | `hydration-` |
-| 9 | Architecture Boundaries | Server-only secrets and request-safe state | `arch-` |
-| 10 | Server Routes and Runtime Config | Handler contracts and config exposure | `server-` |
-| 11 | Nitro and h3 Server Patterns | Request contracts, caching behavior, and edge-safe server work | `nitro-` |
-| 12 | Plugins and Runtime Boot | Plugin startup cost, ordering, and isolation | `plugin-` |
-| 13 | Performance and Rendering | Rendering strategy, links, payload, and asset cost | `perf-` |
-| 14 | Module Authoring Conventions | Nuxt Kit module safety and ecosystem fit | `module-` |
-| 15 | Migrations and Compatibility | Safe incremental upgrades | `migration-` |
+| 4 | Verification and Finish | Re-check paired surfaces and verify framework behavior before concluding | `verify-` |
+| 5 | Data Fetching and SSR | Deduplication, payload correctness, and request safety | `data-` |
+| 6 | Hydration and SSR Consistency | SSR and CSR determinism and client-only boundaries | `hydration-` |
+| 7 | Architecture Boundaries | Server-only secrets and request-safe state | `arch-` |
+| 8 | Server Routes and Runtime Config | Handler contracts and config exposure | `server-` |
+| 9 | Nitro and h3 Server Patterns | Request contracts, caching behavior, and edge-safe server work | `nitro-` |
+| 10 | Plugins and Runtime Boot | Plugin startup cost, ordering, and isolation | `plugin-` |
+| 11 | Performance and Rendering | Rendering strategy, links, payload, and asset cost | `perf-` |
+| 12 | Module Authoring Conventions | Nuxt Kit module safety and ecosystem fit | `module-` |
+| 13 | Migrations and Compatibility | Safe incremental upgrades | `migration-` |
 
 ## Rule Packs
 
@@ -43,12 +41,6 @@ They complement Nuxt docs; they do not replace official documentation.
 <!-- /automd -->
 
 <!-- automd:file src="./rules/error-surfaces-recovery.md" -->
-<!-- /automd -->
-
-<!-- automd:file src="./rules/content-modeling-navigation.md" -->
-<!-- /automd -->
-
-<!-- automd:file src="./rules/nuxt-ui-primitives.md" -->
 <!-- /automd -->
 
 <!-- automd:file src="./rules/verification-finish.md" -->

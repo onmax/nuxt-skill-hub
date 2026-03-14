@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { loadCoreMetadata } from '../src/core-content'
 import { PACKAGE_VERSION } from '../src/package-info'
-import { DEFAULT_CORE_CONTENT_METADATA, createModuleWrapperContent, createReferencesIndexContent, createSkillEntrypoint } from '../src/render-content'
+import { loadVueSkillFiles } from '../src/vue-content'
+import {
+  createModuleWrapperContent,
+  createModulesListMarkdown,
+  createSkillEntrypoint,
+  DEFAULT_CORE_CONTENT_METADATA,
+  EMPTY_MODULE_GUIDANCE_MARKDOWN,
+} from '../src/render-content'
 
 describe('createSkillEntrypoint', () => {
   it('loads core metadata from the in-code default source', async () => {
@@ -18,6 +25,8 @@ describe('createSkillEntrypoint', () => {
     expect(entry).toContain('Explore the project first')
     expect(entry).toContain('## Precedence')
     expect(entry).toContain('## Before Completion')
+    expect(entry).toContain('## Vue guidance')
+    expect(entry).toContain('./references/vue/SKILL.md')
     expect(entry).not.toContain('## Monorepo Scope')
   })
 
@@ -30,35 +39,31 @@ describe('createSkillEntrypoint', () => {
   })
 
   it('prioritizes the eval-derived disambiguation packs', () => {
-    expect(DEFAULT_CORE_CONTENT_METADATA.sections.slice(0, 6)).toEqual([
+    expect(DEFAULT_CORE_CONTENT_METADATA.packIds.slice(0, 4)).toEqual([
       'abstraction-disambiguation',
       'page-meta-head-layout',
       'error-surfaces-recovery',
-      'content-modeling-navigation',
-      'nuxt-ui-primitives',
       'verification-finish',
     ])
   })
 
   it('keeps the default skill app-oriented when module authoring is disabled', () => {
     const entry = createSkillEntrypoint('nuxt', DEFAULT_CORE_CONTENT_METADATA)
-    const index = createReferencesIndexContent(DEFAULT_CORE_CONTENT_METADATA, [])
 
     expect(entry).not.toContain('## Module Author Focus')
-    expect(index).not.toContain('## Module author focus')
-    expect(index).not.toContain('Writing, refactoring, or publishing a Nuxt module')
+    expect(entry).not.toContain('## Module author focus')
+    expect(entry).not.toContain('Writing, refactoring, or publishing a Nuxt module')
   })
 
   it('layers module-author guidance on top of the default skill', () => {
     const entry = createSkillEntrypoint('nuxt', DEFAULT_CORE_CONTENT_METADATA, undefined, true)
-    const index = createReferencesIndexContent(DEFAULT_CORE_CONTENT_METADATA, [], [], true)
 
     expect(entry).toContain('## Module Author Focus')
     expect(entry).toContain('## High-Frequency Nuxt Decisions')
     expect(entry).toContain('This skill keeps the default Nuxt app guidance and adds an authoring layer')
     expect(entry).toContain('Module Authoring Conventions')
-    expect(index).toContain('## Module author focus')
-    expect(index).toContain('Writing, refactoring, or publishing a Nuxt module')
+    expect(entry).toContain('## Module author focus')
+    expect(entry).toContain('Writing, refactoring, or publishing a Nuxt module')
   })
 })
 
@@ -84,7 +89,7 @@ describe('createModuleWrapperContent', () => {
   })
 
   it('uses neutral labels for resolved module skills and omits missing versions in module lists', () => {
-    const index = createReferencesIndexContent(DEFAULT_CORE_CONTENT_METADATA, [
+    const entry = createSkillEntrypoint('nuxt', DEFAULT_CORE_CONTENT_METADATA, undefined, false, [
       {
         packageName: '@nuxthub/core',
         version: undefined,
@@ -101,10 +106,27 @@ describe('createModuleWrapperContent', () => {
       },
     ])
 
-    expect(index).toContain('### Resolved module skills')
-    expect(index).toContain('[@nuxthub/core](./modules/nuxthub/nuxthub.md)')
-    expect(index).toContain('Resolved module skill. Trust: `official`.')
-    expect(index).not.toContain('GitHub-resolved')
-    expect(index).not.toContain('`unknown`')
+    expect(entry).toContain('### Resolved module skills')
+    expect(entry).toContain('[@nuxthub/core](./references/modules/nuxthub/nuxthub.md)')
+    expect(entry).toContain('Resolved module skill. Trust: `official`.')
+    expect(entry).not.toContain('GitHub-resolved')
+    expect(entry).not.toContain('`unknown`')
+  })
+})
+
+describe('createModulesListMarkdown', () => {
+  it('renders the explicit empty-state markdown when no module guidance exists', () => {
+    expect(createModulesListMarkdown([], [])).toBe(`${EMPTY_MODULE_GUIDANCE_MARKDOWN}\n`)
+  })
+})
+
+describe('bundled Vue content', () => {
+  it('vendors the vue-best-practices skill with the must-read references', async () => {
+    const files = await loadVueSkillFiles()
+
+    expect(files['SKILL.md']).toContain('name: vue-best-practices')
+    expect(files['SKILL.md']).toContain('references/reactivity.md')
+    expect(files['SKILL.md']).toContain('references/sfc.md')
+    expect(files['references/composables.md']).toContain('# Composable Organization Patterns')
   })
 })

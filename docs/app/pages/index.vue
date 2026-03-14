@@ -1,7 +1,3 @@
-<script setup lang="ts">
-defineOgImage('Home')
-</script>
-
 <template>
   <div class="bg-default">
     <Hero />

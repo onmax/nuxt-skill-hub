@@ -1,16 +1,20 @@
 import { defaultSelectedModules, type SelectedModule } from '~/data/modules'
-import { buildFileTree, type SkillFile } from '~/data/skill-files'
+import {
+  buildFileTree,
+  getAvailablePlaygroundFilePath,
+  MODULES_LIST_FILE_PATH,
+  type SkillFile,
+} from '~/data/skill-files'
 import type { NuxtModuleResult } from '~/composables/useNuxtModuleSearch'
 import {
   createMetadataRouterSkillFiles,
   createModuleWrapperContent,
   createModulesListMarkdown,
-  createReferencesIndexContent,
   createSkillEntrypoint,
   getSourceLabel,
   getTrustLevel,
   resolveMetadataRouterSkillName,
-  type CoreContentMetadata,
+  type NuxtContentMetadata,
   type SkillModuleRenderEntry,
   parseSkillFrontmatter,
 } from '~~/shared/skill-preview'
@@ -18,6 +22,11 @@ import {
 const repoBlobBase = 'https://github.com/onmax/nuxt-skill-hub/blob/main'
 const skillsRepoBlobBase = 'https://github.com/onmax/nuxt-skills/blob/main/skills'
 const generatedSkillRoot = '.codex/skills/nuxt-nuxt-skill-hub'
+
+interface ModuleSkillCacheEntry {
+  paths: string[]
+  files: Record<string, string>
+}
 
 function repoSource(path: string) {
   return `${repoBlobBase}/${path}`
@@ -61,21 +70,32 @@ export function usePlayground() {
   const selectedModuleIds = computed(() =>
     new Set(selectedModules.value.filter(m => m.enabled && m.skillAvailability !== 'unavailable').map(m => m.id)),
   )
+  const hasActiveModules = computed(() => selectedModuleIds.value.size > 0)
 
   const activeFilePath = useLocalStorage<string>('playground-active-file', 'SKILL.md')
 
   const { data: apiData } = useFetch('/api/skill-files')
 
   // Fetch real module skill files from GitHub
-  const moduleFileCache = ref<Record<string, Record<string, string>>>({})
+  const moduleFileCache = ref<Record<string, ModuleSkillCacheEntry>>({})
   const moduleFileLoading = ref<Set<string>>(new Set())
+  const moduleFileContentLoading = ref<Set<string>>(new Set())
 
   async function fetchModuleFiles(moduleId: string) {
     if (moduleFileCache.value[moduleId] || moduleFileLoading.value.has(moduleId)) return
     moduleFileLoading.value = new Set([...moduleFileLoading.value, moduleId])
     try {
-      const data = await $fetch<{ files: Record<string, string> }>('/api/module-skill-files', { query: { module: moduleId } })
-      moduleFileCache.value = { ...moduleFileCache.value, [moduleId]: data.files }
+      const data = await $fetch<{ paths: string[] }>('/api/module-skill-files', { query: { module: moduleId } })
+      moduleFileCache.value = {
+        ...moduleFileCache.value,
+        [moduleId]: {
+          paths: data.paths || [],
+          files: {},
+        },
+      }
+      if (data.paths?.includes('SKILL.md')) {
+        await fetchModuleFileContent(moduleId, 'SKILL.md')
+      }
     }
     catch (e) {
       console.warn(`Failed to fetch skill files for ${moduleId}`, e)
@@ -87,36 +107,101 @@ export function usePlayground() {
     }
   }
 
+  async function fetchModuleFileContent(moduleId: string, filePath: string) {
+    const cacheKey = `${moduleId}:${filePath}`
+    const moduleEntry = moduleFileCache.value[moduleId]
+    if (!moduleEntry || moduleEntry.files[filePath] || moduleFileContentLoading.value.has(cacheKey)) return
+
+    moduleFileContentLoading.value = new Set([...moduleFileContentLoading.value, cacheKey])
+    try {
+      const data = await $fetch<{ content: string | null }>('/api/module-skill-files', {
+        query: { module: moduleId, path: filePath },
+      })
+      if (typeof data.content === 'string') {
+        moduleFileCache.value = {
+          ...moduleFileCache.value,
+          [moduleId]: {
+            ...moduleEntry,
+            files: {
+              ...moduleEntry.files,
+              [filePath]: data.content,
+            },
+          },
+        }
+      }
+    }
+    catch (e) {
+      console.warn(`Failed to fetch ${filePath} for ${moduleId}`, e)
+    }
+    finally {
+      const next = new Set(moduleFileContentLoading.value)
+      next.delete(cacheKey)
+      moduleFileContentLoading.value = next
+    }
+  }
+
   // Auto-fetch when modules are enabled
   watch(selectedModuleIds, (ids) => {
+    if (!ids.size) {
+      return
+    }
+
     for (const id of ids) {
       const module = selectedModules.value.find(entry => entry.id === id)
       if (module?.skillAvailability === 'real' && !moduleFileCache.value[id]) fetchModuleFiles(id)
     }
   }, { immediate: true })
 
-  const coreFileMap = computed<Record<string, SkillFile>>(() => {
+  watch(activeFilePath, (path) => {
+    const match = path.match(/^references\/modules\/([^/]+)\/(.+)$/)
+    if (!match) {
+      return
+    }
+
+    const [, moduleId, filePath] = match
+    if (!moduleId || !filePath) {
+      return
+    }
+    const module = selectedModules.value.find(entry => entry.id === moduleId)
+    if (module?.skillAvailability === 'real') {
+      fetchModuleFileContent(moduleId, filePath)
+    }
+  }, { immediate: true })
+
+  const frameworkFileMap = computed<Record<string, SkillFile>>(() => {
     const d = apiData.value
     if (!d) return {}
 
-    const metadata = d.metadata as CoreContentMetadata
+    const metadata = d.metadata as NuxtContentMetadata
     const moduleEntries = modulePreviewEntries.value
 
     const files: Record<string, SkillFile> = {}
-    files['SKILL.md'] = { name: 'SKILL.md', path: 'SKILL.md', language: 'markdown', content: createSkillEntrypoint('nuxt', metadata, undefined, moduleAuthorMode.value), sourceHref: repoSource(`${generatedSkillRoot}/SKILL.md`) }
-    files['references/index.md'] = { name: 'index.md', path: 'references/index.md', language: 'markdown', content: createReferencesIndexContent(metadata, moduleEntries, [], moduleAuthorMode.value), sourceHref: repoSource(`${generatedSkillRoot}/references/index.md`) }
-    files['references/modules/_list.md'] = {
+    files['SKILL.md'] = {
+      name: 'SKILL.md',
+      path: 'SKILL.md',
+      language: 'markdown',
+      content: createSkillEntrypoint('nuxt', metadata, undefined, moduleAuthorMode.value, moduleEntries),
+      sourceHref: repoSource(`${generatedSkillRoot}/SKILL.md`),
+    }
+    files[MODULES_LIST_FILE_PATH] = {
       name: '_list.md',
-      path: 'references/modules/_list.md',
+      path: MODULES_LIST_FILE_PATH,
       language: 'markdown',
       content: createModulesListMarkdown(moduleEntries),
       sourceHref: repoSource(`${generatedSkillRoot}/references/modules/_list.md`),
     }
 
-    if (d.coreFiles) {
-      for (const [relativePath, content] of Object.entries(d.coreFiles)) {
-        const path = `references/core/${relativePath}`
-        files[path] = { name: relativePath.split('/').pop() || relativePath, path, language: 'markdown', content: content as string, sourceHref: repoSource(`core-content/${relativePath}`) }
+    if (d.nuxtFiles) {
+      for (const [relativePath, content] of Object.entries(d.nuxtFiles)) {
+        const path = `references/nuxt/${relativePath}`
+        files[path] = { name: relativePath.split('/').pop() || relativePath, path, language: 'markdown', content: content as string, sourceHref: repoSource(`nuxt-content/${relativePath}`) }
+      }
+    }
+
+    if (d.vueFiles) {
+      for (const [relativePath, content] of Object.entries(d.vueFiles)) {
+        const path = `references/vue/${relativePath}`
+        files[path] = { name: relativePath.split('/').pop() || relativePath, path, language: 'markdown', content: content as string, sourceHref: repoSource(`vue-content/${relativePath}`) }
       }
     }
 
@@ -125,6 +210,10 @@ export function usePlayground() {
 
   // Build module file map from fetched real content
   const moduleFileMap = computed<Record<string, SkillFile>>(() => {
+    if (!hasActiveModules.value) {
+      return {}
+    }
+
     const files: Record<string, SkillFile> = {}
     for (const module of selectedModules.value.filter(item => item.enabled && item.skillAvailability !== 'unavailable')) {
       const { preview, moduleFiles, sourceHref } = getModulePreviewFiles(module, moduleFileCache.value[module.id])
@@ -158,6 +247,10 @@ export function usePlayground() {
 
   // Module file keys grouped by module (for tree building)
   const moduleFileLists = computed<Record<string, string[]>>(() => {
+    if (!hasActiveModules.value) {
+      return {}
+    }
+
     const lists: Record<string, string[]> = {}
     for (const module of selectedModules.value.filter(item => item.enabled && item.skillAvailability !== 'unavailable')) {
       const { preview, moduleFiles } = getModulePreviewFiles(module, moduleFileCache.value[module.id])
@@ -175,26 +268,45 @@ export function usePlayground() {
   })
 
   const modulePreviewEntries = computed<SkillModuleRenderEntry[]>(() =>
-    selectedModules.value
-      .filter(module => module.enabled && module.skillAvailability !== 'unavailable')
-      .map((module) => {
-        const { preview } = getModulePreviewFiles(module, moduleFileCache.value[module.id])
-        return preview
-      })
-      .filter((entry): entry is SkillModuleRenderEntry => Boolean(entry)),
+    hasActiveModules.value
+      ? selectedModules.value
+          .filter(module => module.enabled && module.skillAvailability !== 'unavailable')
+          .map((module) => {
+            const { preview } = getModulePreviewFiles(module, moduleFileCache.value[module.id])
+            return preview
+          })
+          .filter((entry): entry is SkillModuleRenderEntry => Boolean(entry))
+      : [],
   )
 
-  const coreFileKeys = computed(() => {
+  const nuxtFileKeys = computed(() => {
     const d = apiData.value
-    return d?.coreFiles ? Object.keys(d.coreFiles) : []
+    return d?.nuxtFiles ? Object.keys(d.nuxtFiles) : []
   })
 
-  const fileTree = computed(() => buildFileTree(coreFileKeys.value, [...selectedModuleIds.value], moduleFileLists.value))
+  const vueFileKeys = computed(() => {
+    const d = apiData.value
+    return d?.vueFiles ? Object.keys(d.vueFiles) : []
+  })
+
+  const fileTree = computed(() => buildFileTree(nuxtFileKeys.value, vueFileKeys.value, [...selectedModuleIds.value], moduleFileLists.value))
 
   const activeFile = computed<SkillFile | undefined>(() => {
     const path = activeFilePath.value
-    return coreFileMap.value[path] || moduleFileMap.value[path]
+    return frameworkFileMap.value[path] || moduleFileMap.value[path]
   })
+
+  const availableFilePaths = computed(() => [
+    ...Object.keys(frameworkFileMap.value),
+    ...Object.keys(moduleFileMap.value),
+  ])
+
+  watch([activeFilePath, availableFilePaths], ([path, filePaths]) => {
+    const nextPath = getAvailablePlaygroundFilePath(path, filePaths)
+    if (nextPath !== path) {
+      activeFilePath.value = nextPath
+    }
+  }, { immediate: true })
 
   function toggleModule(id: string) {
     const mod = selectedModulesState.value.find(m => m.id === id)
@@ -286,7 +398,7 @@ function createGeneratedPreviewModuleEntry(module: SelectedModule): SkillModuleR
   }
 }
 
-function getModulePreviewFiles(module: SelectedModule, realModuleFiles?: Record<string, string>): {
+function getModulePreviewFiles(module: SelectedModule, realModuleFiles?: ModuleSkillCacheEntry): {
   preview: SkillModuleRenderEntry | null
   moduleFiles: Record<string, string> | null
   sourceHref?: string
@@ -296,9 +408,16 @@ function getModulePreviewFiles(module: SelectedModule, realModuleFiles?: Record<
       return { preview: null, moduleFiles: null }
     }
 
+    const moduleFiles = Object.fromEntries(
+      realModuleFiles.paths.map((filePath) => [
+        filePath,
+        realModuleFiles.files[filePath] ?? 'Loading...',
+      ]),
+    )
+
     return {
-      preview: createPreviewModuleEntry(module, realModuleFiles),
-      moduleFiles: realModuleFiles,
+      preview: createPreviewModuleEntry(module, realModuleFiles.files),
+      moduleFiles,
       sourceHref: repoSource(`${generatedSkillRoot}/references/modules/${module.id}`),
     }
   }

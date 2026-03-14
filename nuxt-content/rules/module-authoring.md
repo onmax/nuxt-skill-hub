@@ -69,7 +69,7 @@ Embedding global Nuxt framework guidance inside module-specific skill docs.
 Document only module APIs, integration points, and module-specific caveats.
 
 ### Nuxt-specific caveat
-Module guidance can override core only inside that module's explicit scope.
+Module guidance can override Nuxt guidance only inside that module's explicit scope.
 
 ### Execution checklist
 - [ ] Inputs to inspect: skill frontmatter, rule language, examples.

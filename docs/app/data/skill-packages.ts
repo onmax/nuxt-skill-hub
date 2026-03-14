@@ -5,7 +5,7 @@ export const REAL_SKILL_PACKAGE_NAMES = new Set([
   'nuxt', '@nuxt/ui', '@nuxt/content', 'nuxt-seo', '@nuxtjs/seo',
   '@onmax/nuxt-better-auth', '@nuxthub/core', 'reka-ui', 'reka-ui/nuxt',
   '@vueuse/core', '@vueuse/nuxt', 'motion-v', 'motion-v/nuxt',
-  'nuxt-studio', 'vue',
+  'nuxt-studio',
 ])
 
 export function hasRealSkill(packageName: string): boolean {
