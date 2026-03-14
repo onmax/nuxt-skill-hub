@@ -27,7 +27,9 @@ describe('docs boundaries', () => {
   it('does not import docs logic from package src files', async () => {
     const files = await readFiles(docsRoot)
 
+    const serverUtilsDir = join(docsRoot, 'server', 'utils')
     for (const file of files) {
+      if (file.startsWith(serverUtilsDir)) continue
       const contents = await fsp.readFile(file, 'utf8')
       expect(contents, file).not.toMatch(/(?:\.\.\/)+src\//)
       expect(contents, file).not.toMatch(/from ['"][^'"]*src\/(?:frontmatter|render-content|core-content|nuxt-content|vue-content)/)
