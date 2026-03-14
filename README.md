@@ -13,6 +13,9 @@
   <a href="https://nuxt.com"><img src="https://img.shields.io/badge/Nuxt-020420?logo=nuxt.js" alt="Nuxt"></a>
 </p>
 
+> [!WARNING]
+> This module is still experimental and not ready for production use.
+
 ## Documentation
 
 **[nuxt-skill.onmax.me](https://nuxt-skill.onmax.me)**

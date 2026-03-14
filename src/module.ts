@@ -27,7 +27,6 @@ import {
   resolveExportRoot,
   resolveMonorepoScopePath,
   resolveTargets,
-  sanitizeSegment,
   sortAndDedupeContributions,
   validateResolvedContributions,
   writeFileIfChanged,
@@ -35,8 +34,6 @@ import {
 } from './internal'
 import { resolveRemoteContributionsForPackage } from './remote-resolver'
 import {
-  createModuleWrapperContent,
-  createModulesListMarkdown,
   createSkillEntrypoint,
   getSourceLabel,
   getTrustLevel,
@@ -313,39 +310,7 @@ export default defineNuxtModule<ModuleOptions>({
           const includeScripts = contribution.forceIncludeScripts
           const destination = createModuleDestination(modulesRoot, contribution)
           await copySkillTree(contribution.sourceDir, destination, includeScripts)
-          const isMetadataRouter = contribution.sourceKind === 'generated'
-          const wrapperPath = isMetadataRouter
-            ? join(
-                modulesRoot,
-                sanitizeSegment(contribution.packageName),
-                `${sanitizeSegment(contribution.skillName)}.md`,
-              )
-            : undefined
-
-          if (wrapperPath) {
-            const wrapperContent = createModuleWrapperContent({
-              packageName: contribution.packageName,
-              version: contribution.version,
-              skillName: contribution.skillName,
-              description: contribution.description,
-              scriptsIncluded: includeScripts,
-              sourceKind: contribution.sourceKind,
-              sourceLabel: getSourceLabel(contribution.sourceKind),
-              sourceRepo: contribution.sourceRepo,
-              sourceRef: contribution.sourceRef,
-              sourcePath: contribution.sourcePath,
-              repoUrl: contribution.repoUrl,
-              docsUrl: contribution.docsUrl,
-              official: contribution.official,
-              trustLevel: getTrustLevel(contribution.official),
-              resolver: contribution.resolver,
-            })
-            await writeFileIfChanged(wrapperPath, wrapperContent)
-          }
-
-          const entryPath = wrapperPath
-            ? relative(skillRoot, wrapperPath)
-            : relative(skillRoot, join(destination, 'SKILL.md'))
+          const entryPath = relative(skillRoot, join(destination, 'SKILL.md'))
 
           generatedEntries.push({
             packageName: contribution.packageName,
@@ -366,12 +331,9 @@ export default defineNuxtModule<ModuleOptions>({
             official: contribution.official,
             trustLevel: getTrustLevel(contribution.official),
             resolver: contribution.resolver,
-            wrapperPath: wrapperPath ? relative(skillRoot, wrapperPath) : undefined,
           })
         }
 
-        const modulesListPath = join(modulesRoot, '_list.md')
-        await writeFileIfChanged(modulesListPath, createModulesListMarkdown(generatedEntries, skipped))
         await writeFileIfChanged(join(skillRoot, 'SKILL.md'), createSkillEntrypoint(
           resolvedSkillName,
           nuxtMetadata,

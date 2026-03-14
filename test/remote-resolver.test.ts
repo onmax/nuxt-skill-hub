@@ -230,8 +230,8 @@ describe('resolveRemoteContributionsForPackage', () => {
     expect(result.contributions[0]?.repoUrl).toBe('https://github.com/nuxt/a11y')
     expect(result.contributions[0]?.docsUrl).toBe('https://a11y.nuxt.com/')
     expect(result.skipped).toEqual([])
-    await expect(fsp.readFile(join(result.contributions[0]!.sourceDir, 'SKILL.md'), 'utf8')).resolves.toContain('This skill was generated from package metadata')
-    await expect(fsp.readFile(join(result.contributions[0]!.sourceDir, 'SKILL.md'), 'utf8')).resolves.toContain('## Upstream sources')
+    await expect(fsp.readFile(join(result.contributions[0]!.sourceDir, 'SKILL.md'), 'utf8')).resolves.toContain('Docs: [https://a11y.nuxt.com/](https://a11y.nuxt.com/)')
+    await expect(fsp.readFile(join(result.contributions[0]!.sourceDir, 'SKILL.md'), 'utf8')).resolves.not.toContain('This skill was generated from package metadata')
     await expect(fsp.access(join(result.contributions[0]!.sourceDir, 'references/index.md'))).rejects.toBeDefined()
   })
 

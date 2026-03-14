@@ -15,7 +15,6 @@ export interface SkillFileTree {
 }
 
 export const MODULES_DIR_PATH = 'dir:modules'
-export const MODULES_LIST_FILE_PATH = 'references/modules/_list.md'
 
 function sortTree(entries: SkillFileTree[]): SkillFileTree[] {
   return entries
@@ -108,10 +107,7 @@ export function buildFileTree(
           label: 'modules',
           icon: 'i-lucide-folder',
           defaultExpanded: true,
-          children: [
-            { label: '_list.md', icon: 'i-lucide-file-text', value: MODULES_LIST_FILE_PATH },
-            ...moduleEntries,
-          ],
+          children: moduleEntries,
         },
       ],
     },
@@ -125,7 +121,7 @@ export function getAvailablePlaygroundFilePath(activePath: string, availablePath
   }
 
   if (activePath.startsWith('references/modules/')) {
-    return MODULES_LIST_FILE_PATH
+    return 'SKILL.md'
   }
 
   return activePath

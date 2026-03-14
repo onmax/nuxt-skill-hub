@@ -2,14 +2,11 @@ import { defaultSelectedModules, type SelectedModule } from '~/data/modules'
 import {
   buildFileTree,
   getAvailablePlaygroundFilePath,
-  MODULES_LIST_FILE_PATH,
   type SkillFile,
 } from '~/data/skill-files'
 import type { NuxtModuleResult } from '~/composables/useNuxtModuleSearch'
 import {
   createMetadataRouterSkillFiles,
-  createModuleWrapperContent,
-  createModulesListMarkdown,
   createSkillEntrypoint,
   getSourceLabel,
   getTrustLevel,
@@ -183,13 +180,6 @@ export function usePlayground() {
       content: createSkillEntrypoint('nuxt', metadata, undefined, moduleAuthorMode.value, moduleEntries),
       sourceHref: repoSource(`${generatedSkillRoot}/SKILL.md`),
     }
-    files[MODULES_LIST_FILE_PATH] = {
-      name: '_list.md',
-      path: MODULES_LIST_FILE_PATH,
-      language: 'markdown',
-      content: createModulesListMarkdown(moduleEntries),
-      sourceHref: repoSource(`${generatedSkillRoot}/references/modules/_list.md`),
-    }
 
     if (d.nuxtFiles) {
       for (const [relativePath, content] of Object.entries(d.nuxtFiles)) {
@@ -221,16 +211,6 @@ export function usePlayground() {
         continue
       }
 
-      if (preview.wrapperPath) {
-        files[preview.wrapperPath] = {
-          name: preview.wrapperPath.split('/').pop() || preview.wrapperPath,
-          path: preview.wrapperPath,
-          language: 'markdown',
-          content: createModuleWrapperContent(preview),
-          sourceHref,
-        }
-      }
-
       for (const [filePath, content] of Object.entries(moduleFiles)) {
         const path = `references/modules/${module.id}/${filePath}`
         files[path] = {
@@ -253,16 +233,12 @@ export function usePlayground() {
 
     const lists: Record<string, string[]> = {}
     for (const module of selectedModules.value.filter(item => item.enabled && item.skillAvailability !== 'unavailable')) {
-      const { preview, moduleFiles } = getModulePreviewFiles(module, moduleFileCache.value[module.id])
-      if (!preview || !moduleFiles) {
+      const { moduleFiles } = getModulePreviewFiles(module, moduleFileCache.value[module.id])
+      if (!moduleFiles) {
         continue
       }
 
-      const files = Object.keys(moduleFiles)
-      if (preview.wrapperPath) {
-        files.unshift(preview.wrapperPath.replace(`references/modules/${module.id}/`, ''))
-      }
-      lists[module.id] = files
+      lists[module.id] = Object.keys(moduleFiles)
     }
     return lists
   })
@@ -383,7 +359,7 @@ function createGeneratedPreviewModuleEntry(module: SelectedModule): SkillModuleR
     packageName: module.packageName,
     version: undefined,
     skillName,
-    entryPath: `references/modules/${module.id}/${skillName}.md`,
+    entryPath: `references/modules/${module.id}/SKILL.md`,
     description: module.description,
     scriptsIncluded: false,
     sourceKind: 'generated',
@@ -394,7 +370,6 @@ function createGeneratedPreviewModuleEntry(module: SelectedModule): SkillModuleR
     official: true,
     trustLevel: getTrustLevel(true),
     resolver: 'metadataRouter',
-    wrapperPath: `references/modules/${module.id}/${skillName}.md`,
   }
 }
 

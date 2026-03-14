@@ -4,10 +4,8 @@ import { PACKAGE_VERSION } from '../src/package-info'
 import { loadVueSkillFiles } from '../src/vue-content'
 import {
   createModuleWrapperContent,
-  createModulesListMarkdown,
   createSkillEntrypoint,
   DEFAULT_CORE_CONTENT_METADATA,
-  EMPTY_MODULE_GUIDANCE_MARKDOWN,
 } from '../src/render-content'
 
 describe('createSkillEntrypoint', () => {
@@ -84,8 +82,8 @@ describe('createModuleWrapperContent', () => {
       resolver: 'metadataRouter' as const,
     }
 
-    expect(createModuleWrapperContent(entry).trim()).toBe(`- Docs: [https://i18n.nuxtjs.org](https://i18n.nuxtjs.org)
-- Source code: [https://github.com/nuxt-modules/i18n](https://github.com/nuxt-modules/i18n)`)
+    expect(createModuleWrapperContent(entry).trim()).toBe(`Docs: [https://i18n.nuxtjs.org](https://i18n.nuxtjs.org)
+Source code: [https://github.com/nuxt-modules/i18n](https://github.com/nuxt-modules/i18n)`)
   })
 
   it('uses neutral labels for resolved module skills and omits missing versions in module lists', () => {
@@ -111,12 +109,6 @@ describe('createModuleWrapperContent', () => {
     expect(entry).toContain('Resolved module skill. Trust: `official`.')
     expect(entry).not.toContain('GitHub-resolved')
     expect(entry).not.toContain('`unknown`')
-  })
-})
-
-describe('createModulesListMarkdown', () => {
-  it('renders the explicit empty-state markdown when no module guidance exists', () => {
-    expect(createModulesListMarkdown([], [])).toBe(`${EMPTY_MODULE_GUIDANCE_MARKDOWN}\n`)
   })
 })
 

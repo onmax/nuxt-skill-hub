@@ -1,13 +1,11 @@
-import { buildFileTree, getAvailablePlaygroundFilePath, MODULES_LIST_FILE_PATH } from '../docs/app/data/skill-files'
+import { buildFileTree, getAvailablePlaygroundFilePath } from '../docs/app/data/skill-files'
 import { describe, expect, it } from 'vitest'
 import { resolveSkillAvailability } from '../docs/app/data/skill-packages'
 import {
   createMetadataRouterSkillFiles,
   createModuleWrapperContent,
-  createModulesListMarkdown,
   createSkillEntrypoint,
   DEFAULT_CORE_CONTENT_METADATA,
-  EMPTY_MODULE_GUIDANCE_MARKDOWN,
   resolveMetadataRouterSkillName,
 } from '../shared/skill-render'
 
@@ -28,10 +26,9 @@ describe('docs playground metadata routing', () => {
     })
 
     expect(skillName).toBe('nuxt-a11y')
-    expect(files['SKILL.md']).toContain('This skill was generated from package metadata')
-    expect(files['SKILL.md']).toContain('[https://github.com/nuxt/a11y](https://github.com/nuxt/a11y)')
-    expect(files['SKILL.md']).toContain('Keep this router scoped to `@nuxt/a11y` surfaces only.')
-    expect(files['SKILL.md']).toContain('## Upstream sources')
+    expect(files['SKILL.md']).toContain('Docs: [https://a11y.nuxt.com](https://a11y.nuxt.com)')
+    expect(files['SKILL.md']).toContain('Source code: [https://github.com/nuxt/a11y](https://github.com/nuxt/a11y)')
+    expect(files['SKILL.md']).not.toContain('This skill was generated from package metadata')
     expect(files['references/index.md']).toBeUndefined()
   })
 
@@ -60,8 +57,8 @@ describe('docs playground metadata routing', () => {
       resolver: 'metadataRouter' as const,
     }
 
-    expect(createModuleWrapperContent(entry).trim()).toBe(`- Docs: [https://a11y.nuxt.com](https://a11y.nuxt.com)
-- Source code: [https://github.com/nuxt/a11y](https://github.com/nuxt/a11y)`)
+    expect(createModuleWrapperContent(entry).trim()).toBe(`Docs: [https://a11y.nuxt.com](https://a11y.nuxt.com)
+Source code: [https://github.com/nuxt/a11y](https://github.com/nuxt/a11y)`)
   })
 
   it('uses neutral labels for resolved preview skills and hides missing versions', () => {
@@ -101,22 +98,18 @@ describe('docs playground metadata routing', () => {
     expect(serialized).toContain('"label":"vue"')
   })
 
-  it('always includes the generated modules list in the preview tree', () => {
+  it('shows only selected module files in the preview tree', () => {
     const tree = buildFileTree(['index.md', 'rules/abstraction-disambiguation.md'], ['SKILL.md'], [])
     const serialized = JSON.stringify(tree)
 
     expect(serialized).toContain('"label":"modules"')
-    expect(serialized).toContain(`"value":"${MODULES_LIST_FILE_PATH}"`)
+    expect(serialized).not.toContain('_list.md')
   })
 
-  it('renders the same empty module list markdown as package generation', () => {
-    expect(createModulesListMarkdown([], [])).toBe(`${EMPTY_MODULE_GUIDANCE_MARKDOWN}\n`)
-  })
+  it('falls back to the root skill when a selected module file disappears', () => {
+    const availablePaths = ['SKILL.md']
 
-  it('falls back to the generated module list when a selected module file disappears', () => {
-    const availablePaths = ['SKILL.md', MODULES_LIST_FILE_PATH]
-
-    expect(getAvailablePlaygroundFilePath('references/modules/nuxt-ui/SKILL.md', availablePaths)).toBe(MODULES_LIST_FILE_PATH)
-    expect(getAvailablePlaygroundFilePath(MODULES_LIST_FILE_PATH, availablePaths)).toBe(MODULES_LIST_FILE_PATH)
+    expect(getAvailablePlaygroundFilePath('references/modules/nuxt-ui/SKILL.md', availablePaths)).toBe('SKILL.md')
+    expect(getAvailablePlaygroundFilePath('SKILL.md', availablePaths)).toBe('SKILL.md')
   })
 })

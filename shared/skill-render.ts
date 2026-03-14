@@ -314,6 +314,26 @@ export interface MetadataRouterSkillInput {
   docsUrl?: string
 }
 
+function formatCompactLinks(
+  entry: Pick<MetadataRouterSkillInput, 'repoUrl' | 'docsUrl'>,
+  labels: {
+    docs: string
+    repo: string
+  },
+): string {
+  const links: string[] = []
+
+  if (entry.docsUrl) {
+    links.push(`${labels.docs}: [${entry.docsUrl}](${entry.docsUrl})`)
+  }
+
+  if (entry.repoUrl) {
+    links.push(`${labels.repo}: [${entry.repoUrl}](${entry.repoUrl})`)
+  }
+
+  return links.join('\n')
+}
+
 function formatWrapperLinks(
   entry: Pick<MetadataRouterSkillInput, 'repoUrl' | 'docsUrl'>,
   labels: {
@@ -334,13 +354,6 @@ function formatWrapperLinks(
   return links.join('\n')
 }
 
-function formatMetadataLinks(entry: Pick<MetadataRouterSkillInput, 'repoUrl' | 'docsUrl'>): string {
-  return formatWrapperLinks(entry, {
-    docs: 'Official docs',
-    repo: 'Repository',
-  })
-}
-
 export function resolveMetadataRouterSkillName(packageName: string): string {
   if (packageName.startsWith('@')) {
     const [scope, name] = packageName.split('/')
@@ -357,19 +370,7 @@ export function resolveMetadataRouterSkillName(packageName: string): string {
 export function createMetadataRouterSkillFiles(input: MetadataRouterSkillInput): Record<string, string> {
   const description = input.description?.trim()
     || `Metadata-routed module skill for ${input.packageName}. Use it to reach the official docs and upstream source.`
-  const linkLines = formatMetadataLinks(input)
-  const routeSteps: string[] = []
-  if (input.docsUrl) {
-    routeSteps.push('Consult the official docs first for public APIs, usage, and supported patterns.')
-  }
-  if (input.repoUrl) {
-    routeSteps.push('Inspect the repository source for gaps, examples, or version-specific behavior.')
-  }
-  routeSteps.push('Fall back to the relevant Nuxt pack when module-specific guidance is still unclear.')
-  const routeLines = routeSteps.map((step, index) => `${index + 1}. ${step}`).join('\n')
-  const summary = input.description?.trim()
-    ? `## Module Summary\n${input.description.trim()}\n\n`
-    : ''
+  const linkLines = createCompactMetadataRouterContent(input).trim()
 
   return {
     'SKILL.md': `---
@@ -377,20 +378,7 @@ name: ${yamlString(input.skillName)}
 description: ${yamlString(description)}
 ---
 
-# ${input.packageName} Metadata Router
-
-This skill was generated from package metadata because no module-authored skill was available.
-
-${summary}## Scope
-Use this only for work that directly involves \`${input.packageName}\`.
-
-## Upstream sources
-${linkLines || '- No official docs or repository URL were available in package metadata.'}
-
-## Workflow
-1. Start with the relevant route in [../../SKILL.md](../../SKILL.md), then load the matching Nuxt pack or Vue guidance.
-2. Keep this router scoped to \`${input.packageName}\` surfaces only.
-${routeLines}
+${linkLines || 'Docs: unavailable\nSource code: unavailable'}
 `,
   }
 }
@@ -551,22 +539,6 @@ function createRoutingTable(metadata: NuxtContentMetadata, includeModuleAuthorin
     '| --- | --- | --- |',
     ...rows.map(row => `| ${row.symptom} | ${'link' in row ? row.link : packLink(metadata, row.packId)} | ${row.why} |`),
   ].join('\n')
-}
-
-export function createModulesListMarkdown(entries: SkillModuleRenderEntry[], skipped: SkillSkippedRenderEntry[] = []): string {
-  const { officialUpstream, githubResolved, metadataRouted } = groupModuleEntries(entries)
-  const sections = [
-    renderModuleGroup('Official upstream skills', officialUpstream, './'),
-    renderModuleGroup('Resolved module skills', githubResolved, './'),
-    renderModuleGroup('Metadata-routed skills', metadataRouted, './'),
-    renderSkippedEntries(skipped),
-  ].filter(Boolean)
-
-  if (!sections.length) {
-    return `${EMPTY_MODULE_GUIDANCE_MARKDOWN}\n`
-  }
-
-  return `${sections.join('\n')}`.trimEnd() + '\n'
 }
 
 function createNuxtPackTable(metadata: NuxtContentMetadata): string {
@@ -788,8 +760,8 @@ function createResolverNote(entry: SkillModuleRenderEntry): string {
   return 'This module router was generated from package metadata. Use the linked docs and repository as the source of truth for module-specific behavior.'
 }
 
-function createCompactMetadataRouterContent(entry: SkillModuleRenderEntry): string {
-  return `${formatWrapperLinks(entry, {
+function createCompactMetadataRouterContent(entry: Pick<MetadataRouterSkillInput, 'repoUrl' | 'docsUrl'>): string {
+  return `${formatCompactLinks(entry, {
     docs: 'Docs',
     repo: 'Source code',
   })}\n`
