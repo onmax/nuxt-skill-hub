@@ -3,14 +3,13 @@ import { isAbsolute, join, relative, resolve } from 'pathe'
 import { defineNuxtModule, useLogger } from '@nuxt/kit'
 import { readPackageJSON } from 'pkg-types'
 import { runInstallWizard } from './install'
-import { createSkillEntrypoint } from './core-content'
+import { loadCoreMetadata } from './core-content'
 import {
   discoverInstalledPackageFromDirectory,
-  buildCoreTemplateFiles,
   copySkillTree,
   createManifest,
   createModuleDestination,
-  createModulesListMarkdown,
+  buildCoreTemplateFiles,
   createReferencesIndexTemplate,
   discoverInstalledPackageFromSpecifier,
   discoverLocalPackageSkills,
@@ -28,14 +27,21 @@ import {
   resolveExportRoot,
   resolveMonorepoScopePath,
   resolveTargets,
-  shouldIncludeScripts,
+  sanitizeSegment,
   sortAndDedupeContributions,
   validateResolvedContributions,
-  upsertAgentsHint,
   writeFileIfChanged,
   type InstalledPackageMetadata,
 } from './internal'
 import { resolveRemoteContributionsForPackage } from './remote-resolver'
+import {
+  createModuleWrapperContent,
+  createModulesListMarkdown,
+  createReferencesIndexContent,
+  createSkillEntrypoint,
+  getSourceLabel,
+  getTrustLevel,
+} from './render-content'
 import type {
   ModuleOptions,
   ResolvedContribution,
@@ -44,6 +50,8 @@ import type {
   SkillHubContributionContext,
   ValidationIssue,
 } from './types'
+
+const GITHUB_LOOKUP_TIMEOUT_MS = 1500
 
 async function resolveManualContribution(rootDir: string, contribution: SkillHubContribution): Promise<ResolvedContribution> {
   const sourceDir = isAbsolute(contribution.sourceDir)
@@ -111,23 +119,10 @@ export default defineNuxtModule<ModuleOptions>({
     await runInstallWizard(nuxt)
   },
   defaults: {
-    enabled: true,
     skillName: '',
     targets: [],
-    targetMode: 'detected',
-    discoverDependencySkills: true,
-    enableGithubLookup: true,
-    githubLookupTimeoutMs: 1500,
-    includeScripts: 'never',
-    scriptAllowlist: [],
-    writeAgentsHint: false,
-    additionalPackages: [],
   },
   async setup(options, nuxt) {
-    if (!options.enabled) {
-      return
-    }
-
     const logger = useLogger('nuxt-skill-hub')
     const configuredSkillName = options.skillName?.trim()
     let resolvedSkillName: string
@@ -139,8 +134,8 @@ export default defineNuxtModule<ModuleOptions>({
       if (configuredSkillName) {
         logger.warn(`Invalid skillHub.skillName "${configuredSkillName}". Deriving from package.json.`)
       }
-      const pkg = await readPackageJSON(nuxt.options.rootDir).catch(() => ({}))
-      const projectName = (pkg.name || '').replace(/^@[^/]+\//, '').replace(/[^\w-]+/g, '-').replace(/^-+|-+$/g, '')
+      const pkg = await readPackageJSON(nuxt.options.rootDir).catch(() => null)
+      const projectName = (pkg?.name || '').replace(/^@[^/]+\//, '').replace(/[^\w-]+/g, '-').replace(/^-+|-+$/g, '')
       resolvedSkillName = projectName ? `nuxt-${projectName}` : 'nuxt'
       if (!isValidSkillName(resolvedSkillName)) {
         resolvedSkillName = 'nuxt'
@@ -182,28 +177,23 @@ export default defineNuxtModule<ModuleOptions>({
         }
       }
 
-      if (options.discoverDependencySkills) {
-        const moduleSpecifiers = (nuxt.options.modules || [])
-          .map(entry => extractModuleSpecifier(entry))
-          .filter((entry): entry is string => Boolean(entry))
+      const moduleSpecifiers = (nuxt.options.modules || [])
+        .map(entry => extractModuleSpecifier(entry))
+        .filter((entry): entry is string => Boolean(entry))
 
-        const seenSpecifiers = Array.from(new Set([
-          ...moduleSpecifiers,
-          ...(options.additionalPackages || []),
-        ]))
-        for (const specifier of seenSpecifiers) {
-          addInstalledPackage(await discoverInstalledPackageFromSpecifier(specifier, nuxt.options.rootDir))
-        }
+      const seenSpecifiers = Array.from(new Set(moduleSpecifiers))
+      for (const specifier of seenSpecifiers) {
+        addInstalledPackage(await discoverInstalledPackageFromSpecifier(specifier, nuxt.options.rootDir))
+      }
 
-        const layerDirectories = Array.from(new Set(
-          nuxt.options._layers
-            .map(layer => resolve(layer.cwd || layer.config.rootDir || ''))
-            .filter(layerDir => layerDir && layerDir !== resolve(nuxt.options.rootDir)),
-        ))
+      const layerDirectories = Array.from(new Set(
+        nuxt.options._layers
+          .map(layer => resolve(layer.cwd || layer.config.rootDir || ''))
+          .filter(layerDir => layerDir && layerDir !== resolve(nuxt.options.rootDir)),
+      ))
 
-        for (const layerDirectory of layerDirectories) {
-          addInstalledPackage(await discoverInstalledPackageFromDirectory(layerDirectory))
-        }
+      for (const layerDirectory of layerDirectories) {
+        addInstalledPackage(await discoverInstalledPackageFromDirectory(layerDirectory))
       }
 
       const localPackageSkills = await discoverLocalPackageSkills(nuxt.options.rootDir)
@@ -231,8 +221,8 @@ export default defineNuxtModule<ModuleOptions>({
 
         const remote = await resolveRemoteContributionsForPackage(pkg, {
           cacheRoot: remoteCacheRoot,
-          githubLookupTimeoutMs: options.githubLookupTimeoutMs || 1500,
-          enableGithubLookup: options.enableGithubLookup !== false,
+          githubLookupTimeoutMs: GITHUB_LOOKUP_TIMEOUT_MS,
+          enableGithubLookup: true,
         })
 
         remoteIssues.push(...remote.issues)
@@ -268,7 +258,6 @@ export default defineNuxtModule<ModuleOptions>({
       }
 
       const targetResolution = resolveTargets(
-        options.targetMode || 'detected',
         options.targets || [],
         nuxt.options.rootDir,
       )
@@ -283,11 +272,12 @@ export default defineNuxtModule<ModuleOptions>({
       }
 
       if (!targets.length) {
-        logger.warn('No detected targets. Set skillHub.targetMode="explicit" with skillHub.targets to force export.')
+        logger.warn('No detected targets. Set skillHub.targets to force generation for specific agents.')
         return
       }
 
       const generatedAt = new Date().toISOString()
+      const coreMetadata = await loadCoreMetadata()
 
       for (const target of targets) {
         const { targetDir, skillRoot, warning } = getTargetSkillRoot(exportRoot, target, resolvedSkillName)
@@ -302,7 +292,7 @@ export default defineNuxtModule<ModuleOptions>({
         await ensureDir(coreRoot)
         await ensureDir(modulesRoot)
 
-        await writeFileIfChanged(join(skillRoot, 'SKILL.md'), createSkillEntrypoint(resolvedSkillName, monorepoScopePath))
+        await writeFileIfChanged(join(skillRoot, 'SKILL.md'), createSkillEntrypoint(resolvedSkillName, coreMetadata, monorepoScopePath))
 
         const coreTemplateFiles = await buildCoreTemplateFiles(coreRoot)
         for (const file of coreTemplateFiles) {
@@ -320,15 +310,32 @@ export default defineNuxtModule<ModuleOptions>({
 
         for (const contribution of contributions) {
           const includeScripts = contribution.forceIncludeScripts
-            ? true
-            : shouldIncludeScripts(
-                options.includeScripts || 'never',
-                options.scriptAllowlist || [],
-                contribution.packageName,
-              )
-
           const destination = createModuleDestination(modulesRoot, contribution)
           await copySkillTree(contribution.sourceDir, destination, includeScripts)
+
+          const wrapperPath = join(
+            modulesRoot,
+            sanitizeSegment(contribution.packageName),
+            `${sanitizeSegment(contribution.skillName)}.md`,
+          )
+          const wrapperContent = createModuleWrapperContent({
+            packageName: contribution.packageName,
+            version: contribution.version,
+            skillName: contribution.skillName,
+            description: contribution.description,
+            scriptsIncluded: includeScripts,
+            sourceKind: contribution.sourceKind,
+            sourceLabel: getSourceLabel(contribution.sourceKind),
+            sourceRepo: contribution.sourceRepo,
+            sourceRef: contribution.sourceRef,
+            sourcePath: contribution.sourcePath,
+            repoUrl: contribution.repoUrl,
+            docsUrl: contribution.docsUrl,
+            official: contribution.official,
+            trustLevel: getTrustLevel(contribution.official),
+            resolver: contribution.resolver,
+          })
+          await writeFileIfChanged(wrapperPath, wrapperContent)
 
           generatedEntries.push({
             packageName: contribution.packageName,
@@ -337,12 +344,18 @@ export default defineNuxtModule<ModuleOptions>({
             sourceDir: contribution.sourceDir,
             destination: (relative(skillRoot, destination)),
             scriptsIncluded: includeScripts,
+            description: contribution.description,
             sourceKind: contribution.sourceKind,
+            sourceLabel: getSourceLabel(contribution.sourceKind),
             sourceRepo: contribution.sourceRepo,
             sourceRef: contribution.sourceRef,
             sourcePath: contribution.sourcePath,
+            repoUrl: contribution.repoUrl,
+            docsUrl: contribution.docsUrl,
             official: contribution.official,
+            trustLevel: getTrustLevel(contribution.official),
             resolver: contribution.resolver,
+            wrapperPath: relative(skillRoot, wrapperPath),
           })
         }
 
@@ -352,8 +365,7 @@ export default defineNuxtModule<ModuleOptions>({
         const referencesIndexTemplate = createReferencesIndexTemplate()
         const referencesIndexTemplatePath = join(referencesRoot, 'index.template.md')
         await writeFileIfChanged(referencesIndexTemplatePath, referencesIndexTemplate)
-        const renderedIndex = await renderAutomdTemplate(referencesIndexTemplate, referencesRoot)
-        await writeFileIfChanged(join(referencesRoot, 'index.md'), renderedIndex)
+        await writeFileIfChanged(join(referencesRoot, 'index.md'), createReferencesIndexContent(coreMetadata, generatedEntries, skipped))
 
         const manifest = createManifest(
           generatedAt,
@@ -366,10 +378,6 @@ export default defineNuxtModule<ModuleOptions>({
         await writeFileIfChanged(join(skillRoot, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`)
 
         logger.success(`Generated ${resolvedSkillName} skill at ${(skillRoot)}`)
-      }
-
-      if (options.writeAgentsHint) {
-        await upsertAgentsHint(exportRoot, resolvedSkillName)
       }
     })
   },

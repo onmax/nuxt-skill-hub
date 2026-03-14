@@ -79,26 +79,6 @@ const FALLBACK_MAP: FallbackMapEntry[] = [
     path: 'skills/nuxt-studio',
   },
   {
-    packageName: 'pnpm',
-    skillName: 'pnpm',
-    path: 'skills/pnpm',
-  },
-  {
-    packageName: 'vite',
-    skillName: 'vite',
-    path: 'skills/vite',
-  },
-  {
-    packageName: 'vitest',
-    skillName: 'vitest',
-    path: 'skills/vitest',
-  },
-  {
-    packageName: 'tsdown',
-    skillName: 'tsdown',
-    path: 'skills/tsdown',
-  },
-  {
     packageName: 'vue',
     skillName: 'vue',
     path: 'skills/vue',

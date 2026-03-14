@@ -9,15 +9,30 @@ function createSkillFiles(destinationDir: string, skillName: string): Promise<vo
     .then(() => fsp.writeFile(join(destinationDir, 'SKILL.md'), content, 'utf8'))
 }
 
+function mockDownloadTemplate(impl: (input: string, dir: string) => Promise<void>) {
+  return vi.fn(async (input: string, options?: { dir?: string }) => {
+    if (!options?.dir) {
+      throw new Error('missing dir')
+    }
+
+    await impl(input, options.dir)
+    return {
+      dir: options.dir,
+      source: input,
+    }
+  })
+}
+
 describe('resolveRemoteContributionsForPackage', () => {
   it('resolves skill from github heuristics', async () => {
     const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
-    const downloadMock = vi.fn(async (repo: string, _ref: string, sourcePath: string, destinationDir: string) => {
-      if (repo === 'acme/reka-ui' && sourcePath === 'skills/reka-ui') {
+    const downloadMock = mockDownloadTemplate(async (input, destinationDir) => {
+      if (input === 'gh:acme/reka-ui/skills/reka-ui#main') {
         await createSkillFiles(destinationDir, 'reka-ui')
-        return { ok: true }
       }
-      return { ok: false, status: 404, error: 'not found' }
+      else {
+        throw new Error('not found')
+      }
     })
 
     vi.resetModules()
@@ -26,7 +41,9 @@ describe('resolveRemoteContributionsForPackage', () => {
       fetchGitHubDefaultBranch: vi.fn(async () => 'main'),
       fetchGitHubFileText: vi.fn(async () => ({ ok: false, status: 404 })),
       listGitHubDirectory: vi.fn(async () => ['reka-ui']),
-      downloadGitHubDirectory: downloadMock,
+    }))
+    vi.doMock('giget', () => ({
+      downloadTemplate: downloadMock,
     }))
 
     const { resolveRemoteContributionsForPackage } = await import('../src/remote-resolver')
@@ -45,17 +62,18 @@ describe('resolveRemoteContributionsForPackage', () => {
     expect(result.contributions[0]?.official).toBe(true)
     expect(result.contributions[0]?.resolver).toBe('githubHeuristic')
     expect(result.skipped).toEqual([])
-    expect(downloadMock.mock.calls.some(call => call[0] === 'onmax/nuxt-skills')).toBe(false)
+    expect(downloadMock.mock.calls.some(call => String(call[0]).includes('onmax/nuxt-skills'))).toBe(false)
   })
 
   it('uses fallback map when github metadata is unavailable', async () => {
     const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
-    const downloadMock = vi.fn(async (repo: string, _ref: string, sourcePath: string, destinationDir: string) => {
-      if (repo === 'onmax/nuxt-skills' && sourcePath === 'skills/reka-ui') {
+    const downloadMock = mockDownloadTemplate(async (input, destinationDir) => {
+      if (input === 'gh:onmax/nuxt-skills/skills/reka-ui#main') {
         await createSkillFiles(destinationDir, 'reka-ui')
-        return { ok: true }
       }
-      return { ok: false, status: 404, error: 'not found' }
+      else {
+        throw new Error('not found')
+      }
     })
 
     vi.resetModules()
@@ -64,7 +82,9 @@ describe('resolveRemoteContributionsForPackage', () => {
       fetchGitHubDefaultBranch: vi.fn(async () => 'main'),
       fetchGitHubFileText: vi.fn(async () => ({ ok: false, status: 404 })),
       listGitHubDirectory: vi.fn(async () => []),
-      downloadGitHubDirectory: downloadMock,
+    }))
+    vi.doMock('giget', () => ({
+      downloadTemplate: downloadMock,
     }))
 
     const { resolveRemoteContributionsForPackage } = await import('../src/remote-resolver')
@@ -85,17 +105,18 @@ describe('resolveRemoteContributionsForPackage', () => {
     expect(result.contributions[0]?.sourceRepo).toBe('onmax/nuxt-skills')
     expect(result.contributions[0]?.sourceRef).toBe('main')
     expect(result.skipped).toEqual([])
-    expect(downloadMock.mock.calls.some(call => call[0] === 'onmax/nuxt-skills')).toBe(true)
+    expect(downloadMock.mock.calls.some(call => String(call[0]).includes('onmax/nuxt-skills'))).toBe(true)
   })
 
   it('maps @nuxt/ui to onmax fallback skill', async () => {
     const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
-    const downloadMock = vi.fn(async (repo: string, _ref: string, sourcePath: string, destinationDir: string) => {
-      if (repo === 'onmax/nuxt-skills' && sourcePath === 'skills/nuxt-ui') {
+    const downloadMock = mockDownloadTemplate(async (input, destinationDir) => {
+      if (input === 'gh:onmax/nuxt-skills/skills/nuxt-ui#main') {
         await createSkillFiles(destinationDir, 'nuxt-ui')
-        return { ok: true }
       }
-      return { ok: false, status: 404, error: 'not found' }
+      else {
+        throw new Error('not found')
+      }
     })
 
     vi.resetModules()
@@ -104,7 +125,9 @@ describe('resolveRemoteContributionsForPackage', () => {
       fetchGitHubDefaultBranch: vi.fn(async () => 'main'),
       fetchGitHubFileText: vi.fn(async () => ({ ok: false, status: 404 })),
       listGitHubDirectory: vi.fn(async () => []),
-      downloadGitHubDirectory: downloadMock,
+    }))
+    vi.doMock('giget', () => ({
+      downloadTemplate: downloadMock,
     }))
 
     const { resolveRemoteContributionsForPackage } = await import('../src/remote-resolver')
@@ -126,12 +149,13 @@ describe('resolveRemoteContributionsForPackage', () => {
 
   it('uses remote package agents.skills before heuristics', async () => {
     const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
-    const downloadMock = vi.fn(async (repo: string, _ref: string, sourcePath: string, destinationDir: string) => {
-      if (repo === 'acme/nuxt-module' && sourcePath === 'skills/nuxt-module') {
+    const downloadMock = mockDownloadTemplate(async (input, destinationDir) => {
+      if (input === 'gh:acme/nuxt-module/skills/nuxt-module#main') {
         await createSkillFiles(destinationDir, 'nuxt-module')
-        return { ok: true }
       }
-      return { ok: false, status: 404, error: 'not found' }
+      else {
+        throw new Error('not found')
+      }
     })
 
     vi.resetModules()
@@ -150,7 +174,9 @@ describe('resolveRemoteContributionsForPackage', () => {
           },
         }),
       })),
-      downloadGitHubDirectory: downloadMock,
+    }))
+    vi.doMock('giget', () => ({
+      downloadTemplate: downloadMock,
     }))
 
     const { resolveRemoteContributionsForPackage } = await import('../src/remote-resolver')
@@ -172,12 +198,16 @@ describe('resolveRemoteContributionsForPackage', () => {
 
   it('discovers all root github skills for docus', async () => {
     const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
-    const downloadMock = vi.fn(async (repo: string, _ref: string, sourcePath: string, destinationDir: string) => {
-      if (repo === 'nuxt-content/docus' && (sourcePath === 'skills/create-docs' || sourcePath === 'skills/review-docs')) {
-        await createSkillFiles(destinationDir, sourcePath.split('/').pop() || 'unknown')
-        return { ok: true }
+    const downloadMock = mockDownloadTemplate(async (input, destinationDir) => {
+      if (
+        input === 'gh:nuxt-content/docus/skills/create-docs#main'
+        || input === 'gh:nuxt-content/docus/skills/review-docs#main'
+      ) {
+        await createSkillFiles(destinationDir, input.split('/').pop()?.split('#')[0] || 'unknown')
       }
-      return { ok: false, status: 404, error: 'not found' }
+      else {
+        throw new Error('not found')
+      }
     })
 
     vi.resetModules()
@@ -186,7 +216,9 @@ describe('resolveRemoteContributionsForPackage', () => {
       fetchGitHubDefaultBranch: vi.fn(async () => 'main'),
       fetchGitHubFileText: vi.fn(async () => ({ ok: false, status: 404 })),
       listGitHubDirectory: vi.fn(async () => ['create-docs', 'review-docs']),
-      downloadGitHubDirectory: downloadMock,
+    }))
+    vi.doMock('giget', () => ({
+      downloadTemplate: downloadMock,
     }))
 
     const { resolveRemoteContributionsForPackage } = await import('../src/remote-resolver')
@@ -205,5 +237,77 @@ describe('resolveRemoteContributionsForPackage', () => {
     expect(result.contributions.every(item => item.sourceKind === 'github')).toBe(true)
     expect(result.contributions.every(item => item.official)).toBe(true)
     expect(result.skipped).toEqual([])
+  })
+
+  it('generates a metadata-routed skill when no remote skill is available', async () => {
+    const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
+    const downloadMock = mockDownloadTemplate(async () => {
+      throw new Error('not found')
+    })
+
+    vi.resetModules()
+    vi.doMock('../src/remote-fetch', () => ({
+      parseGitHubRepo: vi.fn(() => null),
+      fetchGitHubDefaultBranch: vi.fn(async () => 'main'),
+      fetchGitHubFileText: vi.fn(async () => ({ ok: false, status: 404 })),
+      listGitHubDirectory: vi.fn(async () => []),
+    }))
+    vi.doMock('giget', () => ({
+      downloadTemplate: downloadMock,
+    }))
+
+    const { resolveRemoteContributionsForPackage } = await import('../src/remote-resolver')
+    const result = await resolveRemoteContributionsForPackage({
+      packageName: '@nuxt/a11y',
+      version: '1.0.0',
+      description: 'Accessibility tooling for Nuxt.',
+      repository: 'https://github.com/nuxt/a11y',
+      homepage: 'https://a11y.nuxt.com/',
+    }, {
+      cacheRoot,
+      githubLookupTimeoutMs: 200,
+      enableGithubLookup: true,
+    })
+
+    expect(result.contributions).toHaveLength(1)
+    expect(result.contributions[0]?.sourceKind).toBe('generated')
+    expect(result.contributions[0]?.resolver).toBe('metadataRouter')
+    expect(result.contributions[0]?.repoUrl).toBe('https://github.com/nuxt/a11y')
+    expect(result.contributions[0]?.docsUrl).toBe('https://a11y.nuxt.com/')
+    expect(result.skipped).toEqual([])
+    await expect(fsp.readFile(join(result.contributions[0]!.sourceDir, 'SKILL.md'), 'utf8')).resolves.toContain('This skill was generated from package metadata')
+    await expect(fsp.readFile(join(result.contributions[0]!.sourceDir, 'references/index.md'), 'utf8')).resolves.toContain('Official docs')
+  })
+
+  it('keeps package skipped when metadata cannot produce a router skill', async () => {
+    const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
+    const downloadMock = mockDownloadTemplate(async () => {
+      throw new Error('not found')
+    })
+
+    vi.resetModules()
+    vi.doMock('../src/remote-fetch', () => ({
+      parseGitHubRepo: vi.fn(() => null),
+      fetchGitHubDefaultBranch: vi.fn(async () => 'main'),
+      fetchGitHubFileText: vi.fn(async () => ({ ok: false, status: 404 })),
+      listGitHubDirectory: vi.fn(async () => []),
+    }))
+    vi.doMock('giget', () => ({
+      downloadTemplate: downloadMock,
+    }))
+
+    const { resolveRemoteContributionsForPackage } = await import('../src/remote-resolver')
+    const result = await resolveRemoteContributionsForPackage({
+      packageName: 'unknown-module',
+      version: '0.0.1',
+    }, {
+      cacheRoot,
+      githubLookupTimeoutMs: 200,
+      enableGithubLookup: true,
+    })
+
+    expect(result.contributions).toEqual([])
+    expect(result.skipped.some(entry => entry.sourceKind === 'generated')).toBe(true)
+    expect(result.skipped.some(entry => entry.reason.includes('metadata-routed skill'))).toBe(true)
   })
 })

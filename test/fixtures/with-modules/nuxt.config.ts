@@ -1,3 +1,4 @@
+import { defineNuxtConfig } from 'nuxt/config'
 import SkillHubModule from '../../../src/module'
 
 export default defineNuxtConfig({
@@ -6,11 +7,9 @@ export default defineNuxtConfig({
     'test-nuxt-ui',
     'test-nuxt-seo',
     'test-nuxt-bad',
+    'test-meta-router',
   ],
   skillHub: {
-    targetMode: 'explicit',
     targets: ['claude-code'],
-    includeScripts: 'allowlist',
-    scriptAllowlist: ['test-nuxt-seo'],
   },
-})
+} as any)

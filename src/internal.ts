@@ -1,11 +1,11 @@
-import { existsSync, promises as fsp } from 'node:fs'
+import { existsSync, lstatSync, promises as fsp } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'pathe'
+import matter from 'gray-matter'
 import { readPackageJSON, resolvePackageJSON } from 'pkg-types'
 import { transform } from 'automd'
 import type {
   AgentSkillDeclaration,
-  IncludeScriptsMode,
   ResolvedContribution,
   SkillHubContribution,
   SkillManifest,
@@ -35,6 +35,7 @@ export interface PackageSkillDiscovery {
 export interface InstalledPackageMetadata {
   packageName: string
   version?: string
+  description?: string
   packageRoot: string
   repository?: string
   homepage?: string
@@ -48,12 +49,18 @@ export interface GeneratedModuleEntry {
   sourceDir: string
   destination: string
   scriptsIncluded: boolean
+  description?: string
   sourceKind: SkillSourceKind
+  sourceLabel: string
   sourceRepo?: string
   sourceRef?: string
   sourcePath?: string
+  repoUrl?: string
+  docsUrl?: string
   official: boolean
-  resolver: 'agentsField' | 'githubHeuristic' | 'mapEntry'
+  trustLevel: 'official' | 'community'
+  resolver: 'agentsField' | 'githubHeuristic' | 'mapEntry' | 'metadataRouter'
+  wrapperPath?: string
 }
 
 export async function pathExists(path: string): Promise<boolean> {
@@ -214,67 +221,6 @@ export function parseAgentSkillDeclarations(pkg: unknown, packageName: string, s
   return { skills, issues }
 }
 
-interface SkillFrontmatter {
-  name?: string
-  description?: string
-}
-
-function parseFrontmatterValue(raw: string): string {
-  const value = raw.trim()
-  if (!value) {
-    return ''
-  }
-
-  if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith('\'') && value.endsWith('\''))) {
-    return value.slice(1, -1).trim()
-  }
-
-  return value
-}
-
-export function parseSkillFrontmatter(contents: string): SkillFrontmatter | null {
-  const lines = contents.split(/\r?\n/)
-  if (lines[0]?.trim() !== '---') {
-    return null
-  }
-
-  const endIndex = lines.findIndex((line, index) => index > 0 && line.trim() === '---')
-  if (endIndex === -1) {
-    return null
-  }
-
-  const frontmatter: SkillFrontmatter = {}
-  const body = lines.slice(1, endIndex)
-
-  for (const line of body) {
-    const trimmed = line.trim()
-    if (!trimmed || trimmed.startsWith('#')) {
-      continue
-    }
-
-    const separatorIndex = trimmed.indexOf(':')
-    if (separatorIndex <= 0) {
-      continue
-    }
-
-    const key = trimmed.slice(0, separatorIndex).trim()
-    if (!/^[\w-]+$/.test(key)) {
-      continue
-    }
-
-    const value = parseFrontmatterValue(trimmed.slice(separatorIndex + 1))
-
-    if (key === 'name') {
-      frontmatter.name = value
-    }
-    else if (key === 'description') {
-      frontmatter.description = value
-    }
-  }
-
-  return frontmatter
-}
-
 function packageNameFromSpecifier(specifier: string): string {
   if (specifier.startsWith('@')) {
     const [scope, name] = specifier.split('/')
@@ -350,6 +296,7 @@ async function readInstalledPackageMetadata(packageJsonPath: string, fallbackSpe
   return {
     packageName: pkg.name || (fallbackSpecifier ? packageNameFromSpecifier(fallbackSpecifier) : basename(dirname(packageJsonPath))),
     version: pkg.version,
+    description: pkg.description,
     packageRoot: dirname(packageJsonPath),
     repository: readRepositoryUrl(pkg.repository as string | { url?: string } | undefined),
     homepage: pkg.homepage,
@@ -375,15 +322,6 @@ export function discoverPackageSkillsFromInstalledPackage(
     skills,
     issues: parsed.issues,
   }
-}
-
-export async function discoverPackageSkillsFromSpecifier(specifier: string, rootDir: string): Promise<PackageSkillDiscovery | null> {
-  const installedPackage = await discoverInstalledPackageFromSpecifier(specifier, rootDir)
-  if (!installedPackage) {
-    return null
-  }
-
-  return discoverPackageSkillsFromInstalledPackage(installedPackage, 'dist')
 }
 
 export async function discoverLocalPackageSkills(rootDir: string): Promise<PackageSkillDiscovery | null> {
@@ -420,9 +358,12 @@ export function normalizeContribution(contribution: SkillHubContribution, source
     sourceRoot,
     skillName: normalizeSkillName(contribution.skillName, sourceDir),
     sourceKind: contribution.sourceKind || 'dist',
+    description: contribution.description,
     sourceRepo: contribution.sourceRepo,
     sourceRef: contribution.sourceRef,
     sourcePath: contribution.sourcePath,
+    repoUrl: contribution.repoUrl,
+    docsUrl: contribution.docsUrl,
     official: contribution.official ?? true,
     resolver: contribution.resolver || 'agentsField',
     forceIncludeScripts: contribution.forceIncludeScripts ?? false,
@@ -452,8 +393,20 @@ async function validateContribution(contribution: ResolvedContribution): Promise
   }
 
   const skillContents = await fsp.readFile(skillFilePath, 'utf8')
-  const frontmatter = parseSkillFrontmatter(skillContents)
-  if (!frontmatter) {
+  if (!matter.test(skillContents)) {
+    issues.push(createValidationIssue(contribution.packageName, contribution.skillName, 'SKILL.md must include YAML frontmatter', contribution.sourceKind))
+    return { contribution, issues }
+  }
+
+  let frontmatter: { name?: string, description?: string }
+  try {
+    const parsed = matter(skillContents).data
+    frontmatter = {
+      name: typeof parsed.name === 'string' ? parsed.name.trim() : undefined,
+      description: typeof parsed.description === 'string' ? parsed.description.trim() : undefined,
+    }
+  }
+  catch {
     issues.push(createValidationIssue(contribution.packageName, contribution.skillName, 'SKILL.md must include YAML frontmatter', contribution.sourceKind))
     return { contribution, issues }
   }
@@ -469,7 +422,13 @@ async function validateContribution(contribution: ResolvedContribution): Promise
     issues.push(createValidationIssue(contribution.packageName, contribution.skillName, 'SKILL.md frontmatter must include non-empty "description"', contribution.sourceKind))
   }
 
-  return { contribution, issues }
+  return {
+    contribution: {
+      ...contribution,
+      description: frontmatter.description || contribution.description,
+    },
+    issues,
+  }
 }
 
 export interface ResolveContributionsResult {
@@ -543,73 +502,39 @@ export function sortAndDedupeContributions(contributions: ResolvedContribution[]
     })
 }
 
-export function shouldIncludeScripts(mode: IncludeScriptsMode, scriptAllowlist: string[], packageName: string): boolean {
-  if (mode === 'always') {
-    return true
-  }
-
-  if (mode === 'allowlist') {
-    return scriptAllowlist.includes(packageName)
-  }
-
-  return false
-}
-
-export function resolveGuidancePrecedence(taskModuleScope: string | undefined, candidateModuleScope: string | undefined): 'core' | 'module' {
-  if (taskModuleScope && candidateModuleScope && taskModuleScope === candidateModuleScope) {
-    return 'module'
-  }
-  return 'core'
-}
-
 export function sanitizeSegment(value: string): string {
   return value.replace(/[^\w.-]+/g, '-').replace(/^-+|-+$/g, '') || 'unknown'
 }
 
 export async function copySkillTree(sourceDir: string, destinationDir: string, includeScripts: boolean): Promise<void> {
   await ensureDir(destinationDir)
-  await copySkillTreeRecursive(sourceDir, sourceDir, destinationDir, includeScripts)
-}
+  await fsp.cp(sourceDir, destinationDir, {
+    recursive: true,
+    force: true,
+    filter: (source) => {
+      const relativePath = relative(sourceDir, source)
+      if (!relativePath || relativePath === '') {
+        return true
+      }
 
-async function copySkillTreeRecursive(sourceRoot: string, sourceDir: string, destinationDir: string, includeScripts: boolean): Promise<void> {
-  const entries = await fsp.readdir(sourceDir, { withFileTypes: true })
+      if (relativePath.split('/').includes('..')) {
+        return false
+      }
 
-  for (const entry of entries) {
-    if (entry.isSymbolicLink()) {
-      continue
-    }
+      if (!includeScripts && (relativePath === 'scripts' || relativePath.startsWith('scripts/'))) {
+        return false
+      }
 
-    const sourcePath = join(sourceDir, entry.name)
-    const relativePath = (relative(sourceRoot, sourcePath))
-
-    if (relativePath.split('/').includes('..')) {
-      continue
-    }
-
-    if (!includeScripts && (relativePath === 'scripts' || relativePath.startsWith('scripts/'))) {
-      continue
-    }
-
-    const destinationPath = join(destinationDir, entry.name)
-
-    if (entry.isDirectory()) {
-      await ensureDir(destinationPath)
-      await copySkillTreeRecursive(sourceRoot, sourcePath, destinationPath, includeScripts)
-      continue
-    }
-
-    if (entry.isFile()) {
-      await fsp.copyFile(sourcePath, destinationPath)
-    }
-  }
+      return !lstatSync(source).isSymbolicLink()
+    },
+  })
 }
 
 export function resolveTargets(
-  targetMode: 'detected' | 'explicit',
   explicitTargets: SkillHubTarget[],
   rootDir: string,
 ): { targets: SkillHubTarget[], invalidTargets: InvalidTarget[] } {
-  if (targetMode === 'explicit') {
+  if (explicitTargets.length) {
     const { valid, invalid } = validateTargets(explicitTargets)
     return {
       targets: valid,
@@ -659,35 +584,6 @@ _Generated by nuxt-skill-hub. Do not edit this file manually._
 `
 }
 
-export function createModulesListMarkdown(entries: GeneratedModuleEntry[], skipped: SkillManifestSkipped[] = []): string {
-  let discovered = '_No module skills discovered._'
-
-  if (entries.length) {
-    discovered = entries
-      .map((entry) => {
-        const packageDir = sanitizeSegment(entry.packageName)
-        const skillDir = sanitizeSegment(entry.skillName)
-        const version = entry.version ? ` \`v${entry.version}\`` : ''
-        const source = `source: \`${entry.sourceKind}\``
-        return `- **${entry.packageName}**${version} (${source}, scope: \`${entry.packageName}\`) -> [${entry.skillName}](./modules/${packageDir}/${skillDir}/SKILL.md)`
-      })
-      .join('\n')
-  }
-
-  if (!skipped.length) {
-    return `${discovered}\n`
-  }
-
-  const skippedList = skipped
-    .map((entry) => {
-      const source = entry.sourceKind ? ` (\`${entry.sourceKind}\`)` : ''
-      return `- **${entry.packageName}**${source} / \`${entry.skillName}\`: ${entry.reason}`
-    })
-    .join('\n')
-
-  return `${discovered}\n\n## Skipped module skills (validation)\n${skippedList}\n`
-}
-
 export async function renderAutomdTemplate(contents: string, dir: string): Promise<string> {
   const result = await transform(contents, { dir })
   return result.contents
@@ -725,12 +621,18 @@ export function createManifest(
         sourceDir: entry.sourceDir,
         destination: entry.destination,
         scriptsIncluded: entry.scriptsIncluded,
+        description: entry.description,
         sourceKind: entry.sourceKind,
+        sourceLabel: entry.sourceLabel,
         sourceRepo: entry.sourceRepo,
         sourceRef: entry.sourceRef,
         sourcePath: entry.sourcePath,
+        repoUrl: entry.repoUrl,
+        docsUrl: entry.docsUrl,
         official: entry.official,
+        trustLevel: entry.trustLevel,
         resolver: entry.resolver,
+        wrapperPath: entry.wrapperPath,
       })),
     skipped: skipped
       .slice()

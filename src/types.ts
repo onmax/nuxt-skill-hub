@@ -1,22 +1,12 @@
 import type { SkillHubTarget } from './agents'
 
-export type TargetMode = 'detected' | 'explicit'
-export type IncludeScriptsMode = 'never' | 'allowlist' | 'always'
-export type SkillSourceKind = 'dist' | 'github' | 'fallbackMap'
-export type SkillResolverKind = 'agentsField' | 'githubHeuristic' | 'mapEntry'
+export type SkillSourceKind = 'dist' | 'github' | 'fallbackMap' | 'generated'
+export type SkillResolverKind = 'agentsField' | 'githubHeuristic' | 'mapEntry' | 'metadataRouter'
+export type SkillTrustLevel = 'official' | 'community'
 
 export interface ModuleOptions {
-  enabled?: boolean
   skillName?: string
   targets?: SkillHubTarget[]
-  targetMode?: TargetMode
-  discoverDependencySkills?: boolean
-  enableGithubLookup?: boolean
-  githubLookupTimeoutMs?: number
-  includeScripts?: IncludeScriptsMode
-  scriptAllowlist?: string[]
-  writeAgentsHint?: boolean
-  additionalPackages?: string[]
 }
 
 export interface AgentSkillDeclaration {
@@ -29,10 +19,13 @@ export interface SkillHubContribution {
   version?: string
   sourceDir: string
   skillName?: string
+  description?: string
   sourceKind?: SkillSourceKind
   sourceRepo?: string
   sourceRef?: string
   sourcePath?: string
+  repoUrl?: string
+  docsUrl?: string
   official?: boolean
   resolver?: SkillResolverKind
   forceIncludeScripts?: boolean
@@ -46,6 +39,9 @@ export interface ResolvedContribution extends SkillHubContribution {
   skillName: string
   sourceRoot: string
   sourceKind: SkillSourceKind
+  description?: string
+  repoUrl?: string
+  docsUrl?: string
   official: boolean
   resolver: SkillResolverKind
   forceIncludeScripts: boolean
@@ -86,12 +82,18 @@ export interface SkillManifest {
     sourceDir: string
     destination: string
     scriptsIncluded: boolean
+    description?: string
     sourceKind: SkillSourceKind
+    sourceLabel: string
     sourceRepo?: string
     sourceRef?: string
     sourcePath?: string
+    repoUrl?: string
+    docsUrl?: string
     official: boolean
+    trustLevel: SkillTrustLevel
     resolver: SkillResolverKind
+    wrapperPath?: string
   }>
   skipped: SkillManifestSkipped[]
 }

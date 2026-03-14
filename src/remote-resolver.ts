@@ -1,13 +1,17 @@
-import { join } from 'pathe'
+import { promises as fsp } from 'node:fs'
+import { downloadTemplate } from 'giget'
+import { dirname, join } from 'pathe'
 import { FALLBACK_REF, FALLBACK_REPO, findFallbackMapEntry } from './fallback-map'
 import { findGitHubOverride } from './github-overrides'
-import { downloadGitHubDirectory, fetchGitHubDefaultBranch, fetchGitHubFileText, listGitHubDirectory, parseGitHubRepo } from './remote-fetch'
+import { fetchGitHubDefaultBranch, fetchGitHubFileText, listGitHubDirectory, parseGitHubRepo } from './remote-fetch'
+import { createMetadataRouterSkillFiles, resolveMetadataRouterSkillName } from './render-content'
 import type { ResolvedContribution, SkillManifestSkipped, SkillSourceKind, ValidationIssue } from './types'
-import { createValidationIssue, normalizeContribution, pathExists, sanitizeSegment } from './internal'
+import { createValidationIssue, ensureDir, normalizeContribution, parseAgentSkillDeclarations, pathExists, sanitizeSegment } from './internal'
 
 export interface InstalledPackageInfo {
   packageName: string
   version?: string
+  description?: string
   repository?: string
   homepage?: string
 }
@@ -80,11 +84,41 @@ function dedupe(values: string[]): string[] {
   return output
 }
 
+function normalizeHttpUrl(url: string | undefined): string | undefined {
+  const trimmed = url?.trim()
+  if (!trimmed) {
+    return undefined
+  }
+
+  try {
+    const parsed = new URL(trimmed)
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+      ? parsed.toString()
+      : undefined
+  }
+  catch {
+    return undefined
+  }
+}
+
+function resolveRepositoryUrl(packageInfo: InstalledPackageInfo): { repoUrl?: string, sourceRepo?: string } {
+  const sourceRepo = parseGitHubRepo(packageInfo.repository) || parseGitHubRepo(packageInfo.homepage)
+  if (sourceRepo) {
+    return {
+      sourceRepo,
+      repoUrl: `https://github.com/${sourceRepo}`,
+    }
+  }
+
+  return {
+    repoUrl: normalizeHttpUrl(packageInfo.repository),
+  }
+}
+
 async function materializeCandidate(
   packageInfo: InstalledPackageInfo,
   candidate: RemoteSkillCandidate,
   cacheRoot: string,
-  timeoutMs: number,
 ): Promise<ResolvedContribution | null> {
   const targetDir = join(
     cacheRoot,
@@ -95,15 +129,16 @@ async function materializeCandidate(
     sanitizeSegment(candidate.skillName),
   )
 
-  const downloaded = await downloadGitHubDirectory(
-    candidate.sourceRepo,
-    candidate.sourceRef,
-    candidate.sourcePath,
-    targetDir,
-    timeoutMs,
-  )
-
-  if (!downloaded.ok) {
+  try {
+    await downloadTemplate(`gh:${candidate.sourceRepo}/${candidate.sourcePath}#${candidate.sourceRef}`, {
+      dir: targetDir,
+      force: true,
+      forceClean: true,
+      registry: false,
+      silent: true,
+    })
+  }
+  catch {
     return null
   }
 
@@ -124,31 +159,6 @@ async function materializeCandidate(
     resolver: candidate.resolver,
     forceIncludeScripts: true,
   }, targetDir, join(targetDir, '..'))
-}
-
-function parseRemoteAgentsSkills(pkg: unknown): Array<{ name: string, path: string }> {
-  const raw = pkg && typeof pkg === 'object'
-    ? (pkg as { agents?: { skills?: unknown } }).agents?.skills
-    : undefined
-
-  if (!Array.isArray(raw)) {
-    return []
-  }
-
-  const entries: Array<{ name: string, path: string }> = []
-  for (const entry of raw) {
-    if (!entry || typeof entry !== 'object') {
-      continue
-    }
-    const name = typeof entry.name === 'string' ? entry.name.trim() : ''
-    const path = typeof entry.path === 'string' ? entry.path.trim() : ''
-    if (!name || !path) {
-      continue
-    }
-    entries.push({ name, path })
-  }
-
-  return entries
 }
 
 async function resolveViaGitHub(
@@ -200,8 +210,10 @@ async function resolveViaGitHub(
     if (packageJson.ok && packageJson.data) {
       try {
         const parsed = JSON.parse(packageJson.data) as unknown
-        const remoteSkills = parseRemoteAgentsSkills(parsed)
-        for (const skill of remoteSkills) {
+        const remoteSkills = parseAgentSkillDeclarations(parsed, packageInfo.packageName, 'github')
+        issues.push(...remoteSkills.issues)
+
+        for (const skill of remoteSkills.skills) {
           const resolved = await materializeCandidate(packageInfo, {
             skillName: skill.name,
             sourcePath: skill.path,
@@ -210,7 +222,7 @@ async function resolveViaGitHub(
             sourceRef: ref,
             official: true,
             resolver: 'agentsField',
-          }, cacheRoot, timeoutMs)
+          }, cacheRoot)
           if (resolved) {
             return { contributions: [resolved], issues, skipped }
           }
@@ -234,7 +246,7 @@ async function resolveViaGitHub(
           sourceRef: ref,
           official: true,
           resolver: 'githubHeuristic',
-        }, cacheRoot, timeoutMs)
+        }, cacheRoot)
         if (resolved) {
           contributions.push(resolved)
         }
@@ -257,7 +269,7 @@ async function resolveViaGitHub(
         sourceRef: ref,
         official: true,
         resolver: 'githubHeuristic',
-      }, cacheRoot, timeoutMs)
+      }, cacheRoot)
 
       if (resolved) {
         return { contributions: [resolved], issues, skipped }
@@ -276,7 +288,6 @@ async function resolveViaGitHub(
 async function resolveViaFallbackMap(
   packageInfo: InstalledPackageInfo,
   cacheRoot: string,
-  timeoutMs: number,
 ): Promise<RemoteResolveResult> {
   const entry = findFallbackMapEntry(packageInfo.packageName)
   if (!entry) {
@@ -295,7 +306,7 @@ async function resolveViaFallbackMap(
     sourceRef: FALLBACK_REF,
     official: false,
     resolver: 'mapEntry',
-  }, cacheRoot, timeoutMs)
+  }, cacheRoot)
 
   if (resolved) {
     return {
@@ -309,6 +320,66 @@ async function resolveViaFallbackMap(
     contributions: [],
     issues: [],
     skipped: [makeSkip(packageInfo.packageName, entry.skillName, 'Fallback map skill path could not be downloaded', 'fallbackMap')],
+  }
+}
+
+async function resolveViaMetadataRouter(
+  packageInfo: InstalledPackageInfo,
+  cacheRoot: string,
+): Promise<RemoteResolveResult> {
+  const { repoUrl, sourceRepo } = resolveRepositoryUrl(packageInfo)
+  const docsUrl = normalizeHttpUrl(packageInfo.homepage)
+
+  if (!repoUrl && !docsUrl) {
+    return {
+      contributions: [],
+      issues: [],
+      skipped: [makeSkip(packageInfo.packageName, packageInfo.packageName, 'No package metadata was available to generate a metadata-routed skill', 'generated')],
+    }
+  }
+
+  const skillName = resolveMetadataRouterSkillName(packageInfo.packageName)
+  const targetDir = join(
+    cacheRoot,
+    'generated',
+    'metadata-router',
+    sanitizeSegment(packageInfo.packageName),
+    sanitizeSegment(skillName),
+  )
+
+  const files = createMetadataRouterSkillFiles({
+    packageName: packageInfo.packageName,
+    skillName,
+    description: packageInfo.description,
+    repoUrl,
+    docsUrl,
+  })
+
+  for (const [relativePath, contents] of Object.entries(files)) {
+    const destination = join(targetDir, relativePath)
+    await ensureDir(dirname(destination))
+    await fsp.writeFile(destination, contents, 'utf8')
+  }
+
+  return {
+    contributions: [
+      normalizeContribution({
+        packageName: packageInfo.packageName,
+        version: packageInfo.version,
+        sourceDir: targetDir,
+        skillName,
+        description: packageInfo.description,
+        sourceKind: 'generated',
+        sourceRepo,
+        repoUrl,
+        docsUrl,
+        official: true,
+        resolver: 'metadataRouter',
+        forceIncludeScripts: false,
+      }, targetDir, join(targetDir, '..')),
+    ],
+    issues: [],
+    skipped: [],
   }
 }
 
@@ -331,7 +402,6 @@ export async function resolveRemoteContributionsForPackage(
   const fallbackResult = await resolveViaFallbackMap(
     packageInfo,
     options.cacheRoot,
-    options.githubLookupTimeoutMs,
   )
 
   if (fallbackResult.contributions.length) {
@@ -342,9 +412,19 @@ export async function resolveRemoteContributionsForPackage(
     }
   }
 
+  const generatedResult = await resolveViaMetadataRouter(packageInfo, options.cacheRoot)
+
+  if (generatedResult.contributions.length) {
+    return {
+      contributions: generatedResult.contributions,
+      issues: [...githubResult.issues, ...fallbackResult.issues, ...generatedResult.issues],
+      skipped: generatedResult.skipped,
+    }
+  }
+
   return {
     contributions: [],
-    issues: [...githubResult.issues, ...fallbackResult.issues],
-    skipped: [...githubResult.skipped, ...fallbackResult.skipped],
+    issues: [...githubResult.issues, ...fallbackResult.issues, ...generatedResult.issues],
+    skipped: [...githubResult.skipped, ...fallbackResult.skipped, ...generatedResult.skipped],
   }
 }

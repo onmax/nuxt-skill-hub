@@ -1,0 +1,24 @@
+{
+  "name": "nuxt-skill-hub-docs",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "nuxt dev",
+    "build": "nuxt generate",
+    "preview": "nuxt preview",
+    "typecheck": "nuxt typecheck"
+  },
+  "dependencies": {
+    "@nuxt/ui": "catalog:frontend",
+    "@vueuse/nuxt": "^14.2.1",
+    "motion-v": "^1.0.0",
+    "nuxt": "catalog:nuxt",
+    "shiki": "^3.0.0",
+    "tailwindcss": "catalog:frontend"
+  },
+  "devDependencies": {
+    "@resvg/resvg-js": "catalog:frontend",
+    "nuxt-og-image": "catalog:frontend",
+    "satori": "catalog:frontend"
+  }
+}

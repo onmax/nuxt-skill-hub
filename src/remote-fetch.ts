@@ -1,16 +1,21 @@
-import { promises as fsp } from 'node:fs'
-import { dirname, join } from 'pathe'
-import { execFileSync } from 'node:child_process'
-import { ofetch, type FetchOptions } from 'ofetch'
+import { ofetch } from 'ofetch'
 
 const GITHUB_API_BASE = 'https://api.github.com'
-let cachedGitHubToken: string | null | undefined
+const UNGH_API_BASE = 'https://ungh.cc'
 
-interface GitHubContentEntry {
-  type: 'file' | 'dir' | 'symlink' | 'submodule'
+interface GitHubTreeEntry {
   path: string
-  name: string
-  download_url?: string | null
+  type: 'blob' | 'tree'
+}
+
+function githubFetchOptions(timeoutMs: number) {
+  return {
+    timeout: timeoutMs,
+    headers: {
+      'Accept': 'application/json',
+      'User-Agent': 'nuxt-skill-hub',
+    },
+  }
 }
 
 function encodeGitHubPath(path: string): string {
@@ -19,43 +24,6 @@ function encodeGitHubPath(path: string): string {
     .filter(Boolean)
     .map(segment => encodeURIComponent(segment))
     .join('/')
-}
-
-function resolveGitHubToken(): string | undefined {
-  if (cachedGitHubToken !== undefined) {
-    return cachedGitHubToken || undefined
-  }
-
-  const envToken = process.env.GITHUB_TOKEN?.trim() || process.env.GH_TOKEN?.trim()
-  if (envToken) {
-    cachedGitHubToken = envToken
-    return cachedGitHubToken
-  }
-
-  try {
-    const token = execFileSync('gh', ['auth', 'token'], {
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore'],
-    }).trim()
-    cachedGitHubToken = token || null
-  }
-  catch {
-    cachedGitHubToken = null
-  }
-
-  return cachedGitHubToken || undefined
-}
-
-function githubFetchOptions(timeoutMs: number): FetchOptions {
-  const token = resolveGitHubToken()
-  return {
-    timeout: timeoutMs,
-    headers: {
-      'Accept': 'application/vnd.github+json',
-      'User-Agent': 'nuxt-skill-hub',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-  }
 }
 
 function toRepoPath(value: string): string | null {
@@ -98,20 +66,38 @@ export function parseGitHubRepo(input: string | undefined | null): string | null
   if (!input) {
     return null
   }
+
   return toRepoPath(input)
 }
 
 export async function listGitHubDirectory(repo: string, ref: string, dirPath: string, timeoutMs: number): Promise<string[]> {
   const repoPath = toRepoPath(repo)
-  if (!repoPath) return []
+  if (!repoPath) {
+    return []
+  }
 
-  const encodedPath = encodeGitHubPath(dirPath)
-  const url = `${GITHUB_API_BASE}/repos/${repoPath}/contents/${encodedPath}?ref=${encodeURIComponent(ref)}`
+  const normalizedDirPath = dirPath.replace(/^\/+|\/+$/g, '')
+  const prefix = normalizedDirPath ? `${normalizedDirPath}/` : ''
 
   try {
-    const data = await ofetch<GitHubContentEntry[] | GitHubContentEntry>(url, githubFetchOptions(timeoutMs))
-    const entries = Array.isArray(data) ? data : [data]
-    return entries.filter(e => e.type === 'dir').map(e => e.name)
+    const data = await ofetch<{ tree?: GitHubTreeEntry[] }>(
+      `${GITHUB_API_BASE}/repos/${repoPath}/git/trees/${encodeURIComponent(ref)}?recursive=1`,
+      githubFetchOptions(timeoutMs),
+    )
+
+    const entries = new Set<string>()
+    for (const entry of data.tree || []) {
+      if (entry.type !== 'tree' || !entry.path.startsWith(prefix)) {
+        continue
+      }
+
+      const remainder = entry.path.slice(prefix.length)
+      if (remainder && !remainder.includes('/')) {
+        entries.add(remainder)
+      }
+    }
+
+    return Array.from(entries).sort((a, b) => a.localeCompare(b))
   }
   catch {
     return []
@@ -124,9 +110,17 @@ export async function fetchGitHubDefaultBranch(repo: string, timeoutMs: number):
     return null
   }
 
+  const [owner, name] = repoPath.split('/')
+  if (!owner || !name) {
+    return null
+  }
+
   try {
-    const data = await ofetch<{ default_branch?: string }>(`${GITHUB_API_BASE}/repos/${repoPath}`, githubFetchOptions(timeoutMs))
-    return data.default_branch || null
+    const data = await ofetch<{ repo?: { defaultBranch?: string } }>(
+      `${UNGH_API_BASE}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}`,
+      githubFetchOptions(timeoutMs),
+    )
+    return data.repo?.defaultBranch || null
   }
   catch {
     return null
@@ -144,100 +138,25 @@ export async function fetchGitHubFileText(
     return { ok: false, error: 'Invalid GitHub repository format' }
   }
 
-  const encodedPath = encodeGitHubPath(filePath)
-  const url = `${GITHUB_API_BASE}/repos/${repoPath}/contents/${encodedPath}?ref=${encodeURIComponent(ref)}`
-
   try {
-    const data = await ofetch<{ type?: string, content?: string, encoding?: string, download_url?: string | null }>(url, githubFetchOptions(timeoutMs))
-
-    if (data.type !== 'file') {
-      return { ok: false, error: 'Requested path is not a file' }
-    }
-
-    if (data.encoding === 'base64' && data.content) {
-      return { ok: true, data: Buffer.from(data.content, 'base64').toString('utf8') }
-    }
-
-    if (data.download_url) {
-      const text = await ofetch<string>(data.download_url, { ...githubFetchOptions(timeoutMs), responseType: 'text' })
-      return { ok: true, data: text }
-    }
-
-    return { ok: false, error: 'No readable content for remote file' }
+    const data = await ofetch(
+      `https://raw.githubusercontent.com/${repoPath}/${encodeURIComponent(ref)}/${encodeGitHubPath(filePath)}`,
+      {
+        ...githubFetchOptions(timeoutMs),
+        responseType: 'text' as const,
+      },
+    )
+    return { ok: true, data }
   }
   catch (error) {
-    return { ok: false, error: (error as Error).message }
-  }
-}
+    const status = typeof error === 'object' && error && 'status' in error
+      ? Number((error as { status?: number }).status)
+      : undefined
 
-export interface DownloadResult {
-  ok: boolean
-  status?: number
-  error?: string
-}
-
-export async function downloadGitHubDirectory(
-  repo: string,
-  ref: string,
-  sourcePath: string,
-  destinationDir: string,
-  timeoutMs: number,
-): Promise<DownloadResult> {
-  const repoPath = toRepoPath(repo)
-  if (!repoPath) {
-    return { ok: false, error: 'Invalid GitHub repository format' }
-  }
-
-  const normalizedSourcePath = sourcePath.replace(/^\/+/, '').replace(/\/+$/, '')
-  const stack = [normalizedSourcePath]
-  await fsp.mkdir(destinationDir, { recursive: true })
-  const opts = githubFetchOptions(timeoutMs)
-
-  while (stack.length) {
-    const current = stack.pop() || ''
-    const encodedCurrent = encodeGitHubPath(current)
-    const url = `${GITHUB_API_BASE}/repos/${repoPath}/contents/${encodedCurrent}?ref=${encodeURIComponent(ref)}`
-
-    let entries: GitHubContentEntry[]
-    try {
-      const data = await ofetch<GitHubContentEntry[] | GitHubContentEntry>(url, opts)
-      entries = Array.isArray(data) ? data : [data]
-    }
-    catch (error) {
-      return { ok: false, error: (error as Error).message }
-    }
-
-    if (!entries.length) {
-      return { ok: false, error: 'No entries returned for remote path' }
-    }
-
-    for (const entry of entries) {
-      if (entry.type === 'dir') {
-        stack.push(entry.path)
-        continue
-      }
-
-      if (entry.type !== 'file' || !entry.download_url) {
-        continue
-      }
-
-      try {
-        const fileText = await ofetch<string>(entry.download_url, { ...opts, responseType: 'text' })
-        const relativeFilePath = normalizedSourcePath
-          ? entry.path.slice(normalizedSourcePath.length).replace(/^\/+/, '')
-          : entry.path
-        if (!relativeFilePath || relativeFilePath.includes('..') || relativeFilePath.startsWith('/')) {
-          continue
-        }
-        const targetPath = join(destinationDir, relativeFilePath)
-        await fsp.mkdir(dirname(targetPath), { recursive: true })
-        await fsp.writeFile(targetPath, fileText, 'utf8')
-      }
-      catch (error) {
-        return { ok: false, error: (error as Error).message }
-      }
+    return {
+      ok: false,
+      status,
+      error: (error as Error).message,
     }
   }
-
-  return { ok: true }
 }

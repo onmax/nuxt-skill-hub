@@ -32,8 +32,8 @@ export async function runInstallWizard(nuxt: Nuxt): Promise<void> {
   const consola = createConsola()
   const rootDir = nuxt.options.rootDir
   const exportRoot = await resolveExportRoot(rootDir)
-  const pkg = await readPackageJSON(rootDir).catch(() => ({}))
-  const projectName = (pkg.name || '').replace(/^@[^/]+\//, '').replace(/[^\w-]+/g, '-').replace(/^-+|-+$/g, '')
+  const pkg = await readPackageJSON(rootDir).catch(() => null)
+  const projectName = (pkg?.name || '').replace(/^@[^/]+\//, '').replace(/[^\w-]+/g, '-').replace(/^-+|-+$/g, '')
   let skillName = projectName ? `nuxt-${projectName}` : 'nuxt'
   if (!isValidSkillName(skillName)) skillName = 'nuxt'
   const pendingWrites: PendingWrite[] = []
@@ -137,10 +137,6 @@ export async function runInstallWizard(nuxt: Nuxt): Promise<void> {
     if (isCancelled(includeAll)) {
       consola.info('Setup cancelled.')
       return
-    }
-
-    if (!includeAll) {
-      consola.info('You can configure `skillHub.discoverDependencySkills` in nuxt.config.ts to disable auto-discovery.')
     }
   }
   else {
@@ -274,6 +270,6 @@ export async function runInstallWizard(nuxt: Nuxt): Promise<void> {
   consola.box(
     `Setup complete!\n\n`
     + `Run \`nuxt dev\` or \`nuxt prepare\` to generate skills.\n`
-    + `Configure options in nuxt.config.ts under \`skillHub\`.`,
+    + `Configure \`skillHub.skillName\` or \`skillHub.targets\` in nuxt.config.ts if needed.`,
   )
 }

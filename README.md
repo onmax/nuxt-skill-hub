@@ -28,7 +28,7 @@ Core best-practices markdown is stored as shareable rule-pack files in:
 - [`core-content/rules/module-authoring.md`](./core-content/rules/module-authoring.md)
 - [`core-content/rules/migrations.md`](./core-content/rules/migrations.md)
 
-## Resolver flow (`dist -> github -> local fallback map`)
+## Resolver flow (`dist -> github -> local fallback map -> metadata router`)
 
 For each installed Nuxt module package:
 1. Dist resolver:
@@ -40,9 +40,13 @@ For each installed Nuxt module package:
 - Read remote `package.json` `agents.skills`, then known-path heuristics.
 3. Local fallback map resolver (used when GitHub had no hit):
 - Use a built-in curated map sourced from [`onmax/nuxt-skills`](https://github.com/onmax/nuxt-skills) on `main`.
+4. Metadata router (used when no skill artifact was found):
+- Generate a minimal routing skill from local package metadata.
+- Link the agent to the package homepage/docs and repository source.
 Manifest output records provenance for each resolved module skill:
-- `sourceKind`: `dist | github | fallbackMap`
+- `sourceKind`: `dist | github | fallbackMap | generated`
 - `sourceRepo`, `sourceRef`, `sourcePath`
+- `repoUrl`, `docsUrl`
 - `official` and `resolver`
 
 ## Install
@@ -57,9 +61,6 @@ npx nuxt module add nuxt-skill-hub
 // nuxt.config.ts
 export default defineNuxtConfig({
   modules: ['nuxt-skill-hub'],
-  skillHub: {
-    targetMode: 'detected',
-  },
 })
 ```
 
@@ -90,16 +91,8 @@ Example targets:
 ```ts
 export default defineNuxtConfig({
   skillHub: {
-    enabled: true,
     skillName: 'nuxt',
-    targetMode: 'detected', // 'detected' | 'explicit'
     targets: ['codex'],
-    discoverDependencySkills: true,
-    enableGithubLookup: true,
-    githubLookupTimeoutMs: 1500,
-    includeScripts: 'never', // 'never' | 'allowlist' | 'always'
-    scriptAllowlist: ['my-module'],
-    writeAgentsHint: false,
   },
 })
 ```
@@ -109,7 +102,7 @@ export default defineNuxtConfig({
 `nuxt-skill-hub` now uses `unagent` as the source of truth for agent IDs and skills directories.
 
 - `skillHub.targets` accepts `unagent` agent IDs.
-- `targetMode: 'detected'` includes only agents detected as `config` (strict config-only).
+- Leaving `skillHub.targets` empty includes only agents detected as `config` (strict config-only).
 - `codex` is treated as writable with an inferred `skills` directory (`~/.codex/skills`) even though `unagent` does not currently expose `skillsDir` for `codex`.
 - Generated output is app-local for standalone repos, and workspace-root local for monorepos, mirroring the agent config path + skills dir shape.
 
@@ -164,6 +157,8 @@ Generated `manifest.json` includes:
 - `modules`: copied/active module skills with source metadata.
 - `skipped`: validation/network-skipped module skills with reasons.
 
+When no module skill is available but package metadata exposes a repository or homepage, the generated output includes a metadata-routed module skill instead of skipping the package outright.
+
 ## Local contribution hook
 
 Projects or local modules can contribute extra skill sources:
@@ -189,6 +184,8 @@ pnpm install
 pnpm run dev:prepare
 pnpm run test
 pnpm run lint
+pnpm run typecheck
+pnpm --dir docs dev
 ```
 
 <!-- Badges -->

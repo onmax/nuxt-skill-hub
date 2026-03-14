@@ -1,6 +1,6 @@
 packages:
   - '.'
-  - 'playground'
+  - 'docs'
 
 catalogs:
   runtime:
@@ -24,6 +24,9 @@ catalogs:
     vue-tsc: ^3.2.5
   frontend:
     '@nuxt/ui': ^4.5.0
+    '@resvg/resvg-js': ^2.6.2
+    nuxt-og-image: ^6.0.1
+    satori: ^0.25.0
     tailwindcss: ^4.2.1
     vue: ^3.5.29
   auth:
