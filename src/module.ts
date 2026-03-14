@@ -25,6 +25,8 @@ import {
   pathExists,
   renderAutomdTemplate,
   resolveContributions,
+  resolveExportRoot,
+  resolveMonorepoScopePath,
   resolveTargets,
   shouldIncludeScripts,
   sortAndDedupeContributions,
@@ -146,6 +148,8 @@ export default defineNuxtModule<ModuleOptions>({
     }
 
     nuxt.hook('modules:done', async () => {
+      const exportRoot = await resolveExportRoot(nuxt.options.rootDir)
+      const monorepoScopePath = resolveMonorepoScopePath(nuxt.options.rootDir, exportRoot)
       const manualContributions: SkillHubContribution[] = []
 
       const contributionContext: SkillHubContributionContext = {
@@ -286,7 +290,7 @@ export default defineNuxtModule<ModuleOptions>({
       const generatedAt = new Date().toISOString()
 
       for (const target of targets) {
-        const { targetDir, skillRoot, warning } = getTargetSkillRoot(nuxt.options.rootDir, target, resolvedSkillName)
+        const { targetDir, skillRoot, warning } = getTargetSkillRoot(exportRoot, target, resolvedSkillName)
         if (warning) {
           logger.warn(warning)
         }
@@ -298,7 +302,7 @@ export default defineNuxtModule<ModuleOptions>({
         await ensureDir(coreRoot)
         await ensureDir(modulesRoot)
 
-        await writeFileIfChanged(join(skillRoot, 'SKILL.md'), createSkillEntrypoint(resolvedSkillName))
+        await writeFileIfChanged(join(skillRoot, 'SKILL.md'), createSkillEntrypoint(resolvedSkillName, monorepoScopePath))
 
         const coreTemplateFiles = await buildCoreTemplateFiles(coreRoot)
         for (const file of coreTemplateFiles) {
@@ -365,7 +369,7 @@ export default defineNuxtModule<ModuleOptions>({
       }
 
       if (options.writeAgentsHint) {
-        await upsertAgentsHint(nuxt.options.rootDir, resolvedSkillName)
+        await upsertAgentsHint(exportRoot, resolvedSkillName)
       }
     })
   },

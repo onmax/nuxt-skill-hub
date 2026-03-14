@@ -8,8 +8,10 @@ import {
   isValidSkillName,
   parseAgentSkillDeclarations,
   parseSkillFrontmatter,
+  resolveExportRoot,
   resolveContributions,
   resolveGuidancePrecedence,
+  resolveMonorepoScopePath,
   shouldIncludeScripts,
   sortAndDedupeContributions,
 } from '../src/internal'
@@ -171,6 +173,54 @@ describe('shouldIncludeScripts', () => {
   })
 })
 
+describe('resolveExportRoot', () => {
+  it('returns the nearest pnpm workspace root', async () => {
+    const root = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-workspace-'))
+    const workspaceRoot = join(root, 'repo')
+    const appRoot = join(workspaceRoot, 'apps', 'web')
+
+    await fsp.mkdir(appRoot, { recursive: true })
+    await fsp.writeFile(join(workspaceRoot, 'pnpm-workspace.yaml'), 'packages:\n  - apps/*\n', 'utf8')
+
+    expect(await resolveExportRoot(appRoot)).toBe(workspaceRoot)
+  })
+
+  it('returns the nearest package workspace root', async () => {
+    const root = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-workspace-'))
+    const workspaceRoot = join(root, 'repo')
+    const appRoot = join(workspaceRoot, 'packages', 'docs')
+
+    await fsp.mkdir(appRoot, { recursive: true })
+    await fsp.writeFile(join(workspaceRoot, 'package.json'), JSON.stringify({
+      private: true,
+      workspaces: ['packages/*'],
+    }, null, 2), 'utf8')
+
+    expect(await resolveExportRoot(appRoot)).toBe(workspaceRoot)
+  })
+
+  it('prefers the nearest enclosing workspace marker', async () => {
+    const root = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-workspace-'))
+    const outerRoot = join(root, 'outer')
+    const innerRoot = join(outerRoot, 'inner')
+    const appRoot = join(innerRoot, 'apps', 'web')
+
+    await fsp.mkdir(appRoot, { recursive: true })
+    await fsp.writeFile(join(outerRoot, 'pnpm-workspace.yaml'), 'packages:\n  - inner/*\n', 'utf8')
+    await fsp.writeFile(join(innerRoot, 'package.json'), JSON.stringify({
+      private: true,
+      workspaces: ['apps/*'],
+    }, null, 2), 'utf8')
+
+    expect(await resolveExportRoot(appRoot)).toBe(innerRoot)
+  })
+
+  it('falls back to the app root when no workspace marker exists', async () => {
+    const appRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-app-'))
+    expect(await resolveExportRoot(appRoot)).toBe(appRoot)
+  })
+})
+
 describe('getTargetSkillRoot', () => {
   it('mirrors claude-code skills dir to project-local path', () => {
     const root = '/tmp/project'
@@ -209,5 +259,17 @@ describe('getTargetSkillRoot', () => {
     expect(resolved.targetDir).toBe(join(root, '.custom-agent', 'rules'))
     expect(resolved.skillRoot).toBe(join(root, '.custom-agent', 'rules', 'nuxt'))
     expect(resolved.warning).toContain('is not under home')
+  })
+
+  it('keeps skill roots distinct for multiple apps sharing a workspace export root', () => {
+    const exportRoot = '/tmp/workspace'
+    const webSkill = getTargetSkillRoot(exportRoot, 'claude-code', 'nuxt-web')
+    const adminSkill = getTargetSkillRoot(exportRoot, 'claude-code', 'nuxt-admin')
+
+    expect(webSkill.targetDir).toBe(adminSkill.targetDir)
+    expect(webSkill.skillRoot).toBe(join(exportRoot, '.claude', 'skills', 'nuxt-web'))
+    expect(adminSkill.skillRoot).toBe(join(exportRoot, '.claude', 'skills', 'nuxt-admin'))
+    expect(resolveMonorepoScopePath('/tmp/workspace/apps/web', exportRoot)).toBe('apps/web')
+    expect(resolveMonorepoScopePath(exportRoot, exportRoot)).toBeUndefined()
   })
 })

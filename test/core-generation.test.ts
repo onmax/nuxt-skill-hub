@@ -19,6 +19,7 @@ describe('core-only generation', () => {
     const core = await fsp.readFile(join(skillRoot, 'references/core/index.md'), 'utf8')
 
     expect(entry).toContain('# Nuxt Super Skill')
+    expect(entry).not.toContain('## Monorepo Scope')
     expect(index).toContain('Nuxt Best Practices')
     expect(index).toContain('_No module skills discovered._')
     expect(core).toContain('# Nuxt Best Practices')

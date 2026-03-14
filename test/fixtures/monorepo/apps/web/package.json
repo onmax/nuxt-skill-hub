@@ -1,0 +1,5 @@
+{
+  "private": true,
+  "name": "@acme/web-fixture",
+  "type": "module"
+}

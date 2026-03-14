@@ -111,15 +111,17 @@ export default defineNuxtConfig({
 - `skillHub.targets` accepts `unagent` agent IDs.
 - `targetMode: 'detected'` includes only agents detected as `config` (strict config-only).
 - `codex` is treated as writable with an inferred `skills` directory (`~/.codex/skills`) even though `unagent` does not currently expose `skillsDir` for `codex`.
-- Generated output is always project-local, mirroring the agent config path + skills dir shape.
+- Generated output is app-local for standalone repos, and workspace-root local for monorepos, mirroring the agent config path + skills dir shape.
 
 Examples:
 - `~/.codex` + `skills` => `<root>/.codex/skills`
 - `~/.cursor` + `rules` => `<root>/.cursor/rules`
 - `~/.codeium/windsurf` + `rules` => `<root>/.codeium/windsurf/rules`
+- Monorepo app `apps/web` => `<workspace-root>/.codex/skills/<app-skill>`
 
 If a target is unknown or does not expose `skillsDir` in `unagent` (except `codex`), it is skipped with a warning.
 If a target config directory is not under the user home directory, a project-local fallback path is used.
+When output is written at a monorepo workspace root, the generated top-level `SKILL.md` includes a hard scope warning that limits the skill to the consuming app subtree.
 
 ## Migration Note (Breaking)
 

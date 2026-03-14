@@ -5,7 +5,7 @@ import { createConsola } from 'consola'
 import { readPackageJSON } from 'pkg-types'
 import type { Nuxt } from '@nuxt/schema'
 import { detectCurrentTarget, detectInstalledTargets, getSupportedTargets } from './agents'
-import { extractModuleSpecifier, discoverInstalledPackageFromSpecifier, getTargetSkillRoot, isValidSkillName, MANAGED_HINT_END, MANAGED_HINT_START, pathExists } from './internal'
+import { extractModuleSpecifier, discoverInstalledPackageFromSpecifier, getTargetSkillRoot, isValidSkillName, MANAGED_HINT_END, MANAGED_HINT_START, pathExists, resolveExportRoot } from './internal'
 import { findFallbackMapEntry } from './fallback-map'
 
 interface PendingWrite {
@@ -31,6 +31,7 @@ export async function runInstallWizard(nuxt: Nuxt): Promise<void> {
 
   const consola = createConsola()
   const rootDir = nuxt.options.rootDir
+  const exportRoot = await resolveExportRoot(rootDir)
   const pkg = await readPackageJSON(rootDir).catch(() => ({}))
   const projectName = (pkg.name || '').replace(/^@[^/]+\//, '').replace(/[^\w-]+/g, '-').replace(/^-+|-+$/g, '')
   let skillName = projectName ? `nuxt-${projectName}` : 'nuxt'
@@ -147,14 +148,14 @@ export async function runInstallWizard(nuxt: Nuxt): Promise<void> {
   }
 
   // ── Step 3: .gitignore ──
-  const gitignorePath = join(rootDir, '.gitignore')
+  const gitignorePath = join(exportRoot, '.gitignore')
   const gitignoreExists = existsSync(gitignorePath)
   const currentGitignore = gitignoreExists ? readFileSync(gitignorePath, 'utf8') : ''
 
   const missingPatterns: string[] = []
   for (const target of selectedTargets) {
-    const { targetDir } = getTargetSkillRoot(rootDir, target, skillName)
-    const pattern = relative(rootDir, targetDir).replace(/\/?$/, '/')
+    const { targetDir } = getTargetSkillRoot(exportRoot, target, skillName)
+    const pattern = relative(exportRoot, targetDir).replace(/\/?$/, '/')
     if (!currentGitignore.includes(pattern)) {
       missingPatterns.push(pattern)
     }
@@ -204,7 +205,7 @@ export async function runInstallWizard(nuxt: Nuxt): Promise<void> {
   }
 
   const addToFile = async (filename: string) => {
-    const filePath = join(rootDir, filename)
+    const filePath = join(exportRoot, filename)
     const exists = await pathExists(filePath)
     const current = exists ? readFileSync(filePath, 'utf8') : ''
     const regex = new RegExp(`${MANAGED_HINT_START}[\\s\\S]*?${MANAGED_HINT_END}`)

@@ -45,8 +45,15 @@ function yamlString(value: string): string {
   return JSON.stringify(value)
 }
 
-export function createSkillEntrypoint(skillName: string): string {
+export function createSkillEntrypoint(skillName: string, monorepoScopePath?: string): string {
   const description = 'Nuxt super-skill for this project. Use as the entry point for Nuxt best practices plus installed module skill extensions.'
+  const monorepoScopeSection = monorepoScopePath
+    ? `
+## Monorepo Scope
+This skill applies only to the \`${monorepoScopePath}\` subtree of this monorepo.
+Treat files and tasks outside \`${monorepoScopePath}\` as out of scope unless the user explicitly redirects you there.
+`
+    : ''
   return `---
 name: ${yamlString(skillName)}
 description: ${yamlString(description)}
@@ -55,6 +62,7 @@ description: ${yamlString(description)}
 # Nuxt Super Skill
 
 This skill is the primary entrypoint for Nuxt work in this repository.
+${monorepoScopeSection}
 
 ## Structure
 - [references/index.md](./references/index.md): navigation map for all available guidance.

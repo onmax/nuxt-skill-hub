@@ -97,6 +97,50 @@ export async function writeFileIfChanged(path: string, contents: string): Promis
   await fsp.writeFile(path, contents, 'utf8')
 }
 
+async function hasWorkspacePackageConfig(path: string): Promise<boolean> {
+  const packageJsonPath = join(path, 'package.json')
+  if (!(await pathExists(packageJsonPath))) {
+    return false
+  }
+
+  try {
+    const packageJson = JSON.parse(await fsp.readFile(packageJsonPath, 'utf8')) as { workspaces?: unknown }
+    return Array.isArray(packageJson.workspaces) || (!!packageJson.workspaces && typeof packageJson.workspaces === 'object')
+  }
+  catch {
+    return false
+  }
+}
+
+export async function resolveExportRoot(rootDir: string): Promise<string> {
+  const appRoot = resolve(rootDir)
+  let current = appRoot
+
+  while (true) {
+    if (await pathExists(join(current, 'pnpm-workspace.yaml')) || await hasWorkspacePackageConfig(current)) {
+      return current
+    }
+
+    const parent = dirname(current)
+    if (parent === current) {
+      return appRoot
+    }
+    current = parent
+  }
+}
+
+export function resolveMonorepoScopePath(rootDir: string, exportRoot: string): string | undefined {
+  const appRoot = resolve(rootDir)
+  const resolvedExportRoot = resolve(exportRoot)
+
+  if (appRoot === resolvedExportRoot) {
+    return undefined
+  }
+
+  const scopePath = relative(resolvedExportRoot, appRoot).replace(/\/+$/, '')
+  return scopePath || undefined
+}
+
 export function createValidationIssue(packageName: string, skillName: string, reason: string, sourceKind?: SkillSourceKind): ValidationIssue {
   return {
     severity: 'warning',
