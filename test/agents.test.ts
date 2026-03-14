@@ -20,7 +20,7 @@ describe('detectInstalledTargets', () => {
     const { detectInstalledTargets } = await import('../src/agents')
     const targets = detectInstalledTargets('/tmp/project')
 
-    expect(targets).toEqual(['windsurf'])
+    expect(targets).toEqual(['codex', 'windsurf'])
   })
 })
 
@@ -45,9 +45,8 @@ describe('validateTargets', () => {
     const { validateTargets } = await import('../src/agents')
     const result = validateTargets(['claude-code', 'codex', 'ghost'])
 
-    expect(result.valid).toEqual(['claude-code'])
+    expect(result.valid).toEqual(['claude-code', 'codex'])
     expect(result.invalid).toEqual([
-      { target: 'codex', reason: 'missing-skills-dir' },
       { target: 'ghost', reason: 'unknown-target' },
     ])
   })

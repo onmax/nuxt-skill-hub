@@ -13,6 +13,11 @@ This module is intentionally simple and experimental:
 - skills complement docs; they do not replace docs
 - agent detection and target paths are sourced from [`unagent`](https://www.npmjs.com/package/unagent)
 
+## Why
+
+`nuxt-skill-hub` gives AI agents a Nuxt-first entrypoint before they touch your app or module code.
+It generates project-local skills that bias the agent toward Nuxt primitives, module-specific guidance, and upstream docs instead of generic Vue patterns.
+
 ## Core content source
 
 Core best-practices markdown is stored as shareable rule-pack files in:
@@ -69,6 +74,12 @@ export default defineNuxtConfig({
 })
 ```
 
+## Playground
+
+- Interactive docs and preview playground: [https://nuxt-skill.onmax.me](https://nuxt-skill.onmax.me)
+- Local docs app: `pnpm run dev`
+- Local module build watch mode: `pnpm run dev:build`
+
 ### Generated output
 
 For each selected target, the module writes:
@@ -95,7 +106,6 @@ Example targets:
 ```ts
 export default defineNuxtConfig({
   skillHub: {
-    fallbackLinksOnly: true,
     moduleAuthoring: true,
     skillName: 'nuxt',
     targets: ['claude-code'],
@@ -103,12 +113,19 @@ export default defineNuxtConfig({
 })
 ```
 
+### Options
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `skillHub.skillName` | `string` | derived from `package.json` | Override the generated top-level skill name. |
+| `skillHub.targets` | `SkillHubTarget[]` | auto-detect | Explicitly choose `unagent` targets instead of relying on detected configs. |
+| `skillHub.moduleAuthoring` | `boolean` | `false` | Add module-author guidance on top of the default app-oriented Nuxt skill. |
+
 ## Target IDs and Detection
 
 `nuxt-skill-hub` now uses `unagent` as the source of truth for agent IDs and skills directories.
 
 - `skillHub.targets` accepts `unagent` agent IDs.
-- `skillHub.fallbackLinksOnly` accepts `boolean` and defaults to `true`.
 - `skillHub.moduleAuthoring` accepts `boolean` and defaults to `false`.
 - Leaving `skillHub.targets` empty includes only agents detected as `config` (strict config-only).
 - Generated output is app-local for standalone repos, and workspace-root local for monorepos, mirroring the agent config path + skills dir shape.
@@ -167,6 +184,35 @@ export default defineNuxtModule({
     })
   },
 })
+```
+
+## Testing
+
+This module follows the standard Nuxt module testing setup:
+- E2E-style fixture tests via [`@nuxt/test-utils`](https://nuxt.com/docs/getting-started/testing)
+- isolated fixture apps under `test/fixtures/`
+- packlist verification to ensure the published package only ships the intended artifacts
+
+Useful commands:
+
+```bash
+pnpm run dev:prepare
+pnpm run test
+pnpm run typecheck
+pnpm run test:pack
+```
+
+## Release Workflow
+
+This repo follows the usual Nuxt module CI split:
+- [`ci.yml`](./.github/workflows/ci.yml): lint, typecheck, test
+- [`pkg.yml`](./.github/workflows/pkg.yml): preview package publishing with `pkg-pr-new`
+- [`release.yml`](./.github/workflows/release.yml): tag-driven npm publish and GitHub release
+
+Local release command:
+
+```bash
+pnpm run release
 ```
 
 ## Contribution

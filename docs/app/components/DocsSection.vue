@@ -12,7 +12,6 @@ const options: Option[] = [
   { name: 'skillName', type: 'string', default: 'auto', description: 'Custom skill name. Defaults to nuxt-{package.name}.' },
   { name: 'targets', type: 'SkillHubTarget[]', default: '[]', description: 'Optional explicit agent targets. Leave empty to auto-detect installed agents.' },
   { name: 'moduleAuthoring', type: 'boolean', default: 'false', description: 'Adds module-author guidance on top of the default Nuxt app skill.' },
-  { name: 'fallbackLinksOnly', type: 'boolean', default: 'true', description: 'Renders generated fallback entries as docs/source links only.' },
 ]
 
 const expandedRow = ref<number | null>(null)

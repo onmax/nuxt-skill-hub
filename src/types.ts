@@ -8,7 +8,6 @@ export interface ModuleOptions {
   skillName?: string
   targets?: SkillHubTarget[]
   moduleAuthoring?: boolean
-  fallbackLinksOnly?: boolean
 }
 
 export interface AgentSkillDeclaration {

@@ -24,7 +24,7 @@ async function readFiles(dir: string): Promise<string[]> {
 }
 
 describe('docs boundaries', () => {
-  it('does not import preview logic from package src files', async () => {
+  it('does not import docs logic from package src files', async () => {
     const files = await readFiles(docsRoot)
 
     for (const file of files) {

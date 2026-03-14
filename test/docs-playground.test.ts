@@ -1,7 +1,7 @@
 import { buildFileTree } from '../docs/app/data/skill-files'
 import { describe, expect, it } from 'vitest'
 import { resolveSkillAvailability } from '../docs/app/data/skill-packages'
-import { createMetadataRouterSkillFiles, createModuleWrapperContent, createReferencesIndexContent, createSkillEntrypoint, DEFAULT_CORE_CONTENT_METADATA, resolveMetadataRouterSkillName } from '../docs/shared/skill-preview'
+import { createMetadataRouterSkillFiles, createModuleWrapperContent, createReferencesIndexContent, createSkillEntrypoint, DEFAULT_CORE_CONTENT_METADATA, resolveMetadataRouterSkillName } from '../shared/skill-render'
 
 describe('docs playground metadata routing', () => {
   it('distinguishes real, generated, and unavailable module guidance', () => {
@@ -53,8 +53,6 @@ describe('docs playground metadata routing', () => {
 
     expect(createModuleWrapperContent(entry).trim()).toBe(`- Docs: [https://a11y.nuxt.com](https://a11y.nuxt.com)
 - Source code: [https://github.com/nuxt/a11y](https://github.com/nuxt/a11y)`)
-
-    expect(createModuleWrapperContent(entry, { fallbackLinksOnly: false })).toContain('# @nuxt/a11y Module Wrapper')
   })
 
   it('uses neutral labels for resolved preview skills and hides missing versions', () => {

@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { loadCoreMetadata } from '../src/core-content'
+import { PACKAGE_VERSION } from '../src/package-info'
 import { DEFAULT_CORE_CONTENT_METADATA, createModuleWrapperContent, createReferencesIndexContent, createSkillEntrypoint } from '../src/render-content'
 
 describe('createSkillEntrypoint', () => {
   it('loads core metadata from the in-code default source', async () => {
     await expect(loadCoreMetadata()).resolves.toEqual(DEFAULT_CORE_CONTENT_METADATA)
+    expect(DEFAULT_CORE_CONTENT_METADATA.version).toBe(PACKAGE_VERSION)
   })
 
   it('omits the monorepo scope section for standalone apps', () => {
@@ -61,7 +63,7 @@ describe('createSkillEntrypoint', () => {
 })
 
 describe('createModuleWrapperContent', () => {
-  it('renders compact metadata routers by default and keeps the verbose fallback behind a flag', () => {
+  it('renders compact metadata routers for generated module wrappers', () => {
     const entry = {
       packageName: '@nuxtjs/i18n',
       version: undefined,
@@ -79,12 +81,6 @@ describe('createModuleWrapperContent', () => {
 
     expect(createModuleWrapperContent(entry).trim()).toBe(`- Docs: [https://i18n.nuxtjs.org](https://i18n.nuxtjs.org)
 - Source code: [https://github.com/nuxt-modules/i18n](https://github.com/nuxt-modules/i18n)`)
-
-    const verbose = createModuleWrapperContent(entry, { fallbackLinksOnly: false })
-    expect(verbose).toContain('# @nuxtjs/i18n Module Wrapper')
-    expect(verbose).toContain('Metadata-routed skill')
-    expect(verbose).toContain('Installed version: _not detected_')
-    expect(verbose).toContain('## How to use it')
   })
 
   it('uses neutral labels for resolved module skills and omits missing versions in module lists', () => {

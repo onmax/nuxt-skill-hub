@@ -16,13 +16,6 @@
     }
   },
   "main": "./dist/module.mjs",
-  "typesVersions": {
-    "*": {
-      ".": [
-        "./dist/types.d.mts"
-      ]
-    }
-  },
   "files": [
     "dist",
     "core-content"
@@ -30,6 +23,7 @@
   "scripts": {
     "prepack": "nuxt-module-build build",
     "dev": "pnpm --dir docs dev",
+    "dev:build": "nuxt-module-build build --stub --watch",
     "dev:prepare": "nuxt-module-build build --stub && nuxt-module-build prepare",
     "release": "pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run prepack && changelogen --release --push",
     "lint": "eslint .",

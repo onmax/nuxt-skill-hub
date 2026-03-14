@@ -2,6 +2,7 @@ import { promises as fsp } from 'node:fs'
 import { isAbsolute, join, relative, resolve } from 'pathe'
 import { defineNuxtModule, useLogger } from '@nuxt/kit'
 import { readPackageJSON } from 'pkg-types'
+import { PACKAGE_VERSION } from './package-info'
 import { runInstallWizard } from './install'
 import { loadCoreMetadata } from './core-content'
 import {
@@ -108,7 +109,7 @@ function mergeSkippedEntries(entries: SkillManifestSkipped[]): SkillManifestSkip
 export default defineNuxtModule<ModuleOptions>({
   meta: {
     name: 'nuxt-skill-hub',
-    version: '0.0.1',
+    version: PACKAGE_VERSION,
     configKey: 'skillHub',
     compatibility: {
       nuxt: '>=4.3.0',
@@ -121,7 +122,6 @@ export default defineNuxtModule<ModuleOptions>({
     skillName: '',
     targets: [],
     moduleAuthoring: false,
-    fallbackLinksOnly: true,
   },
   async setup(options, nuxt) {
     const logger = useLogger('nuxt-skill-hub')
@@ -144,7 +144,6 @@ export default defineNuxtModule<ModuleOptions>({
     }
 
     nuxt.hook('modules:done', async () => {
-      const fallbackLinksOnly = options.fallbackLinksOnly !== false
       const exportRoot = await resolveExportRoot(nuxt.options.rootDir)
       const monorepoScopePath = resolveMonorepoScopePath(nuxt.options.rootDir, exportRoot)
       const manualContributions: SkillHubContribution[] = []
@@ -336,7 +335,7 @@ export default defineNuxtModule<ModuleOptions>({
               official: contribution.official,
               trustLevel: getTrustLevel(contribution.official),
               resolver: contribution.resolver,
-            }, { fallbackLinksOnly })
+            })
             await writeFileIfChanged(wrapperPath, wrapperContent)
           }
 
