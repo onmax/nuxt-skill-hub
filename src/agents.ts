@@ -23,15 +23,8 @@ export interface InvalidTarget {
 }
 
 function resolveSkillsDir(target: SkillHubTarget, config: AgentConfig | undefined): string | undefined {
-  if (config?.skillsDir) {
-    return config.skillsDir
-  }
-
-  if (target === 'codex') {
-    return 'skills'
-  }
-
-  return undefined
+  void target
+  return config?.skillsDir
 }
 
 function normalizeTarget(target: string): string {
@@ -109,13 +102,9 @@ export function detectCurrentTarget(): SkillHubTarget | undefined {
 export function detectInstalledTargets(rootDir: string): SkillHubTarget[] {
   void rootDir
 
-  const detected = detectUnagentInstalledAgents()
-    .filter(agent => agent.detected === 'config' && resolveSkillsDir(agent.id, agent.config))
-    .map(agent => agent.id)
-
-  if (process.env.CODEX_SHELL === '1' && detected.includes('codex')) {
-    return ['codex']
-  }
-
-  return Array.from(new Set(detected)).sort((a, b) => a.localeCompare(b))
+  return Array.from(new Set(
+    detectUnagentInstalledAgents()
+      .filter(agent => agent.detected === 'config' && resolveSkillsDir(agent.id, agent.config))
+      .map(agent => agent.id),
+  )).sort((a, b) => a.localeCompare(b))
 }

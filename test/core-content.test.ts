@@ -5,10 +5,12 @@ describe('createSkillEntrypoint', () => {
   it('omits the monorepo scope section for standalone apps', () => {
     const entry = createSkillEntrypoint('nuxt', DEFAULT_CORE_CONTENT_METADATA)
 
-    expect(entry).toContain('# Nuxt Skill Router')
+    expect(entry).toContain('# Nuxt Skill Index')
     expect(entry).toContain('## Activation Flow')
-    expect(entry).toContain('## Always Apply')
+    expect(entry).toContain('## High-Frequency Nuxt Decisions')
+    expect(entry).toContain('Explore the project first')
     expect(entry).toContain('## Precedence')
+    expect(entry).toContain('## Before Completion')
     expect(entry).not.toContain('## Monorepo Scope')
   })
 
@@ -18,5 +20,16 @@ describe('createSkillEntrypoint', () => {
     expect(entry).toContain('## Monorepo Scope')
     expect(entry).toContain('`apps/web`')
     expect(entry).toContain('Treat files and tasks outside `apps/web` as out of scope unless the user explicitly redirects you there.')
+  })
+
+  it('prioritizes the eval-derived disambiguation packs', () => {
+    expect(DEFAULT_CORE_CONTENT_METADATA.sections.slice(0, 6)).toEqual([
+      'abstraction-disambiguation',
+      'page-meta-head-layout',
+      'error-surfaces-recovery',
+      'content-modeling-navigation',
+      'nuxt-ui-primitives',
+      'verification-finish',
+    ])
   })
 })

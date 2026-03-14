@@ -1,7 +1,6 @@
 import { promises as fsp } from 'node:fs'
 import { downloadTemplate } from 'giget'
 import { dirname, join } from 'pathe'
-import { FALLBACK_REF, FALLBACK_REPO, findFallbackMapEntry } from './fallback-map'
 import { findGitHubOverride } from './github-overrides'
 import { fetchGitHubDefaultBranch, fetchGitHubFileText, listGitHubDirectory, parseGitHubRepo } from './remote-fetch'
 import { createMetadataRouterSkillFiles, resolveMetadataRouterSkillName } from './render-content'
@@ -35,7 +34,7 @@ interface RemoteSkillCandidate {
   sourceRepo: string
   sourceRef: string
   official: boolean
-  resolver: 'agentsField' | 'githubHeuristic' | 'mapEntry'
+  resolver: 'agentsField' | 'githubHeuristic'
 }
 
 function makeSkip(packageName: string, skillName: string, reason: string, sourceKind?: SkillSourceKind): SkillManifestSkipped {
@@ -285,44 +284,6 @@ async function resolveViaGitHub(
   }
 }
 
-async function resolveViaFallbackMap(
-  packageInfo: InstalledPackageInfo,
-  cacheRoot: string,
-): Promise<RemoteResolveResult> {
-  const entry = findFallbackMapEntry(packageInfo.packageName)
-  if (!entry) {
-    return {
-      contributions: [],
-      issues: [],
-      skipped: [],
-    }
-  }
-
-  const resolved = await materializeCandidate(packageInfo, {
-    skillName: entry.skillName,
-    sourcePath: entry.path,
-    sourceKind: 'fallbackMap',
-    sourceRepo: FALLBACK_REPO,
-    sourceRef: FALLBACK_REF,
-    official: false,
-    resolver: 'mapEntry',
-  }, cacheRoot)
-
-  if (resolved) {
-    return {
-      contributions: [resolved],
-      issues: [],
-      skipped: [],
-    }
-  }
-
-  return {
-    contributions: [],
-    issues: [],
-    skipped: [makeSkip(packageInfo.packageName, entry.skillName, 'Fallback map skill path could not be downloaded', 'fallbackMap')],
-  }
-}
-
 async function resolveViaMetadataRouter(
   packageInfo: InstalledPackageInfo,
   cacheRoot: string,
@@ -399,32 +360,19 @@ export async function resolveRemoteContributionsForPackage(
     return githubResult
   }
 
-  const fallbackResult = await resolveViaFallbackMap(
-    packageInfo,
-    options.cacheRoot,
-  )
-
-  if (fallbackResult.contributions.length) {
-    return {
-      contributions: fallbackResult.contributions,
-      issues: [...githubResult.issues, ...fallbackResult.issues],
-      skipped: fallbackResult.skipped,
-    }
-  }
-
   const generatedResult = await resolveViaMetadataRouter(packageInfo, options.cacheRoot)
 
   if (generatedResult.contributions.length) {
     return {
       contributions: generatedResult.contributions,
-      issues: [...githubResult.issues, ...fallbackResult.issues, ...generatedResult.issues],
+      issues: [...githubResult.issues, ...generatedResult.issues],
       skipped: generatedResult.skipped,
     }
   }
 
   return {
     contributions: [],
-    issues: [...githubResult.issues, ...fallbackResult.issues, ...generatedResult.issues],
-    skipped: [...githubResult.skipped, ...fallbackResult.skipped, ...generatedResult.skipped],
+    issues: [...githubResult.issues, ...generatedResult.issues],
+    skipped: [...githubResult.skipped, ...generatedResult.skipped],
   }
 }

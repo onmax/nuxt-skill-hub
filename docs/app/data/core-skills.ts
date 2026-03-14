@@ -7,10 +7,10 @@ export interface CoreSkill {
 }
 
 export const coreSkills: CoreSkill[] = [
-  { id: 'nuxt-patterns', title: 'Nuxt Patterns', description: 'Composable structure, directory conventions, lifecycle hooks - the full-stack patterns agents should follow', icon: 'i-lucide-check-circle', tag: 'core' },
-  { id: 'ssr-server', title: 'Server & SSR', description: 'Server vs client isolation, Nitro, H3, API routes, runtime config - where secrets leak and agents get lost', icon: 'i-lucide-server', tag: 'core' },
-  { id: 'footguns', title: 'Footguns & Migrations', description: 'SSR pitfalls, hydration mismatches, payload leaks, and safe upgrade paths for major transitions', icon: 'i-lucide-shield-alert', tag: 'safety' },
-  { id: 'performance', title: 'Performance', description: 'Rendering strategies, lazy loading, cost-aware patterns - context-dependent choices', icon: 'i-lucide-zap', tag: 'optimization' },
-  { id: 'module-authored', title: 'Module-authored', description: 'Each module ships its own skill, maintained by the author and version-matched to your install', icon: 'i-lucide-puzzle', tag: 'modules' },
-  { id: 'zero-maintenance', title: 'Zero Maintenance', description: 'Auto-generated from your dependencies - no config files to write, no docs to commit', icon: 'i-lucide-sparkles', tag: 'meta' },
+  { id: 'always-on-index', title: 'Always-on Index', description: 'A tiny Nuxt decision layer stays in context so agents choose the right abstraction before opening deeper packs', icon: 'i-lucide-compass', tag: 'core' },
+  { id: 'disambiguation-packs', title: 'Disambiguation Packs', description: 'High-priority packs for meta vs head, content modeling, error surfaces, Nuxt UI primitives, and finish checks', icon: 'i-lucide-layers-3', tag: 'core' },
+  { id: 'ssr-server', title: 'Server & SSR', description: 'Data fetching, hydration safety, runtime config, Nitro, and request boundaries where Nuxt-specific mistakes compound quickly', icon: 'i-lucide-server', tag: 'core' },
+  { id: 'content-ui', title: 'Content & UI', description: 'Nuxt Content and Nuxt UI guidance that steers agents away from hand-built lookalikes and stale API shapes', icon: 'i-lucide-layout-template', tag: 'safety' },
+  { id: 'module-authored', title: 'Module Delta Skills', description: 'Each module adds scoped guidance on top of the Nuxt core packs instead of replacing broad framework rules', icon: 'i-lucide-puzzle', tag: 'modules' },
+  { id: 'static-routing', title: 'Static Upstream Routing', description: 'When a module lacks a shipped skill, generated wrappers route agents to official docs and repo links without MCP', icon: 'i-lucide-link', tag: 'meta' },
 ]

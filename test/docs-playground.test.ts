@@ -21,6 +21,7 @@ describe('docs playground metadata routing', () => {
     expect(skillName).toBe('nuxt-a11y')
     expect(files['SKILL.md']).toContain('This skill was generated from package metadata')
     expect(files['SKILL.md']).toContain('[https://github.com/nuxt/a11y](https://github.com/nuxt/a11y)')
+    expect(files['SKILL.md']).toContain('Keep this router scoped to `@nuxt/a11y` surfaces only.')
     expect(files['references/index.md']).toContain('Official docs')
   })
 })

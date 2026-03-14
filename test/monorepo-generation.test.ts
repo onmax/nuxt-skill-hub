@@ -22,7 +22,7 @@ describe('monorepo generation', () => {
     expect(entry).toContain('This skill applies only to the `apps/web` subtree of this monorepo.')
     expect(entry).toContain('Treat files and tasks outside `apps/web` as out of scope unless the user explicitly redirects you there.')
     expect(entry).toContain('## Precedence')
-    expect(index).toContain('## Choose your core pack')
+    expect(index).toContain('## Common forks in the road')
 
     await expect(fsp.access(join(rootDir, '.claude', 'skills', 'nuxt-web-fixture'))).rejects.toBeDefined()
   })

@@ -21,7 +21,7 @@ function toggle(i: number) {
 const configCode = `modules: ['nuxt-skill-hub'],
 
   skillHub: {
-    targets: ['codex'],
+    targets: ['claude-code'],
   }
 `
 
@@ -117,7 +117,7 @@ const { copy, copied } = useClipboard({ copiedDuring: 2000 })
   <span class="text-highlighted">modules</span>: [<span class="text-emerald-500 dark:text-emerald-400">'nuxt-skill-hub'</span>],
 
   <span class="text-primary">skillHub</span>: {
-    <span class="text-highlighted">targets</span>: [<span class="text-emerald-500 dark:text-emerald-400">'codex'</span>],
+    <span class="text-highlighted">targets</span>: [<span class="text-emerald-500 dark:text-emerald-400">'claude-code'</span>],
   }
 <span class="opacity-45">})</span></pre>
           </div>

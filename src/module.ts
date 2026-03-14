@@ -109,7 +109,7 @@ function mergeSkippedEntries(entries: SkillManifestSkipped[]): SkillManifestSkip
 export default defineNuxtModule<ModuleOptions>({
   meta: {
     name: 'nuxt-skill-hub',
-    version: '1.0.0',
+    version: '0.0.1',
     configKey: 'skillHub',
     compatibility: {
       nuxt: '>=4.3.0',
@@ -280,10 +280,7 @@ export default defineNuxtModule<ModuleOptions>({
       const coreMetadata = await loadCoreMetadata()
 
       for (const target of targets) {
-        const { targetDir, skillRoot, warning } = getTargetSkillRoot(exportRoot, target, resolvedSkillName)
-        if (warning) {
-          logger.warn(warning)
-        }
+        const { targetDir, skillRoot } = getTargetSkillRoot(exportRoot, target, resolvedSkillName)
         const referencesRoot = join(skillRoot, 'references')
         const coreRoot = join(referencesRoot, 'core')
         const modulesRoot = join(referencesRoot, 'modules')

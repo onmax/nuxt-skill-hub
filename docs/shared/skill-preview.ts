@@ -15,8 +15,8 @@ export interface CoreContentMetadata {
   packs: CorePackMetadata[]
 }
 
-export type PreviewSourceKind = 'dist' | 'github' | 'fallbackMap' | 'generated'
-export type PreviewResolverKind = 'agentsField' | 'githubHeuristic' | 'mapEntry' | 'metadataRouter'
+export type PreviewSourceKind = 'dist' | 'github' | 'generated'
+export type PreviewResolverKind = 'agentsField' | 'githubHeuristic' | 'metadataRouter'
 export type PreviewTrustLevel = 'official' | 'community'
 
 export interface SkillModuleRenderEntry {
@@ -52,21 +52,69 @@ export interface SkillFrontmatter {
 
 export const DEFAULT_CORE_CONTENT_METADATA: CoreContentMetadata = {
   id: 'nuxt-best-practices',
-  version: '1.5.0',
+  version: '0.0.1',
   experimental: true,
-  description: 'Nuxt-native best-practice rule packs for AI execution. Complements docs, not a replacement.',
+  description: 'Nuxt-native decision packs and best-practice rule packs for AI execution. Complements docs, not a replacement.',
   sections: [
+    'abstraction-disambiguation',
+    'page-meta-head-layout',
+    'error-surfaces-recovery',
+    'content-modeling-navigation',
+    'nuxt-ui-primitives',
+    'verification-finish',
     'data-fetching-ssr',
     'hydration-consistency',
     'architecture-boundaries',
-    'performance-rendering',
-    'plugins',
-    'nitro-h3-patterns',
     'server-routes-runtime-config',
+    'nitro-h3-patterns',
+    'plugins',
+    'performance-rendering',
     'module-authoring',
     'migrations',
   ],
   packs: [
+    {
+      id: 'abstraction-disambiguation',
+      title: 'Abstraction Disambiguation',
+      focus: 'Choose Nuxt-owned abstractions before generic Vue, raw HTML, or ad hoc glue code.',
+      triggers: ['A generic Vue or HTML fix looks plausible', 'You need to decide whether Nuxt, Nuxt Content, or Nuxt UI already owns the surface'],
+      relativePath: 'rules/abstraction-disambiguation.md',
+    },
+    {
+      id: 'page-meta-head-layout',
+      title: 'Page Meta, Head, and Layout',
+      focus: 'Separate page behavior, document metadata, and layout structure before editing.',
+      triggers: ['Pages, layouts, middleware, or page options', 'Title, meta tags, canonical URLs, or OG metadata'],
+      relativePath: 'rules/page-meta-head-layout.md',
+    },
+    {
+      id: 'error-surfaces-recovery',
+      title: 'Error Surfaces and Recovery',
+      focus: 'Cover both global and local error boundaries and use the right recovery utilities.',
+      triggers: ['Global error pages or local error boundaries', 'Recovery flows, clearError, showError, or fallback UI'],
+      relativePath: 'rules/error-surfaces-recovery.md',
+    },
+    {
+      id: 'content-modeling-navigation',
+      title: 'Content Modeling and Navigation',
+      focus: 'Model structured records correctly and use collection and navigation primitives before manual assembly.',
+      triggers: ['Nuxt Content collections, JSON or YAML records, or generated navigation', 'Sidebar, docs navigation, or content-derived listings'],
+      relativePath: 'rules/content-modeling-navigation.md',
+    },
+    {
+      id: 'nuxt-ui-primitives',
+      title: 'Nuxt UI Primitives',
+      focus: 'Prefer first-class Nuxt UI surfaces and their current API shape before hand-rolled markup.',
+      triggers: ['Tables, forms, modals, command palettes, dropdowns, or page chrome', 'A custom HTML implementation looks visually correct but framework-owned primitives exist'],
+      relativePath: 'rules/nuxt-ui-primitives.md',
+    },
+    {
+      id: 'verification-finish',
+      title: 'Verification and Finish',
+      focus: 'Verify the intended framework behavior and re-check paired surfaces before concluding work.',
+      triggers: ['The fix spans more than one surface', 'You are about to finish a Nuxt change and need to confirm the right abstraction'],
+      relativePath: 'rules/verification-finish.md',
+    },
     {
       id: 'data-fetching-ssr',
       title: 'Data Fetching and SSR',
@@ -89,18 +137,11 @@ export const DEFAULT_CORE_CONTENT_METADATA: CoreContentMetadata = {
       relativePath: 'rules/architecture-boundaries.md',
     },
     {
-      id: 'performance-rendering',
-      title: 'Performance and Rendering',
-      focus: 'Rendering strategy, payload cost, and lazy loading tradeoffs.',
-      triggers: ['Performance regressions or rendering strategy changes', 'Link, asset, and bundle cost decisions'],
-      relativePath: 'rules/performance-rendering.md',
-    },
-    {
-      id: 'plugins',
-      title: 'Plugins and Runtime Boot',
-      focus: 'Plugin ordering, startup cost, and app/runtime initialization.',
-      triggers: ['Plugins, app boot logic, or injected runtime helpers', 'Global runtime behavior changes'],
-      relativePath: 'rules/plugins.md',
+      id: 'server-routes-runtime-config',
+      title: 'Server Routes and Runtime Config',
+      focus: 'Runtime config exposure, env handling, and route-level contracts.',
+      triggers: ['nuxt.config, runtime config, or env wiring', 'Server route config and public/private config exposure'],
+      relativePath: 'rules/server-routes-runtime-config.md',
     },
     {
       id: 'nitro-h3-patterns',
@@ -110,11 +151,18 @@ export const DEFAULT_CORE_CONTENT_METADATA: CoreContentMetadata = {
       relativePath: 'rules/nitro-h3-patterns.md',
     },
     {
-      id: 'server-routes-runtime-config',
-      title: 'Server Routes and Runtime Config',
-      focus: 'Runtime config exposure, env handling, and route-level contracts.',
-      triggers: ['nuxt.config, runtime config, or env wiring', 'Server route config and public/private config exposure'],
-      relativePath: 'rules/server-routes-runtime-config.md',
+      id: 'plugins',
+      title: 'Plugins and Runtime Boot',
+      focus: 'Plugin ordering, startup cost, and app/runtime initialization.',
+      triggers: ['Plugins, app boot logic, or injected runtime helpers', 'Global runtime behavior changes'],
+      relativePath: 'rules/plugins.md',
+    },
+    {
+      id: 'performance-rendering',
+      title: 'Performance and Rendering',
+      focus: 'Rendering strategy, payload cost, and lazy loading tradeoffs.',
+      triggers: ['Performance regressions or rendering strategy changes', 'Link, asset, and bundle cost decisions'],
+      relativePath: 'rules/performance-rendering.md',
     },
     {
       id: 'module-authoring',
@@ -249,8 +297,6 @@ export function getSourceLabel(sourceKind: PreviewSourceKind): string {
       return 'Installed package skill'
     case 'github':
       return 'GitHub-resolved skill'
-    case 'fallbackMap':
-      return 'Curated fallback skill'
     case 'generated':
       return 'Metadata-routed skill'
   }
@@ -330,8 +376,8 @@ Use this only for work that directly involves \`${input.packageName}\`.
 ${linkLines || '- No official docs or repository URL were available in package metadata.'}
 
 ## Workflow
-1. Start with the relevant core pack from [../../core/index.md](../../core/index.md).
-2. Open [references/index.md](./references/index.md) for routing guidance.
+1. Start with the relevant route in [../../index.md](../../index.md) and load the matching core pack.
+2. Keep this router scoped to \`${input.packageName}\` surfaces only.
 ${routeLines}
 `,
     'references/index.md': `# ${input.packageName} Metadata Router
@@ -372,10 +418,9 @@ function relativeWrapperLink(entry: SkillModuleRenderEntry, prefix: string): str
 function groupModuleEntries(entries: SkillModuleRenderEntry[]) {
   const officialUpstream = entries.filter(entry => entry.sourceKind === 'dist')
   const githubResolved = entries.filter(entry => entry.sourceKind === 'github')
-  const curatedFallback = entries.filter(entry => entry.sourceKind === 'fallbackMap')
   const metadataRouted = entries.filter(entry => entry.sourceKind === 'generated')
 
-  return { officialUpstream, githubResolved, curatedFallback, metadataRouted }
+  return { officialUpstream, githubResolved, metadataRouted }
 }
 
 function renderModuleGroup(title: string, entries: SkillModuleRenderEntry[], prefix: string): string {
@@ -407,12 +452,71 @@ function renderSkippedEntries(skipped: SkillSkippedRenderEntry[]): string {
   return `### Skipped or unavailable\n${lines.join('\n')}\n`
 }
 
+function findPack(metadata: CoreContentMetadata, id: string): CorePackMetadata {
+  return metadata.packs.find(pack => pack.id === id) || metadata.packs[0]!
+}
+
+function packLink(metadata: CoreContentMetadata, id: string): string {
+  const pack = findPack(metadata, id)
+  return `[${pack.title}](./core/${pack.relativePath})`
+}
+
+function createRoutingTable(metadata: CoreContentMetadata): string {
+  const rows = [
+    {
+      symptom: 'SSR, initial page load, route params, or hydration-sensitive data',
+      packId: 'data-fetching-ssr',
+      why: 'Prefer `useFetch` or `useAsyncData` over setup-time `$fetch` or `onMounted` fetches.',
+    },
+    {
+      symptom: 'Page options, route middleware, layout selection, title, meta tags, or OG data',
+      packId: 'page-meta-head-layout',
+      why: 'Separate page behavior from document metadata and layout structure before editing.',
+    },
+    {
+      symptom: 'A generic Vue fix or raw HTML implementation looks tempting',
+      packId: 'abstraction-disambiguation',
+      why: 'Check whether Nuxt, Nuxt Content, or Nuxt UI already owns the abstraction.',
+    },
+    {
+      symptom: 'Global errors, local fallback UI, `clearError`, `showError`, or recovery flows',
+      packId: 'error-surfaces-recovery',
+      why: 'Nuxt error handling often needs both global and local surfaces to be correct.',
+    },
+    {
+      symptom: 'Nuxt Content JSON or YAML records, collection shape, docs nav, or sidebars',
+      packId: 'content-modeling-navigation',
+      why: 'Choose `type: \'data\'` and collection-navigation primitives before manual assembly.',
+    },
+    {
+      symptom: 'Tables, forms, modals, command palettes, dropdowns, or page chrome',
+      packId: 'nuxt-ui-primitives',
+      why: 'Prefer the current Nuxt UI primitive and API shape before hand-rolled markup or listeners.',
+    },
+    {
+      symptom: 'Secrets, runtime config, privileged API calls, or server/client boundary confusion',
+      packId: 'architecture-boundaries',
+      why: 'Move sensitive logic server-side first, then pair with config and route rules as needed.',
+    },
+    {
+      symptom: 'Before finishing a fix that spans multiple files or surfaces',
+      packId: 'verification-finish',
+      why: 'Re-check paired surfaces and verify framework behavior, not only the visible output.',
+    },
+  ]
+
+  return [
+    '| Task shape or symptom | Load first | Why |',
+    '| --- | --- | --- |',
+    ...rows.map(row => `| ${row.symptom} | ${packLink(metadata, row.packId)} | ${row.why} |`),
+  ].join('\n')
+}
+
 export function createModulesListMarkdown(entries: SkillModuleRenderEntry[], skipped: SkillSkippedRenderEntry[] = []): string {
-  const { officialUpstream, githubResolved, curatedFallback, metadataRouted } = groupModuleEntries(entries)
+  const { officialUpstream, githubResolved, metadataRouted } = groupModuleEntries(entries)
   const sections = [
     renderModuleGroup('Official upstream skills', officialUpstream, './'),
     renderModuleGroup('GitHub-resolved skills', githubResolved, './'),
-    renderModuleGroup('Curated fallback skills', curatedFallback, './'),
     renderModuleGroup('Metadata-routed skills', metadataRouted, './'),
     renderSkippedEntries(skipped),
   ].filter(Boolean)
@@ -426,11 +530,11 @@ export function createModulesListMarkdown(entries: SkillModuleRenderEntry[], ski
 
 function createCorePackTable(metadata: CoreContentMetadata): string {
   const rows = metadata.packs.map(pack =>
-    `| ${pack.triggers.join('<br>')} | [${pack.title}](./core/${pack.relativePath}) | ${pack.focus} |`,
+    `| [${pack.title}](./core/${pack.relativePath}) | ${pack.focus} | ${pack.triggers.join('<br>')} |`,
   )
 
   return [
-    '| Surface or symptom | Load | Focus |',
+    '| Pack | Focus | Typical triggers |',
     '| --- | --- | --- |',
     ...rows,
   ].join('\n')
@@ -445,7 +549,6 @@ export function createReferencesIndexContent(
   const moduleSections = [
     renderModuleGroup('Official upstream skills', grouped.officialUpstream, './modules/'),
     renderModuleGroup('GitHub-resolved skills', grouped.githubResolved, './modules/'),
-    renderModuleGroup('Curated fallback skills', grouped.curatedFallback, './modules/'),
     renderModuleGroup('Metadata-routed skills', grouped.metadataRouted, './modules/'),
     renderSkippedEntries(skipped),
   ].filter(Boolean)
@@ -455,20 +558,26 @@ export function createReferencesIndexContent(
 
   return `# Nuxt Skill Map
 
-This map routes you to the smallest relevant guidance set.
+This map routes you through Nuxt's common forks before deeper packs.
 
 ## How to use this map
-1. Choose the core pack that matches the surface you are changing.
-2. If an installed module is involved, open that module wrapper before the copied module \`SKILL.md\`.
-3. If a module skill is skipped or unavailable, use the relevant core pack plus the module's official docs.
+1. Explore the current surface first: page, layout, component, server handler, content collection, or module-owned file.
+2. Load the first matching pack from the routing table below.
+3. Open deeper packs only when the first pack points you there.
+4. If an installed module is involved, open that module wrapper before the copied module \`SKILL.md\`.
+5. If a module wrapper only gives links, use its static docs and repo URLs as the escalation path.
 
-## Choose your core pack
+## Common forks in the road
+
+${createRoutingTable(metadata)}
+
+## All core packs
 
 ${createCorePackTable(metadata)}
 
 ## Module guides
 
-Read a generated module wrapper first. It explains provenance, trust, scope boundaries, and how to use the copied skill safely.
+Read a generated module wrapper first. It explains provenance, trust, scope boundaries, and how to use copied guidance as delta-only module context.
 
 ${moduleGuideContent}
 ---
@@ -479,7 +588,7 @@ _Generated by nuxt-skill-hub. Do not edit this file manually._
 
 function createPackSummary(metadata: CoreContentMetadata): string {
   return metadata.packs
-    .slice(0, 6)
+    .slice(0, 5)
     .map(pack => `\`${pack.title}\``)
     .join(', ')
 }
@@ -489,7 +598,7 @@ export function createSkillEntrypoint(
   metadata: CoreContentMetadata,
   monorepoScopePath?: string,
 ): string {
-  const description = 'Nuxt router skill for this project. Use it to load the relevant core Nuxt rule packs and installed module skill wrappers before making changes.'
+  const description = 'Always-on Nuxt disambiguation layer for this project. Use it to choose the right Nuxt pack first, then load module delta skills only when needed.'
   const monorepoScopeSection = monorepoScopePath
     ? `
 ## Monorepo Scope
@@ -503,32 +612,41 @@ name: ${yamlString(skillName)}
 description: ${yamlString(description)}
 ---
 
-# Nuxt Skill Router
+# Nuxt Skill Index
 
-This file is the always-on routing and execution contract for Nuxt work in this repository.
-It is not the full framework knowledge base.
+This file keeps the highest-frequency Nuxt decisions in context.
+Use it to avoid generic Vue fallbacks, then route into the smallest matching pack.
 ${monorepoScopeSection}
 
 ## Activation Flow
-1. Inspect the task surface and open [references/index.md](./references/index.md).
-2. Load the smallest relevant core pack from the routing table there.
-3. If an installed module is involved, read its generated wrapper under [references/modules](./references/modules) before opening the copied module \`SKILL.md\`.
-4. Apply module guidance only inside that module's APIs, config, runtime behavior, and owned files.
+1. Explore the project first: inspect the real page, component, route, server handler, collection, or module surface you are changing.
+2. Open [references/index.md](./references/index.md) and load the smallest matching core pack.
+3. If an installed module owns the problem, read its wrapper under [references/modules](./references/modules) before the copied module \`SKILL.md\`.
+4. Apply module guidance as delta-only rules inside that module's APIs, config, runtime behavior, and owned files.
 
-## Always Apply
-- Preserve repository conventions and keep the diff as small as possible.
-- Verify the changed surface with the repo checks that matter for the task.
-- Report missing, skipped, or low-confidence module guidance when it materially affects confidence.
+## High-Frequency Nuxt Decisions
+- If the task touches SSR, initial page load, or route-driven data, prefer \`useFetch\` or \`useAsyncData\` before \`onMounted\` plus \`$fetch\`.
+- If the task changes page options, layout selection, route middleware, or page-level behavior, check \`definePageMeta\` before adding ad hoc wiring.
+- If the task changes title, meta tags, canonical URLs, or OG data, check \`useHead\` or \`useSeoMeta\` before page-meta or template markup.
+- If content lives in JSON or YAML records, or the UI needs generated docs navigation, choose data collections and collection-navigation primitives before manual assembly.
+- If the UI surface is page chrome, a table, a form, a modal, a command palette, or a dropdown, prefer a Nuxt UI primitive before raw HTML or custom listeners.
+- If runtime config, tokens, secrets, or privileged API calls are involved, keep them server-side and expose only a server route or the minimum public config.
+- If hydration, browser-only APIs, time, randomness, or cookies are involved, use SSR-safe primitives first and isolate browser-only work behind \`ClientOnly\` or \`onMounted\`.
+- If the fix touches errors, fallback UI, or recovery flow, check both global and local surfaces before concluding the work is complete.
+- If the solution looks correct but uses generic Vue or hand-rolled HTML, confirm Nuxt, Nuxt Content, or Nuxt UI does not already own that abstraction.
+- If the task is module-specific, use the module wrapper and keep module guidance scoped; do not replace broad Nuxt rules with module-specific rules.
 
 ## Precedence
 - Repository-global instructions and required workflows win first.
-- This router decides which Nuxt guidance to load next.
-- Core packs define global Nuxt conventions.
-- Module guidance overrides core only inside the module's explicit scope.
+- This file keeps the common Nuxt forks in context.
+- Core packs provide deeper Nuxt guidance.
+- Module wrappers add delta-only guidance inside explicit module scope.
 
-## When Unsure
-- If instructions conflict, fall back to the relevant core pack and call out the conflict.
-- If a needed module skill is missing or low-confidence, use core guidance plus the module's official docs.
+## Before Completion
+- Did I choose a Nuxt primitive where a generic Vue or raw HTML solution would be tempting?
+- Did I check whether the fix needs a second surface such as global or local, or server or client?
+- Did I choose the right concept pair: page meta vs head, data collection vs page collection, component primitive vs custom markup?
+- Did I verify the framework behavior that matters, not just the visible output?
 
 ## Core Packs
 Start with the relevant pack in [references/index.md](./references/index.md). Primary packs include ${createPackSummary(metadata)}.
@@ -537,22 +655,20 @@ Start with the relevant pack in [references/index.md](./references/index.md). Pr
 
 function createResolverNote(entry: SkillModuleRenderEntry): string {
   if (entry.sourceKind === 'dist') {
-    return 'This module skill came from the installed package. Treat it as the highest-confidence module-specific guide.'
+    return 'This module skill came from the installed package. Treat it as the highest-confidence module-specific delta guide.'
   }
 
   if (entry.sourceKind === 'github' && entry.resolver === 'agentsField') {
-    return 'This module skill was resolved from the package repository metadata. It is still module-specific guidance, but you should verify critical details against the installed module version.'
+    return 'This module skill was resolved from repository metadata. It is still module-specific guidance, but verify version-sensitive details against the installed module docs or source.'
   }
 
   if (entry.sourceKind === 'github') {
-    return 'This module skill was resolved from GitHub heuristics. Verify critical details against the installed module docs or source before relying on edge-case behavior.'
+    return 'This module skill was resolved from GitHub heuristics. Verify important behavior against the installed module docs or source before relying on edge cases.'
   }
 
   if (entry.sourceKind === 'generated') {
     return 'This module router was generated from package metadata. Use the linked docs and repository as the source of truth for module-specific behavior.'
   }
-
-  return 'This module skill came from the curated fallback map. Treat it as lower-confidence guidance and verify important behavior against the installed module docs or source.'
 }
 
 export function createModuleWrapperContent(entry: SkillModuleRenderEntry): string {
@@ -584,10 +700,12 @@ Use this wrapper before opening the copied module skill.
 - Trust: \`${derivedEntry.trustLevel}\`
 - Scripts: ${entry.scriptsIncluded ? 'included' : 'not included'}
 
-${descriptionBlock}## When to load this module skill
-- The task edits this module's config, runtime behavior, plugins, composables, components, hooks, or owned files.
-- The bug or refactor is clearly caused by \`${entry.packageName}\`.
-- You already know the work is module-specific rather than a general Nuxt pattern.
+${descriptionBlock}## Scope
+Use this wrapper only when the task directly involves \`${entry.packageName}\` APIs, config, runtime behavior, plugins, composables, components, hooks, or owned files.
+
+## Delta-only rule
+Module guidance is a delta on top of core Nuxt guidance.
+Do not replace broad Nuxt rules with module-specific guidance outside \`${entry.packageName}\` surfaces.
 
 ${upstreamLinks
   ? `## Upstream links
@@ -595,9 +713,10 @@ ${upstreamLinks}
 
 `
   : ''}## How to use it
-1. Start with the relevant core pack from [../../core/index.md](../../core/index.md).
+1. Start with the relevant route in [../../index.md](../../index.md) and load the matching core pack.
 2. Then open the copied module skill: [${entry.skillName} / SKILL.md](${skillPath}).
 3. Apply the module guidance only within \`${entry.packageName}\` surfaces.
+4. If behavior is unresolved or version-sensitive, use the static docs and repository links above.
 
 ## Reliability note
 ${createResolverNote(entry)}

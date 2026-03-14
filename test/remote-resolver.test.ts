@@ -65,15 +65,10 @@ describe('resolveRemoteContributionsForPackage', () => {
     expect(downloadMock.mock.calls.some(call => String(call[0]).includes('onmax/nuxt-skills'))).toBe(false)
   })
 
-  it('uses fallback map when github metadata is unavailable', async () => {
+  it('generates a metadata-routed skill when github metadata is unavailable but package metadata exists', async () => {
     const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
-    const downloadMock = mockDownloadTemplate(async (input, destinationDir) => {
-      if (input === 'gh:onmax/nuxt-skills/skills/reka-ui#main') {
-        await createSkillFiles(destinationDir, 'reka-ui')
-      }
-      else {
-        throw new Error('not found')
-      }
+    const downloadMock = mockDownloadTemplate(async () => {
+      throw new Error('not found')
     })
 
     vi.resetModules()
@@ -91,7 +86,8 @@ describe('resolveRemoteContributionsForPackage', () => {
     const result = await resolveRemoteContributionsForPackage({
       packageName: 'reka-ui',
       version: '1.2.3',
-      repository: undefined,
+      description: 'Headless primitives for Vue.',
+      homepage: 'https://reka-ui.com',
     }, {
       cacheRoot,
       githubLookupTimeoutMs: 200,
@@ -99,52 +95,11 @@ describe('resolveRemoteContributionsForPackage', () => {
     })
 
     expect(result.contributions).toHaveLength(1)
-    expect(result.contributions[0]?.sourceKind).toBe('fallbackMap')
-    expect(result.contributions[0]?.official).toBe(false)
-    expect(result.contributions[0]?.resolver).toBe('mapEntry')
-    expect(result.contributions[0]?.sourceRepo).toBe('onmax/nuxt-skills')
-    expect(result.contributions[0]?.sourceRef).toBe('main')
+    expect(result.contributions[0]?.sourceKind).toBe('generated')
+    expect(result.contributions[0]?.resolver).toBe('metadataRouter')
+    expect(result.contributions[0]?.docsUrl).toBe('https://reka-ui.com/')
     expect(result.skipped).toEqual([])
-    expect(downloadMock.mock.calls.some(call => String(call[0]).includes('onmax/nuxt-skills'))).toBe(true)
-  })
-
-  it('maps @nuxt/ui to onmax fallback skill', async () => {
-    const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
-    const downloadMock = mockDownloadTemplate(async (input, destinationDir) => {
-      if (input === 'gh:onmax/nuxt-skills/skills/nuxt-ui#main') {
-        await createSkillFiles(destinationDir, 'nuxt-ui')
-      }
-      else {
-        throw new Error('not found')
-      }
-    })
-
-    vi.resetModules()
-    vi.doMock('../src/remote-fetch', () => ({
-      parseGitHubRepo: vi.fn(() => null),
-      fetchGitHubDefaultBranch: vi.fn(async () => 'main'),
-      fetchGitHubFileText: vi.fn(async () => ({ ok: false, status: 404 })),
-      listGitHubDirectory: vi.fn(async () => []),
-    }))
-    vi.doMock('giget', () => ({
-      downloadTemplate: downloadMock,
-    }))
-
-    const { resolveRemoteContributionsForPackage } = await import('../src/remote-resolver')
-    const result = await resolveRemoteContributionsForPackage({
-      packageName: '@nuxt/ui',
-      version: '4.5.0',
-      repository: undefined,
-    }, {
-      cacheRoot,
-      githubLookupTimeoutMs: 200,
-      enableGithubLookup: true,
-    })
-
-    expect(result.contributions).toHaveLength(1)
-    expect(result.contributions[0]?.skillName).toBe('nuxt-ui')
-    expect(result.contributions[0]?.sourceKind).toBe('fallbackMap')
-    expect(result.contributions[0]?.sourcePath).toBe('skills/nuxt-ui')
+    expect(downloadMock.mock.calls).toEqual([])
   })
 
   it('uses remote package agents.skills before heuristics', async () => {

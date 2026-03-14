@@ -8,26 +8,51 @@ They complement Nuxt docs; they do not replace official documentation.
 - Nuxt source: `packages/nuxt/src/app/composables/{asyncData,fetch,once}.ts`, `packages/nuxt/src/app/nuxt.ts`
 
 ## How to use this file
-1. Select the highest-priority relevant rule pack.
+1. Start with the smallest high-priority pack that matches the actual surface or symptom.
 2. Apply rule IDs directly; do not paraphrase away Nuxt-specific caveats.
-3. Keep scope narrow: open only the sections needed for the current change.
-4. Core guidance is default; module guidance overrides core only inside explicit module scope.
+3. Treat the first six packs as disambiguation overlays before broader infra packs.
+4. Keep scope narrow: open only the sections needed for the current change.
+5. Core guidance is default; module guidance overrides core only inside explicit module scope.
 
 ## Rule Packs by Priority
 
 | Priority | Pack | Focus | Rule ID Prefix |
 | --- | --- | --- | --- |
-| 1 | Data Fetching and SSR | Deduplication, payload correctness, request safety | `data-` |
-| 2 | Hydration and SSR Consistency | SSR/CSR determinism and client-only boundaries | `hydration-` |
-| 3 | Architecture Boundaries | Server-only secrets and request-safe state | `arch-` |
-| 4 | Performance and Rendering | Rendering strategy, links, payload and asset cost | `perf-` |
-| 5 | Plugins and Runtime Boot | Plugin startup cost, ordering, and isolation | `plugin-` |
-| 6 | Nitro and h3 Server Patterns | Request contracts, cache behavior, and edge-safe server work | `nitro-` |
-| 7 | Server Routes and Runtime Config | Handler contracts and config exposure | `server-` |
-| 8 | Module Authoring Conventions | Nuxt Kit module safety and ecosystem fit | `module-` |
-| 9 | Migrations and Compatibility | Safe incremental upgrades | `migration-` |
+| 1 | Abstraction Disambiguation | Choose framework-owned primitives before generic Vue or raw HTML | `disambiguation-` |
+| 2 | Page Meta, Head, and Layout | Separate page behavior, document metadata, and layout structure | `page-` |
+| 3 | Error Surfaces and Recovery | Cover both global and local error surfaces with the right recovery utilities | `error-` |
+| 4 | Content Modeling and Navigation | Model structured content correctly and use collection navigation primitives | `content-` |
+| 5 | Nuxt UI Primitives | Prefer Nuxt UI components and current API shapes over hand-rolled markup | `ui-` |
+| 6 | Verification and Finish | Re-check paired surfaces and verify framework behavior before concluding | `verify-` |
+| 7 | Data Fetching and SSR | Deduplication, payload correctness, and request safety | `data-` |
+| 8 | Hydration and SSR Consistency | SSR and CSR determinism and client-only boundaries | `hydration-` |
+| 9 | Architecture Boundaries | Server-only secrets and request-safe state | `arch-` |
+| 10 | Server Routes and Runtime Config | Handler contracts and config exposure | `server-` |
+| 11 | Nitro and h3 Server Patterns | Request contracts, caching behavior, and edge-safe server work | `nitro-` |
+| 12 | Plugins and Runtime Boot | Plugin startup cost, ordering, and isolation | `plugin-` |
+| 13 | Performance and Rendering | Rendering strategy, links, payload, and asset cost | `perf-` |
+| 14 | Module Authoring Conventions | Nuxt Kit module safety and ecosystem fit | `module-` |
+| 15 | Migrations and Compatibility | Safe incremental upgrades | `migration-` |
 
 ## Rule Packs
+
+<!-- automd:file src="./rules/abstraction-disambiguation.md" -->
+<!-- /automd -->
+
+<!-- automd:file src="./rules/page-meta-head-layout.md" -->
+<!-- /automd -->
+
+<!-- automd:file src="./rules/error-surfaces-recovery.md" -->
+<!-- /automd -->
+
+<!-- automd:file src="./rules/content-modeling-navigation.md" -->
+<!-- /automd -->
+
+<!-- automd:file src="./rules/nuxt-ui-primitives.md" -->
+<!-- /automd -->
+
+<!-- automd:file src="./rules/verification-finish.md" -->
+<!-- /automd -->
 
 <!-- automd:file src="./rules/data-fetching-ssr.md" -->
 <!-- /automd -->
@@ -38,16 +63,16 @@ They complement Nuxt docs; they do not replace official documentation.
 <!-- automd:file src="./rules/architecture-boundaries.md" -->
 <!-- /automd -->
 
-<!-- automd:file src="./rules/performance-rendering.md" -->
-<!-- /automd -->
-
-<!-- automd:file src="./rules/plugins.md" -->
+<!-- automd:file src="./rules/server-routes-runtime-config.md" -->
 <!-- /automd -->
 
 <!-- automd:file src="./rules/nitro-h3-patterns.md" -->
 <!-- /automd -->
 
-<!-- automd:file src="./rules/server-routes-runtime-config.md" -->
+<!-- automd:file src="./rules/plugins.md" -->
+<!-- /automd -->
+
+<!-- automd:file src="./rules/performance-rendering.md" -->
 <!-- /automd -->
 
 <!-- automd:file src="./rules/module-authoring.md" -->

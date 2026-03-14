@@ -1,6 +1,6 @@
 export type SkillAvailability = 'real' | 'generated' | 'unavailable'
 
-// Packages that have skills available (extracted from src/fallback-map.ts)
+// Packages that currently resolve to real skills in the docs playground.
 export const REAL_SKILL_PACKAGE_NAMES = new Set([
   'nuxt', '@nuxt/ui', '@nuxt/content', 'nuxt-seo', '@nuxtjs/seo',
   '@onmax/nuxt-better-auth', '@nuxthub/core', 'reka-ui', 'reka-ui/nuxt',

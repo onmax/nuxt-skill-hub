@@ -59,7 +59,7 @@ export interface GeneratedModuleEntry {
   docsUrl?: string
   official: boolean
   trustLevel: 'official' | 'community'
-  resolver: 'agentsField' | 'githubHeuristic' | 'mapEntry' | 'metadataRouter'
+  resolver: 'agentsField' | 'githubHeuristic' | 'metadataRouter'
   wrapperPath?: string
 }
 
@@ -568,9 +568,18 @@ export async function buildCoreTemplateFiles(coreDir: string): Promise<Array<{ p
 export function createReferencesIndexTemplate(): string {
   return `# Nuxt Skill Map
 
-This map routes you to the smallest relevant guidance set.
+This map routes you through Nuxt's common forks before deeper packs.
 
-## Core guidance
+## Common routes
+- SSR, initial page load, or route-driven data: [Data Fetching and SSR](./core/rules/data-fetching-ssr.md)
+- Page options, head metadata, or layout choice: [Page Meta, Head, and Layout](./core/rules/page-meta-head-layout.md)
+- Generic Vue or raw HTML looks tempting: [Abstraction Disambiguation](./core/rules/abstraction-disambiguation.md)
+- Errors, recovery, or fallback UI: [Error Surfaces and Recovery](./core/rules/error-surfaces-recovery.md)
+- Content modeling or generated docs navigation: [Content Modeling and Navigation](./core/rules/content-modeling-navigation.md)
+- Tables, modals, forms, command palettes, or page chrome: [Nuxt UI Primitives](./core/rules/nuxt-ui-primitives.md)
+- Before finishing a multi-surface fix: [Verification and Finish](./core/rules/verification-finish.md)
+
+## Full core guidance
 - [Nuxt Best Practices](./core/index.md)
 
 ## Installed module guides (auto-generated)
@@ -644,16 +653,10 @@ export function getTargetSkillRoot(
   rootDir: string,
   target: SkillHubTarget,
   skillName: string,
-): { targetDir: string, skillRoot: string, warning?: string } {
+): { targetDir: string, skillRoot: string } {
   const targetConfig = resolveAgentTargetConfig(target)
   if (!targetConfig) {
-    const targetDir = resolve(rootDir, `.${sanitizeSegment(target)}`, 'skills')
-    const skillRoot = join(targetDir, skillName)
-    return {
-      targetDir,
-      skillRoot,
-      warning: `Target "${target}" cannot be resolved from unagent; using fallback path "${(relative(rootDir, targetDir))}".`,
-    }
+    throw new Error(`Target "${target}" could not be resolved from unagent.`)
   }
 
   const home = homedir()
@@ -668,13 +671,7 @@ export function getTargetSkillRoot(
     return { targetDir, skillRoot }
   }
 
-  const targetDir = resolve(rootDir, `.${sanitizeSegment(target)}`, targetConfig.skillsDir)
-  const skillRoot = join(targetDir, skillName)
-  return {
-    targetDir,
-    skillRoot,
-    warning: `Target "${target}" configDir "${targetConfig.configDir}" is not under home "${home}"; using fallback path "${(relative(rootDir, targetDir))}".`,
-  }
+  throw new Error(`Target "${target}" configDir "${targetConfig.configDir}" is not under home "${home}".`)
 }
 
 export async function upsertAgentsHint(rootDir: string, skillName: string): Promise<void> {

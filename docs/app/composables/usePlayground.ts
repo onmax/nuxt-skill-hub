@@ -265,7 +265,7 @@ export function usePlayground() {
 
 function createPreviewModuleEntry(module: SelectedModule, moduleFiles: Record<string, string>): SkillModuleRenderEntry {
   const frontmatter = parseSkillFrontmatter(moduleFiles['SKILL.md'] || '')
-  const sourceKind = module.moduleType === 'official' ? 'github' : 'fallbackMap'
+  const sourceKind = 'github'
   const skillName = frontmatter?.name || module.id
 
   return {
@@ -276,14 +276,14 @@ function createPreviewModuleEntry(module: SelectedModule, moduleFiles: Record<st
     scriptsIncluded: Object.keys(moduleFiles).some(path => path === 'scripts' || path.startsWith('scripts/')),
     sourceKind,
     sourceLabel: getSourceLabel(sourceKind),
-    sourceRepo: 'onmax/nuxt-skills',
+    sourceRepo: module.repoUrl?.includes('github.com/') ? module.repoUrl.replace('https://github.com/', '') : undefined,
     sourceRef: 'main',
     sourcePath: `skills/${module.id}`,
     repoUrl: module.repoUrl,
     docsUrl: module.docsUrl,
-    official: module.moduleType === 'official',
-    trustLevel: getTrustLevel(module.moduleType === 'official'),
-    resolver: module.moduleType === 'official' ? 'githubHeuristic' : 'mapEntry',
+    official: true,
+    trustLevel: getTrustLevel(true),
+    resolver: 'githubHeuristic',
     wrapperPath: `references/modules/${module.id}/${skillName}.md`,
   }
 }

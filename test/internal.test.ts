@@ -253,7 +253,6 @@ describe('getTargetSkillRoot', () => {
 
     expect(resolved.targetDir).toBe(join(root, '.claude', 'skills'))
     expect(resolved.skillRoot).toBe(join(root, '.claude', 'skills', 'nuxt'))
-    expect(resolved.warning).toBeUndefined()
   })
 
   it('mirrors nested windsurf config path to project-local rules dir', () => {
@@ -262,10 +261,9 @@ describe('getTargetSkillRoot', () => {
 
     expect(resolved.targetDir).toBe(join(root, '.codeium', 'windsurf', 'rules'))
     expect(resolved.skillRoot).toBe(join(root, '.codeium', 'windsurf', 'rules', 'nuxt'))
-    expect(resolved.warning).toBeUndefined()
   })
 
-  it('falls back when target configDir is outside the home directory', async () => {
+  it('throws when target configDir is outside the home directory', async () => {
     vi.resetModules()
     vi.doMock('../src/agents', () => ({
       detectInstalledTargets: vi.fn(() => []),
@@ -279,11 +277,8 @@ describe('getTargetSkillRoot', () => {
 
     const { getTargetSkillRoot: getTargetSkillRootWithMock } = await import('../src/internal')
     const root = '/tmp/project'
-    const resolved = getTargetSkillRootWithMock(root, 'custom-agent', 'nuxt')
 
-    expect(resolved.targetDir).toBe(join(root, '.custom-agent', 'rules'))
-    expect(resolved.skillRoot).toBe(join(root, '.custom-agent', 'rules', 'nuxt'))
-    expect(resolved.warning).toContain('is not under home')
+    expect(() => getTargetSkillRootWithMock(root, 'custom-agent', 'nuxt')).toThrow('is not under home')
   })
 
   it('keeps skill roots distinct for multiple apps sharing a workspace export root', () => {

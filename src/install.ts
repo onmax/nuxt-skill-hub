@@ -6,7 +6,6 @@ import { readPackageJSON } from 'pkg-types'
 import type { Nuxt } from '@nuxt/schema'
 import { detectCurrentTarget, detectInstalledTargets, getSupportedTargets } from './agents'
 import { extractModuleSpecifier, discoverInstalledPackageFromSpecifier, getTargetSkillRoot, isValidSkillName, MANAGED_HINT_END, MANAGED_HINT_START, pathExists, resolveExportRoot } from './internal'
-import { findFallbackMapEntry } from './fallback-map'
 
 interface PendingWrite {
   file: string
@@ -24,7 +23,7 @@ export async function runInstallWizard(nuxt: Nuxt): Promise<void> {
   const logger = useLogger('nuxt-skill-hub')
 
   // Skip in CI or non-interactive environments
-  if (process.env.CI || process.env.CODEX_SHELL === '1' || !process.stdout.isTTY) {
+  if (process.env.CI || !process.stdout.isTTY) {
     logger.info('Non-interactive environment detected, skipping install wizard.')
     return
   }
@@ -57,7 +56,7 @@ export async function runInstallWizard(nuxt: Nuxt): Promise<void> {
 
     if (!detectedTargets.length && !allTargets.length) {
       consola.warn('No AI agents detected. Skills will be generated when an agent is detected.')
-      consola.info('Supported agents: claude-code, codex, cursor, codeium, windsurf')
+      consola.info('Supported agents are sourced from unagent.')
       return
     }
 
@@ -101,46 +100,25 @@ export async function runInstallWizard(nuxt: Nuxt): Promise<void> {
     .filter((entry): entry is string => Boolean(entry))
 
   const uniqueSpecifiers = Array.from(new Set(moduleSpecifiers))
-  const availableSkills: Array<{ packageName: string, skillName: string, source: string }> = []
+  const installedModulePackages: string[] = []
 
   for (const specifier of uniqueSpecifiers) {
     const pkg = await discoverInstalledPackageFromSpecifier(specifier, rootDir)
     if (!pkg || pkg.packageName === 'nuxt-skill-hub')
       continue
 
-    const fallback = findFallbackMapEntry(pkg.packageName)
-    if (fallback) {
-      availableSkills.push({ packageName: pkg.packageName, skillName: fallback.skillName, source: 'community' })
-    }
+    installedModulePackages.push(pkg.packageName)
   }
 
-  if (availableSkills.length) {
-    const seen = new Set<string>()
-    const deduped = availableSkills.filter((s) => {
-      if (seen.has(s.skillName))
-        return false
-      seen.add(s.skillName)
-      return true
-    })
-
-    consola.info(`Found ${deduped.length} module skill(s):`)
-    for (const skill of deduped) {
-      consola.log(`  ${skill.packageName} → ${skill.skillName} (${skill.source})`)
+  if (installedModulePackages.length) {
+    consola.info(`Detected ${installedModulePackages.length} installed module package(s):`)
+    for (const packageName of installedModulePackages) {
+      consola.log(`  ${packageName}`)
     }
-
-    const includeAll = await consola.prompt('Include all available module skills?', {
-      type: 'confirm',
-      initial: true,
-      cancel: 'null',
-    })
-
-    if (isCancelled(includeAll)) {
-      consola.info('Setup cancelled.')
-      return
-    }
+    consola.info('Module skills and metadata routers are resolved automatically at build time.')
   }
   else {
-    consola.info('No module skills found in fallback map. Skills will be resolved at build time.')
+    consola.info('No installed module entries were discovered.')
   }
 
   // ── Step 3: .gitignore ──

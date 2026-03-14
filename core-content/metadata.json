@@ -1,20 +1,86 @@
 {
   "id": "nuxt-best-practices",
-  "version": "1.4.0",
+  "version": "0.0.1",
   "experimental": true,
-  "description": "Nuxt-native best-practice rule packs for AI execution. Complements docs, not a replacement.",
+  "description": "Nuxt-native decision packs and best-practice rule packs for AI execution. Complements docs, not a replacement.",
   "sections": [
+    "abstraction-disambiguation",
+    "page-meta-head-layout",
+    "error-surfaces-recovery",
+    "content-modeling-navigation",
+    "nuxt-ui-primitives",
+    "verification-finish",
     "data-fetching-ssr",
     "hydration-consistency",
     "architecture-boundaries",
-    "performance-rendering",
-    "plugins",
-    "nitro-h3-patterns",
     "server-routes-runtime-config",
+    "nitro-h3-patterns",
+    "plugins",
+    "performance-rendering",
     "module-authoring",
     "migrations"
   ],
   "packs": [
+    {
+      "id": "abstraction-disambiguation",
+      "title": "Abstraction Disambiguation",
+      "focus": "Choose Nuxt-owned abstractions before generic Vue, raw HTML, or ad hoc glue code.",
+      "triggers": [
+        "A generic Vue or HTML fix looks plausible",
+        "You need to decide whether Nuxt, Nuxt Content, or Nuxt UI already owns the surface"
+      ],
+      "relativePath": "rules/abstraction-disambiguation.md"
+    },
+    {
+      "id": "page-meta-head-layout",
+      "title": "Page Meta, Head, and Layout",
+      "focus": "Separate page behavior, document metadata, and layout structure before editing.",
+      "triggers": [
+        "Pages, layouts, middleware, or page options",
+        "Title, meta tags, canonical URLs, or OG metadata"
+      ],
+      "relativePath": "rules/page-meta-head-layout.md"
+    },
+    {
+      "id": "error-surfaces-recovery",
+      "title": "Error Surfaces and Recovery",
+      "focus": "Cover both global and local error boundaries and use the right recovery utilities.",
+      "triggers": [
+        "Global error pages or local error boundaries",
+        "Recovery flows, clearError, showError, or fallback UI"
+      ],
+      "relativePath": "rules/error-surfaces-recovery.md"
+    },
+    {
+      "id": "content-modeling-navigation",
+      "title": "Content Modeling and Navigation",
+      "focus": "Model structured records correctly and use collection and navigation primitives before manual assembly.",
+      "triggers": [
+        "Nuxt Content collections, JSON or YAML records, or generated navigation",
+        "Sidebar, docs navigation, or content-derived listings"
+      ],
+      "relativePath": "rules/content-modeling-navigation.md"
+    },
+    {
+      "id": "nuxt-ui-primitives",
+      "title": "Nuxt UI Primitives",
+      "focus": "Prefer first-class Nuxt UI surfaces and their current API shape before hand-rolled markup.",
+      "triggers": [
+        "Tables, forms, modals, command palettes, dropdowns, or page chrome",
+        "A custom HTML implementation looks visually correct but framework-owned primitives exist"
+      ],
+      "relativePath": "rules/nuxt-ui-primitives.md"
+    },
+    {
+      "id": "verification-finish",
+      "title": "Verification and Finish",
+      "focus": "Verify the intended framework behavior and re-check paired surfaces before concluding work.",
+      "triggers": [
+        "The fix spans more than one surface",
+        "You are about to finish a Nuxt change and need to confirm the right abstraction"
+      ],
+      "relativePath": "rules/verification-finish.md"
+    },
     {
       "id": "data-fetching-ssr",
       "title": "Data Fetching and SSR",
@@ -46,24 +112,14 @@
       "relativePath": "rules/architecture-boundaries.md"
     },
     {
-      "id": "performance-rendering",
-      "title": "Performance and Rendering",
-      "focus": "Rendering strategy, payload cost, and lazy loading tradeoffs.",
+      "id": "server-routes-runtime-config",
+      "title": "Server Routes and Runtime Config",
+      "focus": "Runtime config exposure, env handling, and route-level contracts.",
       "triggers": [
-        "Performance regressions or rendering strategy changes",
-        "Link, asset, and bundle cost decisions"
+        "nuxt.config, runtime config, or env wiring",
+        "Server route config and public/private config exposure"
       ],
-      "relativePath": "rules/performance-rendering.md"
-    },
-    {
-      "id": "plugins",
-      "title": "Plugins and Runtime Boot",
-      "focus": "Plugin ordering, startup cost, and app/runtime initialization.",
-      "triggers": [
-        "Plugins, app boot logic, or injected runtime helpers",
-        "Global runtime behavior changes"
-      ],
-      "relativePath": "rules/plugins.md"
+      "relativePath": "rules/server-routes-runtime-config.md"
     },
     {
       "id": "nitro-h3-patterns",
@@ -76,14 +132,24 @@
       "relativePath": "rules/nitro-h3-patterns.md"
     },
     {
-      "id": "server-routes-runtime-config",
-      "title": "Server Routes and Runtime Config",
-      "focus": "Runtime config exposure, env handling, and route-level contracts.",
+      "id": "plugins",
+      "title": "Plugins and Runtime Boot",
+      "focus": "Plugin ordering, startup cost, and app/runtime initialization.",
       "triggers": [
-        "nuxt.config, runtime config, or env wiring",
-        "Server route config and public/private config exposure"
+        "Plugins, app boot logic, or injected runtime helpers",
+        "Global runtime behavior changes"
       ],
-      "relativePath": "rules/server-routes-runtime-config.md"
+      "relativePath": "rules/plugins.md"
+    },
+    {
+      "id": "performance-rendering",
+      "title": "Performance and Rendering",
+      "focus": "Rendering strategy, payload cost, and lazy loading tradeoffs.",
+      "triggers": [
+        "Performance regressions or rendering strategy changes",
+        "Link, asset, and bundle cost decisions"
+      ],
+      "relativePath": "rules/performance-rendering.md"
     },
     {
       "id": "module-authoring",
