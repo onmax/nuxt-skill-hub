@@ -5,7 +5,7 @@ import {
 } from '../../../shared/nuxt-content'
 import type { NuxtContentMetadata } from '~~/shared/skill-preview'
 
-const nuxtContentDir = resolve(process.cwd(), '..', 'nuxt-content')
+const nuxtContentDir = resolve(process.cwd(), '..', 'nuxt-best-practices')
 
 export async function loadNuxtRuleFiles(): Promise<Record<string, string>> {
   return await loadNuxtRuleFilesFromDir(nuxtContentDir)

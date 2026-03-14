@@ -299,7 +299,7 @@ export default defineNuxtModule<ModuleOptions>({
         const nuxtIndexContent = await renderAutomdTemplate(nuxtIndexTemplate, nuxtRoot)
         await writeFileIfChanged(join(nuxtRoot, 'index.md'), nuxtIndexContent)
 
-        const vueTemplateFiles = await buildVueTemplateFiles(vueRoot)
+        const vueTemplateFiles = await buildVueTemplateFiles(vueRoot, remoteCacheRoot)
         for (const file of vueTemplateFiles) {
           await writeFileIfChanged(file.path, file.contents)
         }

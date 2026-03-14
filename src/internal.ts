@@ -565,8 +565,8 @@ export async function buildNuxtTemplateFiles(nuxtDir: string): Promise<Array<{ p
   return files
 }
 
-export async function buildVueTemplateFiles(vueDir: string): Promise<Array<{ path: string, contents: string }>> {
-  const vueFiles = await loadVueSkillFiles()
+export async function buildVueTemplateFiles(vueDir: string, cacheRoot: string): Promise<Array<{ path: string, contents: string }>> {
+  const vueFiles = await loadVueSkillFiles(cacheRoot)
 
   return Object.entries(vueFiles).map(([name, contents]) => ({
     path: join(vueDir, name),

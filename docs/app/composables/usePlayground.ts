@@ -184,14 +184,14 @@ export function usePlayground() {
     if (d.nuxtFiles) {
       for (const [relativePath, content] of Object.entries(d.nuxtFiles)) {
         const path = `references/nuxt/${relativePath}`
-        files[path] = { name: relativePath.split('/').pop() || relativePath, path, language: 'markdown', content: content as string, sourceHref: repoSource(`nuxt-content/${relativePath}`) }
+        files[path] = { name: relativePath.split('/').pop() || relativePath, path, language: 'markdown', content: content as string, sourceHref: repoSource(`nuxt-best-practices/${relativePath}`) }
       }
     }
 
     if (d.vueFiles) {
       for (const [relativePath, content] of Object.entries(d.vueFiles)) {
         const path = `references/vue/${relativePath}`
-        files[path] = { name: relativePath.split('/').pop() || relativePath, path, language: 'markdown', content: content as string, sourceHref: repoSource(`vue-content/${relativePath}`) }
+        files[path] = { name: relativePath.split('/').pop() || relativePath, path, language: 'markdown', content: content as string, sourceHref: `https://github.com/vuejs-ai/skills/blob/main/skills/vue-best-practices/${relativePath}` }
       }
     }
 

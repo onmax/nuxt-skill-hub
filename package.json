@@ -18,8 +18,7 @@
   "main": "./dist/module.mjs",
   "files": [
     "dist",
-    "nuxt-content",
-    "vue-content"
+    "nuxt-best-practices"
   ],
   "scripts": {
     "prepack": "nuxt-module-build build",

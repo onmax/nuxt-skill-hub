@@ -1,3 +1,5 @@
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { loadCoreMetadata } from '../src/core-content'
 import { PACKAGE_VERSION } from '../src/package-info'
@@ -7,6 +9,8 @@ import {
   createSkillEntrypoint,
   DEFAULT_CORE_CONTENT_METADATA,
 } from '../src/render-content'
+
+const testCacheRoot = join(tmpdir(), 'skill-hub-test-vue')
 
 describe('createSkillEntrypoint', () => {
   it('loads core metadata from the in-code default source', async () => {
@@ -114,7 +118,7 @@ Source code: [https://github.com/nuxt-modules/i18n](https://github.com/nuxt-modu
 
 describe('bundled Vue content', () => {
   it('vendors the vue-best-practices skill with the must-read references', async () => {
-    const files = await loadVueSkillFiles()
+    const files = await loadVueSkillFiles(testCacheRoot)
 
     expect(files['SKILL.md']).toContain('name: vue-best-practices')
     expect(files['SKILL.md']).toContain('references/reactivity.md')

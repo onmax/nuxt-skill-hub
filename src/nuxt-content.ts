@@ -7,7 +7,7 @@ import {
 } from '../shared/nuxt-content'
 import type { NuxtContentMetadata } from './render-content'
 
-export const NUXT_CONTENT_SOURCE_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '../nuxt-content')
+export const NUXT_CONTENT_SOURCE_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '../nuxt-best-practices')
 
 export async function loadNuxtRuleFiles(): Promise<Record<string, string>> {
   return await loadNuxtRuleFilesFromDir(NUXT_CONTENT_SOURCE_DIR)
