@@ -15,9 +15,9 @@ Use `NuxtLink` for internal routes and tune prefetch strategy when needed (`visi
 `NuxtLink` carries built-in route-aware prefetching and defaults that reduce navigation latency.
 
 ### Execution checklist
-- Inputs to inspect: internal links in pages/layout/components.
-- Minimal verification: internal links use `NuxtLink` and preserve semantics/accessibility.
-- Stop condition: link target is external or deliberately bypasses router.
+- [ ] Inputs to inspect: internal links in pages/layout/components.
+- [ ] Minimal verification: internal links use `NuxtLink` and preserve semantics/accessibility.
+- [ ] Stop condition: link target is external or deliberately bypasses router.
 
 ### Rule ID: `perf-match-route-rules-to-content-volatility`
 ### Rule: Use route rules to match rendering strategy to content volatility
@@ -34,9 +34,9 @@ Set explicit `routeRules` per route family (`prerender`, `swr`, `isr`, `ssr: fal
 Nuxt/Nitro route rules directly shape cache semantics and server behavior per route.
 
 ### Execution checklist
-- Inputs to inspect: route patterns, freshness requirements, and SEO constraints.
-- Minimal verification: configured rules align with intended cache/render behavior.
-- Stop condition: deployment target cannot support required route rule semantics.
+- [ ] Inputs to inspect: route patterns, freshness requirements, and SEO constraints.
+- [ ] Minimal verification: configured rules align with intended cache/render behavior.
+- [ ] Stop condition: deployment target cannot support required route rule semantics.
 
 ### Rule ID: `perf-lazy-load-and-hydrate-intentionally`
 ### Rule: Use lazy component loading and lazy hydration intentionally
@@ -53,9 +53,9 @@ Use `Lazy*` component imports and hydration triggers (for example `hydrate-on-vi
 Lazy hydration support exists in Nuxt and can materially reduce main-thread work on initial navigation.
 
 ### Execution checklist
-- Inputs to inspect: above-the-fold criticality and interactive timing needs.
-- Minimal verification: non-critical UI defers code/hydration without breaking UX.
-- Stop condition: component must be immediately interactive for first render flow.
+- [ ] Inputs to inspect: above-the-fold criticality and interactive timing needs.
+- [ ] Minimal verification: non-critical UI defers code/hydration without breaking UX.
+- [ ] Stop condition: component must be immediately interactive for first render flow.
 
 ### Rule ID: `perf-reduce-payload-and-asset-cost`
 ### Rule: Reduce payload and asset cost before adding infra complexity
@@ -72,6 +72,6 @@ Trim async-data payload shape, optimize images/fonts/scripts with Nuxt-native to
 Nuxt Image, Nuxt Fonts, and Nuxt Scripts are designed to target LCP/CLS/INP regressions with Nuxt-aware defaults.
 
 ### Execution checklist
-- Inputs to inspect: payload tab, bundle analysis, image/script/font loading paths.
-- Minimal verification: measurable reduction in transferred bytes or blocking work on critical path.
-- Stop condition: bottleneck is backend latency unrelated to client payload/asset behavior.
+- [ ] Inputs to inspect: payload tab, bundle analysis, image/script/font loading paths.
+- [ ] Minimal verification: measurable reduction in transferred bytes or blocking work on critical path.
+- [ ] Stop condition: bottleneck is backend latency unrelated to client payload/asset behavior.

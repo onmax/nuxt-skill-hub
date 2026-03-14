@@ -12,24 +12,24 @@ const stages: PipelineStage[] = [
     label: 'Scan',
     color: 'text-cyan-500 dark:text-cyan-400',
     steps: [
-      { title: 'Detect AI agents', detail: 'Claude, Cursor, Gemini, Codex folders', icon: 'i-lucide-scan-search' },
-      { title: 'Discover modules', detail: 'Nuxt modules, layers, extra packages', icon: 'i-lucide-package-search' },
+      { title: 'Find agent folders', detail: 'Claude, Cursor, Gemini, and Codex targets', icon: 'i-lucide-scan-search' },
+      { title: 'Read your stack', detail: 'Nuxt modules, layers, and extra packages', icon: 'i-lucide-package-search' },
     ],
   },
   {
     label: 'Resolve',
     color: 'text-primary',
     steps: [
-      { title: 'Read from dist', detail: 'Bundled skill files in the package', icon: 'i-lucide-hard-drive' },
-      { title: 'Fetch from GitHub', detail: 'Module repository fallback', icon: 'i-simple-icons-github' },
-      { title: 'Fallback map', detail: 'Curated community skill map', icon: 'i-lucide-map' },
+      { title: 'Prefer packaged skills', detail: 'Use skill files shipped with the package', icon: 'i-lucide-hard-drive' },
+      { title: 'Fall back to GitHub', detail: 'Load the module repository when needed', icon: 'i-simple-icons-github' },
+      { title: 'Use curated mappings', detail: 'Last-resort community skill map', icon: 'i-lucide-map' },
     ],
   },
   {
     label: 'Write',
     color: 'text-amber-500 dark:text-amber-400',
     steps: [
-      { title: 'Generate skill files', detail: 'Merge core + module guidance per agent', icon: 'i-lucide-file-pen-line' },
+      { title: 'Write agent-ready files', detail: 'One entry skill plus module guidance per agent', icon: 'i-lucide-file-pen-line' },
     ],
   },
 ]
@@ -47,9 +47,9 @@ const stages: PipelineStage[] = [
       >
         <div class="mb-12 text-center">
           <p class="mb-3 font-mono text-xs font-medium uppercase tracking-widest text-primary">Pipeline</p>
-          <h2 class="text-3xl font-bold text-highlighted sm:text-4xl">How skills are resolved</h2>
+          <h2 class="text-3xl font-bold text-highlighted sm:text-4xl">How the skill gets built</h2>
           <p class="mx-auto mt-4 max-w-xl text-base leading-relaxed text-muted sm:text-lg">
-            Every <code class="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-sm text-primary">nuxi prepare</code> walks three stages — scan, resolve, write.
+            On every <code class="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-sm text-primary">nuxi prepare</code>, nuxt-skill-hub scans your project, resolves the best available sources, and writes agent-ready files.
           </p>
         </div>
 
@@ -89,10 +89,6 @@ const stages: PipelineStage[] = [
           </motion.div>
         </div>
 
-        <!-- Pipeline arrow hint -->
-        <div class="mt-6 flex justify-center">
-          <span class="font-mono text-xs text-dimmed">local first → fallbacks last</span>
-        </div>
       </motion.div>
     </UContainer>
   </section>

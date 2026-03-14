@@ -198,14 +198,14 @@ const { stop: stopSectionObserver } = useIntersectionObserver(
         >
           <p class="mb-3 font-mono text-xs font-medium uppercase tracking-widest text-primary">How it works</p>
           <h2 class="text-3xl font-bold text-highlighted sm:text-4xl">
-            You just prompt.<br>
-            <span class="text-primary">Your agent gets the context.</span>
+            Keep prompting.<br>
+            <span class="text-primary">Your agent gets the Nuxt context.</span>
           </h2>
           <ul class="mt-6 flex flex-col gap-3">
             <li class="flex items-start gap-2.5 text-muted">
               <UIcon name="i-lucide-folder-search" class="mt-0.5 size-4 shrink-0 text-primary" />
               <span class="flex flex-wrap items-center gap-2">
-                Agents excel at navigating filesystems.
+                Agents already know how to search your codebase.
                 <UButton
                   to="https://vercel.com/blog/how-to-build-agents-with-filesystems-and-bash"
                   target="_blank"
@@ -222,11 +222,11 @@ const { stop: stopSectionObserver } = useIntersectionObserver(
             </li>
             <li class="flex items-start gap-2.5 text-muted">
               <UIcon name="i-lucide-sparkles" class="mt-0.5 size-4 shrink-0 text-primary" />
-              <span>Auto-generated from your modules</span>
+              <span>Generated from your Nuxt stack</span>
             </li>
             <li class="flex items-start gap-2.5 text-muted">
               <UIcon name="i-lucide-file-text" class="mt-0.5 size-4 shrink-0 text-primary" />
-              <span>Single root skill acts as the entry point for your agent</span>
+              <span>A single root skill becomes the entry point for your agent</span>
             </li>
             <li class="flex items-start gap-2.5 text-muted">
               <UIcon name="i-lucide-terminal" class="mt-0.5 size-4 shrink-0 text-primary" />
@@ -274,6 +274,7 @@ const { stop: stopSectionObserver } = useIntersectionObserver(
                 <div v-else-if="entry.type === 'thinking' && entry.skillStep" class="max-w-[90%] shrink-0 overflow-hidden rounded-lg border border-default">
                   <div class="flex items-center gap-2 bg-elevated/50 px-3 py-2">
                     <UIcon name="i-lucide-book-open" class="size-3.5 text-primary" />
+                    <span class="font-mono text-xs text-dimmed">Reading skill</span>
                     <span class="font-mono text-xs font-medium text-primary">{{ entry.skillStep.skill }}</span>
                     <UIcon name="i-lucide-chevron-right" class="size-3 text-dimmed" />
                     <span class="font-mono text-xs font-semibold text-highlighted">{{ entry.skillStep.file }}</span>
@@ -310,6 +311,7 @@ const { stop: stopSectionObserver } = useIntersectionObserver(
                 >
                   <div class="flex items-center gap-2 bg-elevated/50 px-3 py-2">
                     <UIcon name="i-lucide-book-open" class="size-3.5 animate-pulse text-primary" />
+                    <span class="font-mono text-xs text-dimmed">Reading skill</span>
                     <span class="font-mono text-xs font-medium text-primary">{{ liveSkillStep.skill }}</span>
                     <UIcon name="i-lucide-chevron-right" class="size-3 text-dimmed" />
                     <span class="font-mono text-xs font-semibold text-highlighted">{{ liveSkillStep.file }}</span>

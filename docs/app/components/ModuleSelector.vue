@@ -6,12 +6,14 @@ import type { NuxtModuleResult } from '~/composables/useNuxtModuleSearch'
 const props = defineProps<{
   selectedModules: SelectedModule[]
   isSelected: (npm: string) => boolean
+  moduleAuthorMode: boolean
 }>()
 
 const emit = defineEmits<{
   toggle: [id: string]
   remove: [id: string]
   add: [mod: NuxtModuleResult]
+  'update:module-author-mode': [value: boolean]
 }>()
 
 const addModalOpen = ref(false)
@@ -75,7 +77,7 @@ const groups = computed(() => [{
       <p class="font-mono text-xs font-medium uppercase tracking-wider text-dimmed">
         Modules
       </p>
-      <UBadge color="primary" variant="subtle" size="xs">
+      <UBadge color="primary" variant="subtle" size="sm">
         {{ enabledCount }} active
       </UBadge>
     </div>
@@ -145,6 +147,23 @@ const groups = computed(() => [{
 
     <!-- Add module button -->
     <div class="mt-3 px-1">
+      <div class="mb-3 rounded-lg border border-default bg-elevated/40 px-3 py-2.5">
+        <div class="flex items-center justify-between gap-3">
+          <div class="min-w-0">
+            <p class="font-mono text-[11px] uppercase tracking-wider text-dimmed">
+              Module authoring
+            </p>
+            <p class="mt-1 text-xs leading-relaxed text-muted">
+              Add module author guidance to the preview.
+            </p>
+          </div>
+          <USwitch
+            :model-value="props.moduleAuthorMode"
+            size="xs"
+            @update:model-value="emit('update:module-author-mode', $event)"
+          />
+        </div>
+      </div>
       <UButton
         icon="i-lucide-plus"
         variant="outline"
@@ -171,7 +190,7 @@ const groups = computed(() => [{
           />
           <div class="flex items-center gap-2 px-3 py-1.5">
             <USwitch v-model="onlyWithSkill" size="xs" />
-            <span class="font-mono text-xs text-muted">Only with guidance</span>
+            <span class="font-mono text-xs text-muted">Search modules only with skills</span>
           </div>
         </div>
         <UCommandPalette

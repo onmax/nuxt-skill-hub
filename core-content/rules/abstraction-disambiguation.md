@@ -15,9 +15,9 @@ Identify the framework-owned abstraction first, then use generic Vue primitives 
 Visually correct custom code can still be the wrong answer if it bypasses a Nuxt-native abstraction that hidden evals or framework conventions expect.
 
 ### Execution checklist
-- Inputs to inspect: the exact surface being edited and whether Nuxt, Nuxt Content, or Nuxt UI already provides a first-class primitive.
-- Minimal verification: the final solution uses the framework abstraction when one exists.
-- Stop condition: the task explicitly requires behavior outside the owned abstraction.
+- [ ] Inputs to inspect: the exact surface being edited and whether Nuxt, Nuxt Content, or Nuxt UI already provides a first-class primitive.
+- [ ] Minimal verification: the final solution uses the framework abstraction when one exists.
+- [ ] Stop condition: the task explicitly requires behavior outside the owned abstraction.
 
 ### Rule ID: `disambiguation-nearby-concepts-before-editing`
 ### Rule: Resolve nearby concept pairs before changing code
@@ -34,9 +34,9 @@ Explicitly decide the concept pair before editing, such as `definePageMeta` vs `
 Many strong agents fail Nuxt tasks by choosing the wrong nearby abstraction rather than by writing broken code.
 
 ### Execution checklist
-- Inputs to inspect: prompt symptoms, file location, and framework-owned surface.
-- Minimal verification: the chosen abstraction matches the actual responsibility of the change.
-- Stop condition: both concepts are intentionally involved and clearly separated.
+- [ ] Inputs to inspect: prompt symptoms, file location, and framework-owned surface.
+- [ ] Minimal verification: the chosen abstraction matches the actual responsibility of the change.
+- [ ] Stop condition: both concepts are intentionally involved and clearly separated.
 
 ### Rule ID: `disambiguation-do-not-stop-at-visually-correct`
 ### Rule: Do not accept a visually correct result as sufficient
@@ -53,6 +53,6 @@ Check whether the implementation is framework-correct, not only visually correct
 Nuxt evals often reject custom HTML solutions even when they render acceptably, because the intended abstraction was a framework primitive.
 
 ### Execution checklist
-- Inputs to inspect: component usage, slot API, and data source wiring.
-- Minimal verification: the implementation matches the expected framework primitive and API shape.
-- Stop condition: the prompt explicitly asks for custom markup or behavior the primitive cannot support.
+- [ ] Inputs to inspect: component usage, slot API, and data source wiring.
+- [ ] Minimal verification: the implementation matches the expected framework primitive and API shape.
+- [ ] Stop condition: the prompt explicitly asks for custom markup or behavior the primitive cannot support.

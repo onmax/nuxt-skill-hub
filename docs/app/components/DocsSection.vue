@@ -11,6 +11,8 @@ interface Option {
 const options: Option[] = [
   { name: 'skillName', type: 'string', default: 'auto', description: 'Custom skill name. Defaults to nuxt-{package.name}.' },
   { name: 'targets', type: 'SkillHubTarget[]', default: '[]', description: 'Optional explicit agent targets. Leave empty to auto-detect installed agents.' },
+  { name: 'moduleAuthoring', type: 'boolean', default: 'false', description: 'Adds module-author guidance on top of the default Nuxt app skill.' },
+  { name: 'fallbackLinksOnly', type: 'boolean', default: 'true', description: 'Renders generated fallback entries as docs/source links only.' },
 ]
 
 const expandedRow = ref<number | null>(null)
@@ -33,9 +35,9 @@ const { copy, copied } = useClipboard({ copiedDuring: 2000 })
     <UContainer>
       <div class="mx-auto mb-16 max-w-2xl text-center">
         <p class="mb-3 font-mono text-xs font-medium uppercase tracking-widest text-primary">Configuration</p>
-        <h2 class="text-3xl font-bold text-highlighted sm:text-4xl">Module Options</h2>
+        <h2 class="text-3xl font-bold text-highlighted sm:text-4xl">Configure it when you need control</h2>
         <p class="mt-4 text-lg text-muted leading-relaxed">
-          Configure <code class="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-sm text-primary">skillHub</code> in your <code class="rounded bg-muted/20 px-1.5 py-0.5 font-mono text-sm text-highlighted">nuxt.config.ts</code> only when you need a custom skill name or explicit agent targets.
+          Most projects work with the defaults. Configure <code class="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-sm text-primary">skillHub</code> in <code class="rounded bg-muted/20 px-1.5 py-0.5 font-mono text-sm text-highlighted">nuxt.config.ts</code> when you need a custom skill name, explicit agent targets, or extra module-author guidance.
         </p>
       </div>
 

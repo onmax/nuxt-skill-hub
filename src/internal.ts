@@ -8,8 +8,6 @@ import type {
   AgentSkillDeclaration,
   ResolvedContribution,
   SkillHubContribution,
-  SkillManifest,
-  SkillManifestSkipped,
   SkillSourceKind,
   ValidationIssue,
   ValidatedContribution,
@@ -46,6 +44,7 @@ export interface GeneratedModuleEntry {
   packageName: string
   version?: string
   skillName: string
+  entryPath?: string
   sourceDir: string
   destination: string
   scriptsIncluded: boolean
@@ -604,49 +603,6 @@ export function createModuleDestination(baseModulesDir: string, contribution: Sk
     sanitizeSegment(contribution.packageName),
     sanitizeSegment(contribution.skillName || basename(contribution.sourceDir)),
   )
-}
-
-export function createManifest(
-  generatedAt: string,
-  skillName: string,
-  target: SkillHubTarget,
-  targetDir: string,
-  modules: GeneratedModuleEntry[],
-  skipped: SkillManifestSkipped[],
-): SkillManifest {
-  return {
-    version: 1,
-    generatedAt,
-    skillName,
-    target,
-    targetDir,
-    modules: modules
-      .slice()
-      .sort((a, b) => a.destination.localeCompare(b.destination))
-      .map(entry => ({
-        packageName: entry.packageName,
-        version: entry.version,
-        skillName: entry.skillName,
-        sourceDir: entry.sourceDir,
-        destination: entry.destination,
-        scriptsIncluded: entry.scriptsIncluded,
-        description: entry.description,
-        sourceKind: entry.sourceKind,
-        sourceLabel: entry.sourceLabel,
-        sourceRepo: entry.sourceRepo,
-        sourceRef: entry.sourceRef,
-        sourcePath: entry.sourcePath,
-        repoUrl: entry.repoUrl,
-        docsUrl: entry.docsUrl,
-        official: entry.official,
-        trustLevel: entry.trustLevel,
-        resolver: entry.resolver,
-        wrapperPath: entry.wrapperPath,
-      })),
-    skipped: skipped
-      .slice()
-      .sort((a, b) => `${a.packageName}::${a.skillName}`.localeCompare(`${b.packageName}::${b.skillName}`)),
-  }
 }
 
 export function getTargetSkillRoot(

@@ -15,9 +15,9 @@ Use plugins only for true app-wide injection, app hooks, or framework integratio
 Every plugin participates in startup/hydration paths; unnecessary plugins add global boot cost.
 
 ### Execution checklist
-- Inputs to inspect: plugin purpose, usage breadth, and required injection scope.
-- Minimal verification: plugin is justified by app-wide behavior, not convenience alone.
-- Stop condition: integration requires app-level hook/injection semantics.
+- [ ] Inputs to inspect: plugin purpose, usage breadth, and required injection scope.
+- [ ] Minimal verification: plugin is justified by app-wide behavior, not convenience alone.
+- [ ] Stop condition: integration requires app-level hook/injection semantics.
 
 ### Rule ID: `plugin-async-parallel-when-independent`
 ### Rule: Run async plugins in parallel when they are independent
@@ -34,9 +34,9 @@ Use object plugin syntax with `parallel: true`; define `dependsOn` only for real
 Nuxt plugin runtime supports parallel execution and dependency-aware sequencing.
 
 ### Execution checklist
-- Inputs to inspect: plugin async work and inter-plugin dependency graph.
-- Minimal verification: independent plugins run in parallel without race conditions.
-- Stop condition: plugin order is required for correctness.
+- [ ] Inputs to inspect: plugin async work and inter-plugin dependency graph.
+- [ ] Minimal verification: independent plugins run in parallel without race conditions.
+- [ ] Stop condition: plugin order is required for correctness.
 
 ### Rule ID: `plugin-order-controls-only-when-necessary`
 ### Rule: Use plugin ordering controls sparingly
@@ -53,6 +53,6 @@ Keep default order first; use `dependsOn` for explicit dependency edges and rese
 `order` overrides `enforce` and increases maintenance risk when plugin graphs evolve.
 
 ### Execution checklist
-- Inputs to inspect: plugin metadata (`enforce`, `dependsOn`, `order`) and real dependency needs.
-- Minimal verification: ordering metadata is minimal and documented by dependency reason.
-- Stop condition: required order cannot be represented without broad global ordering hacks.
+- [ ] Inputs to inspect: plugin metadata (`enforce`, `dependsOn`, `order`) and real dependency needs.
+- [ ] Minimal verification: ordering metadata is minimal and documented by dependency reason.
+- [ ] Stop condition: required order cannot be represented without broad global ordering hacks.

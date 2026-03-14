@@ -65,7 +65,7 @@ defineOptions({
             class="max-w-4xl text-center text-5xl font-bold leading-[0.92] tracking-tight text-highlighted text-balance sm:text-7xl"
           >
             Teach your AI agent<br>
-            <span class="text-primary">Nuxt.</span>
+            <span class="text-primary">The Nuxt way.</span>
           </motion.h1>
 
           <motion.p
@@ -74,7 +74,7 @@ defineOptions({
             :transition="{ duration: 0.5, delay: 0.2 }"
             class="mt-6 max-w-2xl text-center text-lg leading-relaxed text-muted sm:text-xl"
           >
-            Install one module. Your agent gets best practices, module APIs, and patterns for every Nuxt module in your project.
+            Install one module. Your agent gets Nuxt best practices, module APIs, and project-specific guidance before it changes your code.
           </motion.p>
         </div>
       </template>

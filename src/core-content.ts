@@ -1,7 +1,7 @@
 import { promises as fsp } from 'node:fs'
 import { basename, dirname, join, resolve } from 'pathe'
 import { fileURLToPath } from 'node:url'
-import { DEFAULT_CORE_CONTENT_METADATA, type CoreContentMetadata, normalizeCoreContentMetadata } from './render-content'
+import { DEFAULT_CORE_CONTENT_METADATA, type CoreContentMetadata } from './render-content'
 
 export const CORE_CONTENT_SOURCE_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '../core-content')
 
@@ -32,11 +32,5 @@ export async function loadCoreIndexTemplate(): Promise<string> {
 }
 
 export async function loadCoreMetadata(): Promise<CoreContentMetadata> {
-  try {
-    const raw = await fsp.readFile(join(CORE_CONTENT_SOURCE_DIR, 'metadata.json'), 'utf8')
-    return normalizeCoreContentMetadata(JSON.parse(raw))
-  }
-  catch {
-    return DEFAULT_CORE_CONTENT_METADATA
-  }
+  return DEFAULT_CORE_CONTENT_METADATA
 }

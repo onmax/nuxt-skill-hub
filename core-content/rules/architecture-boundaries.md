@@ -15,9 +15,9 @@ Move sensitive logic to `server/api/*` handlers, server utilities, or server plu
 Anything in `runtimeConfig.public` is client-visible.
 
 ### Execution checklist
-- Inputs to inspect: changed files in `server/`, `composables/`, and `runtimeConfig` usage.
-- Minimal verification: no secret values or token checks in client bundles.
-- Stop condition: a required server-only check cannot be moved out of client code.
+- [ ] Inputs to inspect: changed files in `server/`, `composables/`, and `runtimeConfig` usage.
+- [ ] Minimal verification: no secret values or token checks in client bundles.
+- [ ] Stop condition: a required server-only check cannot be moved out of client code.
 
 ### Rule ID: `arch-request-safe-state`
 ### Rule: Use request-safe state boundaries
@@ -34,9 +34,9 @@ Use `useState`/composables for shared state and pass request context explicitly 
 SSR runs per request; module globals can leak state across requests.
 
 ### Execution checklist
-- Inputs to inspect: shared state in module scope and composable state factories.
-- Minimal verification: request-specific data is not shared globally.
-- Stop condition: solution depends on mutable globals without explicit isolation.
+- [ ] Inputs to inspect: shared state in module scope and composable state factories.
+- [ ] Minimal verification: request-specific data is not shared globally.
+- [ ] Stop condition: solution depends on mutable globals without explicit isolation.
 
 ### Rule ID: `arch-server-entrypoint-for-sensitive-io`
 ### Rule: Keep sensitive I/O behind server entrypoints
@@ -53,6 +53,6 @@ Expose a constrained `server/api/*` boundary and call it from client/UI code.
 `useFetch('/api/*')` on server uses request-aware fetch behavior; external APIs require explicit header allowlisting.
 
 ### Execution checklist
-- Inputs to inspect: upstream fetch targets, header forwarding, and token placement.
-- Minimal verification: browser code only talks to safe internal endpoints.
-- Stop condition: architecture requires direct client access to privileged credentials.
+- [ ] Inputs to inspect: upstream fetch targets, header forwarding, and token placement.
+- [ ] Minimal verification: browser code only talks to safe internal endpoints.
+- [ ] Stop condition: architecture requires direct client access to privileged credentials.

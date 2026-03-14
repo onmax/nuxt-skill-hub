@@ -1,6 +1,6 @@
 import { promises as fsp } from 'node:fs'
 import { basename, join, resolve } from 'pathe'
-import { DEFAULT_CORE_CONTENT_METADATA, normalizeCoreContentMetadata, type CoreContentMetadata } from '~~/shared/skill-preview'
+import { DEFAULT_CORE_CONTENT_METADATA, type CoreContentMetadata } from '~~/shared/skill-preview'
 
 const coreContentDir = resolve(process.cwd(), '..', 'core-content')
 
@@ -37,11 +37,5 @@ export async function loadCoreRuleFiles(): Promise<Record<string, string>> {
 }
 
 export async function loadCoreMetadata(): Promise<CoreContentMetadata> {
-  try {
-    const raw = await fsp.readFile(join(coreContentDir, 'metadata.json'), 'utf8')
-    return normalizeCoreContentMetadata(JSON.parse(raw))
-  }
-  catch {
-    return DEFAULT_CORE_CONTENT_METADATA
-  }
+  return DEFAULT_CORE_CONTENT_METADATA
 }

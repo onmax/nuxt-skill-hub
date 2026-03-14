@@ -2,9 +2,9 @@ export default defineNuxtConfig({
   modules: ['@nuxt/ui', '@vueuse/nuxt', 'motion-v/nuxt', '@nuxtjs/mdc', 'nuxt-og-image'],
   app: {
     head: {
-      title: 'nuxt-skill-hub — Teach your AI agent Nuxt.',
+      title: 'nuxt-skill-hub — Teach your AI agent the Nuxt way.',
       meta: [
-        { name: 'description', content: 'Install one module. Your agent gets best practices, module APIs, and patterns for every Nuxt module in your project.' },
+        { name: 'description', content: 'Install one module. Your agent gets Nuxt best practices, module APIs, and project-specific guidance before it changes your code.' },
       ],
       link: [
         { rel: 'preconnect', href: 'https://fonts.googleapis.com' },

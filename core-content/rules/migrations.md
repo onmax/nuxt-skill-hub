@@ -15,9 +15,9 @@ Split migration into small steps with explicit validation after each step.
 Validate both SSR render path and client hydration path.
 
 ### Execution checklist
-- Inputs to inspect: changed APIs, config keys, and migration commit boundaries.
-- Minimal verification: each slice can be reverted independently.
-- Stop condition: migration cannot be tested incrementally.
+- [ ] Inputs to inspect: changed APIs, config keys, and migration commit boundaries.
+- [ ] Minimal verification: each slice can be reverted independently.
+- [ ] Stop condition: migration cannot be tested incrementally.
 
 ### Rule ID: `migration-upgrade-touched-deprecations`
 ### Rule: Remove deprecated APIs in touched areas
@@ -34,9 +34,9 @@ Upgrade touched deprecated usage while context is active.
 Prefer official migration mappings over ad-hoc replacements.
 
 ### Execution checklist
-- Inputs to inspect: touched deprecated symbols and replacement mapping.
-- Minimal verification: no deprecated usage remains in modified files.
-- Stop condition: required replacement API is not yet stable in target version.
+- [ ] Inputs to inspect: touched deprecated symbols and replacement mapping.
+- [ ] Minimal verification: no deprecated usage remains in modified files.
+- [ ] Stop condition: required replacement API is not yet stable in target version.
 
 ### Rule ID: `migration-verify-ssr-and-hydration`
 ### Rule: Verify both server render and hydration behavior after each slice
@@ -53,6 +53,6 @@ Validate SSR output, hydration warnings, critical data paths, and route navigati
 Nuxt migrations can pass type checks while still regressing payload transfer or hydration behavior.
 
 ### Execution checklist
-- Inputs to inspect: browser console hydration warnings, route transitions, and async-data behavior.
-- Minimal verification: no hydration mismatch warnings and no duplicate initial fetch regressions.
-- Stop condition: environment lacks a runnable app context for runtime verification.
+- [ ] Inputs to inspect: browser console hydration warnings, route transitions, and async-data behavior.
+- [ ] Minimal verification: no hydration mismatch warnings and no duplicate initial fetch regressions.
+- [ ] Stop condition: environment lacks a runnable app context for runtime verification.

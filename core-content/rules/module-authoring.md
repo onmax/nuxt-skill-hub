@@ -15,9 +15,9 @@ Keep `setup` lightweight and defer heavier tasks to lifecycle hooks or deferred 
 Nuxt warns when module setup takes too long; slow setup delays dev server and build startup.
 
 ### Execution checklist
-- Inputs to inspect: `defineNuxtModule` setup body and async operations.
-- Minimal verification: startup-critical path avoids long blocking work.
-- Stop condition: required initialization must complete before app/module lifecycle proceeds.
+- [ ] Inputs to inspect: `defineNuxtModule` setup body and async operations.
+- [ ] Minimal verification: startup-critical path avoids long blocking work.
+- [ ] Stop condition: required initialization must complete before app/module lifecycle proceeds.
 
 ### Rule ID: `module-prefix-public-exports`
 ### Rule: Prefix public exports and routes
@@ -34,9 +34,9 @@ Prefix public surface with module identity (`useFooData`, `<FooButton>`, `/api/_
 Unprefixed module routes/components collide easily with app code and other modules.
 
 ### Execution checklist
-- Inputs to inspect: names of components/composables/runtime API routes.
-- Minimal verification: exported names are collision-resistant and module-scoped.
-- Stop condition: backward compatibility policy requires legacy unprefixed aliases.
+- [ ] Inputs to inspect: names of components/composables/runtime API routes.
+- [ ] Minimal verification: exported names are collision-resistant and module-scoped.
+- [ ] Stop condition: backward compatibility policy requires legacy unprefixed aliases.
 
 ### Rule ID: `module-public-kit-apis-only`
 ### Rule: Prefer documented Nuxt Kit APIs over internals
@@ -53,9 +53,9 @@ Use stable `@nuxt/kit` APIs, documented hooks, and declared compatibility constr
 Private internals can break across minor/patch updates even when compatibility appears broad.
 
 ### Execution checklist
-- Inputs to inspect: imported kit functions/hooks and internal path imports.
-- Minimal verification: implementation uses public Nuxt APIs with explicit compatibility.
-- Stop condition: required behavior has no documented public API yet.
+- [ ] Inputs to inspect: imported kit functions/hooks and internal path imports.
+- [ ] Minimal verification: implementation uses public Nuxt APIs with explicit compatibility.
+- [ ] Stop condition: required behavior has no documented public API yet.
 
 ### Rule ID: `module-skill-scope-only`
 ### Rule: Scope module skills to module APIs only
@@ -72,6 +72,6 @@ Document only module APIs, integration points, and module-specific caveats.
 Module guidance can override core only inside that module's explicit scope.
 
 ### Execution checklist
-- Inputs to inspect: skill frontmatter, rule language, examples.
-- Minimal verification: instructions are module-scoped and version-aligned.
-- Stop condition: module skill introduces global rules unrelated to module behavior.
+- [ ] Inputs to inspect: skill frontmatter, rule language, examples.
+- [ ] Minimal verification: instructions are module-scoped and version-aligned.
+- [ ] Stop condition: module skill introduces global rules unrelated to module behavior.

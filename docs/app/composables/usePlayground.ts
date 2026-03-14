@@ -30,6 +30,7 @@ export function usePlayground() {
   }))
 
   const selectedModulesState = useLocalStorage<SelectedModule[]>('playground-modules-v2', defaults)
+  const moduleAuthorMode = useLocalStorage<boolean>('playground-module-author-mode', false)
 
   const { data: moduleCatalogData } = useFetch<{ modules: NuxtModuleResult[] }>('/api/nuxt-modules', {
     default: () => ({ modules: [] }),
@@ -100,35 +101,10 @@ export function usePlayground() {
 
     const metadata = d.metadata as CoreContentMetadata
     const moduleEntries = modulePreviewEntries.value
-    const manifest = {
-      ...d.manifest,
-      modules: moduleEntries.map(entry => ({
-        packageName: entry.packageName,
-        version: entry.version,
-        skillName: entry.skillName,
-        sourceDir: `preview/${entry.packageName}`,
-        destination: `references/modules/${entry.packageName}/${entry.skillName}`,
-        scriptsIncluded: entry.scriptsIncluded,
-        description: entry.description,
-        sourceKind: entry.sourceKind,
-        sourceLabel: entry.sourceLabel,
-        sourceRepo: entry.sourceRepo,
-        sourceRef: entry.sourceRef,
-        sourcePath: entry.sourcePath,
-        repoUrl: entry.repoUrl,
-        docsUrl: entry.docsUrl,
-        official: entry.official,
-        trustLevel: entry.trustLevel,
-        resolver: entry.resolver,
-        wrapperPath: entry.wrapperPath,
-      })),
-    }
 
     const files: Record<string, SkillFile> = {}
-    files['SKILL.md'] = { name: 'SKILL.md', path: 'SKILL.md', language: 'markdown', content: createSkillEntrypoint('nuxt', metadata), sourceHref: repoSource(`${generatedSkillRoot}/SKILL.md`) }
-    files['manifest.json'] = { name: 'manifest.json', path: 'manifest.json', language: 'json', content: JSON.stringify(manifest, null, 2), sourceHref: repoSource(`${generatedSkillRoot}/manifest.json`) }
-    files['references/index.md'] = { name: 'index.md', path: 'references/index.md', language: 'markdown', content: createReferencesIndexContent(metadata, moduleEntries), sourceHref: repoSource(`${generatedSkillRoot}/references/index.md`) }
-    files['references/core/metadata.json'] = { name: 'metadata.json', path: 'references/core/metadata.json', language: 'json', content: JSON.stringify(d.metadata, null, 2), sourceHref: repoSource('core-content/metadata.json') }
+    files['SKILL.md'] = { name: 'SKILL.md', path: 'SKILL.md', language: 'markdown', content: createSkillEntrypoint('nuxt', metadata, undefined, moduleAuthorMode.value), sourceHref: repoSource(`${generatedSkillRoot}/SKILL.md`) }
+    files['references/index.md'] = { name: 'index.md', path: 'references/index.md', language: 'markdown', content: createReferencesIndexContent(metadata, moduleEntries, [], moduleAuthorMode.value), sourceHref: repoSource(`${generatedSkillRoot}/references/index.md`) }
     files['references/modules/_list.md'] = {
       name: '_list.md',
       path: 'references/modules/_list.md',
@@ -260,7 +236,7 @@ export function usePlayground() {
     activeFilePath.value = path
   }
 
-  return { selectedModules, selectedModuleIds, activeFilePath, fileTree, activeFile, toggleModule, removeModule, addModule, isSelected, selectFile }
+  return { selectedModules, selectedModuleIds, activeFilePath, activeFile, fileTree, moduleAuthorMode, toggleModule, removeModule, addModule, isSelected, selectFile }
 }
 
 function createPreviewModuleEntry(module: SelectedModule, moduleFiles: Record<string, string>): SkillModuleRenderEntry {
@@ -272,6 +248,7 @@ function createPreviewModuleEntry(module: SelectedModule, moduleFiles: Record<st
     packageName: module.packageName,
     version: undefined,
     skillName,
+    entryPath: `references/modules/${module.id}/SKILL.md`,
     description: frontmatter?.description,
     scriptsIncluded: Object.keys(moduleFiles).some(path => path === 'scripts' || path.startsWith('scripts/')),
     sourceKind,
@@ -284,7 +261,6 @@ function createPreviewModuleEntry(module: SelectedModule, moduleFiles: Record<st
     official: true,
     trustLevel: getTrustLevel(true),
     resolver: 'githubHeuristic',
-    wrapperPath: `references/modules/${module.id}/${skillName}.md`,
   }
 }
 
@@ -295,6 +271,7 @@ function createGeneratedPreviewModuleEntry(module: SelectedModule): SkillModuleR
     packageName: module.packageName,
     version: undefined,
     skillName,
+    entryPath: `references/modules/${module.id}/${skillName}.md`,
     description: module.description,
     scriptsIncluded: false,
     sourceKind: 'generated',

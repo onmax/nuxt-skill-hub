@@ -23,8 +23,15 @@ export interface InvalidTarget {
 }
 
 function resolveSkillsDir(target: SkillHubTarget, config: AgentConfig | undefined): string | undefined {
-  void target
-  return config?.skillsDir
+  if (config?.skillsDir) {
+    return config.skillsDir
+  }
+
+  if (target === 'codex') {
+    return 'skills'
+  }
+
+  return undefined
 }
 
 function normalizeTarget(target: string): string {

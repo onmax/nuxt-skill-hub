@@ -59,7 +59,6 @@ export function buildFileTree(coreFileKeys: string[], selectedModuleIds: string[
 
   return [
     { label: 'SKILL.md', icon: 'i-lucide-file-text', value: 'SKILL.md' },
-    { label: 'manifest.json', icon: 'i-lucide-file-json', value: 'manifest.json' },
     {
       value: 'dir:references',
       label: 'references',
@@ -73,7 +72,6 @@ export function buildFileTree(coreFileKeys: string[], selectedModuleIds: string[
           icon: 'i-lucide-folder',
           defaultExpanded: false,
           children: [
-            { label: 'metadata.json', icon: 'i-lucide-file-json', value: 'references/core/metadata.json' },
             ...(ruleFiles.length > 0 ? [{ value: 'dir:rules', label: 'rules', icon: 'i-lucide-folder', children: ruleFiles }] : []),
           ],
         },

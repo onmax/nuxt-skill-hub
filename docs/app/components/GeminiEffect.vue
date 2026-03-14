@@ -10,14 +10,17 @@ interface ModuleNode {
   docsUrl: string
 }
 
-const modulePool: ModuleNode[] = [
+const colorMode = useColorMode()
+const betterAuthColor = computed(() => colorMode.value === 'dark' ? '#ffffff' : '#111111')
+
+const modulePool = computed<ModuleNode[]>(() => [
   { id: 'nuxt-ui', label: 'Nuxt UI', icon: 'i-skill-logos-nuxt-ui', color: '#22c55e', command: 'npx nuxt module add @nuxt/ui', docsUrl: 'https://ui.nuxt.com/' },
   { id: 'nuxt-content', label: 'Nuxt Content', icon: 'i-skill-logos-nuxt-content', color: '#22c55e', command: 'npx nuxt module add @nuxt/content', docsUrl: 'https://content.nuxt.com/' },
-  { id: 'nuxt-better-auth', label: 'Nuxt Better Auth', icon: 'i-skill-logos-better-auth', color: '#111111', command: 'npx nuxt module add @onmax/nuxt-better-auth', docsUrl: 'https://better-auth.nuxt.dev/' },
+  { id: 'nuxt-better-auth', label: 'Nuxt Better Auth', icon: 'i-skill-logos-better-auth', color: betterAuthColor.value, command: 'npx nuxt module add @onmax/nuxt-better-auth', docsUrl: 'https://better-auth.nuxt.dev/' },
   { id: 'nuxt-seo', label: 'Nuxt SEO', icon: 'i-skill-logos-nuxt-seo', color: '#38bdf8', command: 'npx nuxt module add nuxt-seo', docsUrl: 'https://nuxtseo.com/' },
   { id: 'vitest', label: 'Vitest', icon: 'i-skill-logos-vitest', color: '#fbbf24', command: 'npx nuxt module add vitest', docsUrl: 'https://vitest.dev/' },
   { id: 'vueuse', label: 'VueUse Nuxt', icon: 'i-skill-logos-vueuse', color: '#34d399', command: 'npx nuxt module add @vueuse/nuxt', docsUrl: 'https://vueuse.org/nuxt/readme.html' },
-]
+])
 
 type Phase = 'hidden' | 'pill-appear' | 'typing' | 'morph' | 'line' | 'connected'
 
@@ -91,8 +94,9 @@ async function runAnimation() {
   connectedIcons.value = []
 
   // Shuffle slot order so modules don't always appear top-left first
-  const slotOrder = [...Array(modulePool.length).keys()].sort(() => Math.random() - 0.5)
-  const shuffled = slotOrder.map(i => modulePool[i]!)
+  const pool = modulePool.value
+  const slotOrder = [...Array(pool.length).keys()].sort(() => Math.random() - 0.5)
+  const shuffled = slotOrder.map(i => pool[i]!)
   states.value = slots.map((_, i) => ({ mod: shuffled[i]!, phase: 'hidden' as Phase, typedText: '', lineProgress: 0 }))
 
   const wait = (ms: number) => new Promise<void>((resolve, reject) => {

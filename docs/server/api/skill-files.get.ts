@@ -9,22 +9,10 @@ export default defineEventHandler(async () => {
   const skillEntrypoint = createSkillEntrypoint('nuxt', metadata)
   const referencesIndex = createReferencesIndexContent(metadata, [])
 
-  // Build manifest
-  const manifest = {
-    version: 1,
-    generatedAt: new Date().toISOString(),
-    skillName: 'nuxt',
-    target: 'claude-code',
-    targetDir: '.claude/skills/nuxt',
-    modules: [],
-    skipped: [],
-  }
-
   return {
     metadata,
     skillEntrypoint,
     referencesIndex,
-    manifest,
     coreFiles: Object.fromEntries(coreFiles),
   }
 })

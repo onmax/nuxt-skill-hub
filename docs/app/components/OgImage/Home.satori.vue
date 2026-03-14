@@ -72,7 +72,7 @@
           Teach your AI agent
         </span>
         <span :style="{ fontSize: '72px', fontWeight: '700', color: '#00dc82', letterSpacing: '-0.025em' }">
-          Nuxt.
+          The Nuxt way.
         </span>
       </div>
 
@@ -85,7 +85,7 @@
           lineHeight: '1.5',
         }"
       >
-        Best practices, module APIs, and patterns for every Nuxt module in your project.
+        Nuxt best practices, module APIs, and project-specific guidance before your agent changes code.
       </div>
 
       <div

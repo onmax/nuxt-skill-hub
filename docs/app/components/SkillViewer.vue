@@ -111,7 +111,7 @@ onUnmounted(() => clearInterval(interval))
 </script>
 
 <template>
-  <div class="flex min-h-[32rem] overflow-hidden rounded-xl border border-default bg-elevated md:h-full md:min-h-0">
+  <div class="flex h-full max-h-full min-h-0 overflow-hidden rounded-xl border border-default bg-elevated">
     <div class="flex w-full flex-col md:hidden">
       <div class="flex items-center justify-between gap-3 border-b border-default bg-muted/70 px-3 py-2">
         <div class="flex items-center gap-2 rounded-full border border-default bg-default p-1">
@@ -154,9 +154,11 @@ onUnmounted(() => clearInterval(interval))
             :items="fileTree"
             color="primary"
             size="xs"
+            trailing-icon="i-lucide-chevron-right"
             :ui="{
-              link: 'font-mono text-xs',
+              link: 'font-mono text-xs group/tl',
               linkLeadingIcon: 'size-3.5',
+              linkTrailingIcon: 'opacity-80 group-hover/tl:opacity-90 transition-all duration-200 group-data-expanded/tl:opacity-100 group-data-expanded/tl:rotate-90',
             }"
           />
         </div>
@@ -217,11 +219,11 @@ onUnmounted(() => clearInterval(interval))
             tag="article"
             :body="renderedMarkdown.body"
             :data="renderedMarkdown.data"
-            class="text-sm leading-7 text-default [&_a]:text-primary [&_code]:rounded-sm [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.85em] [&_h1]:mb-4 [&_h1]:font-mono [&_h1]:text-xl [&_h1]:font-semibold [&_h2]:mb-3 [&_h2]:mt-6 [&_h2]:font-mono [&_h2]:text-lg [&_h2]:font-semibold [&_h3]:mb-2 [&_h3]:mt-5 [&_h3]:font-mono [&_h3]:text-base [&_h3]:font-semibold [&_li]:ml-5 [&_li]:list-disc [&_p]:my-3 [&_pre]:my-4 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:border [&_pre]:border-default [&_pre]:bg-muted [&_pre]:p-3 [&_pre]:font-mono [&_pre]:text-xs"
+            class="text-base leading-7 text-default [&_a]:text-primary [&_code]:rounded-sm [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.85em] [&_h1]:mb-4 [&_h1]:font-mono [&_h1]:text-2xl [&_h1]:font-semibold [&_h2]:mb-3 [&_h2]:mt-6 [&_h2]:font-mono [&_h2]:text-xl [&_h2]:font-semibold [&_h3]:mb-2 [&_h3]:mt-5 [&_h3]:font-mono [&_h3]:text-lg [&_h3]:font-semibold [&_li]:ml-5 [&_li]:list-disc [&_p]:my-3 [&_pre]:my-4 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:border [&_pre]:border-default [&_pre]:bg-muted [&_pre]:p-3 [&_pre]:font-mono [&_pre]:text-sm"
           />
           <pre
             v-else-if="activeFile"
-            class="font-mono text-xs leading-relaxed whitespace-pre-wrap text-default"
+            class="overflow-auto font-mono text-xs leading-relaxed whitespace-pre-wrap text-default"
           ><code>{{ activeFile.content }}</code></pre>
           <div
             v-else
@@ -265,9 +267,11 @@ onUnmounted(() => clearInterval(interval))
           :items="fileTree"
           color="primary"
           size="xs"
+          trailing-icon="i-lucide-chevron-right"
           :ui="{
-            link: 'font-mono text-xs',
+            link: 'font-mono text-xs group/tl',
             linkLeadingIcon: 'size-3.5',
+            linkTrailingIcon: 'opacity-80 group-hover/tl:opacity-90 group-data-expanded/tl:opacity-100 group-data-expanded/tl:rotate-90 transition-all duration-200',
           }"
         />
       </div>
@@ -326,7 +330,7 @@ onUnmounted(() => clearInterval(interval))
           tag="article"
           :body="renderedMarkdown.body"
           :data="renderedMarkdown.data"
-          class="text-sm leading-7 text-default [&_a]:text-primary [&_code]:rounded-sm [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.85em] [&_h1]:mb-4 [&_h1]:font-mono [&_h1]:text-xl [&_h1]:font-semibold [&_h2]:mb-3 [&_h2]:mt-6 [&_h2]:font-mono [&_h2]:text-lg [&_h2]:font-semibold [&_h3]:mb-2 [&_h3]:mt-5 [&_h3]:font-mono [&_h3]:text-base [&_h3]:font-semibold [&_li]:ml-5 [&_li]:list-disc [&_p]:my-3 [&_pre]:my-4 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:border [&_pre]:border-default [&_pre]:bg-muted [&_pre]:p-3 [&_pre]:font-mono [&_pre]:text-xs"
+          class="text-base leading-7 text-default [&_a]:text-primary [&_code]:rounded-sm [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.85em] [&_h1]:mb-4 [&_h1]:font-mono [&_h1]:text-2xl [&_h1]:font-semibold [&_h2]:mb-3 [&_h2]:mt-6 [&_h2]:font-mono [&_h2]:text-xl [&_h2]:font-semibold [&_h3]:mb-2 [&_h3]:mt-5 [&_h3]:font-mono [&_h3]:text-lg [&_h3]:font-semibold [&_li]:ml-5 [&_li]:list-disc [&_p]:my-3 [&_pre]:my-4 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:border [&_pre]:border-default [&_pre]:bg-muted [&_pre]:p-3 [&_pre]:font-mono [&_pre]:text-sm"
         />
         <pre
           v-else-if="activeFile"

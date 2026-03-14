@@ -15,9 +15,9 @@ Identify whether the issue needs a global error surface, a local boundary, or bo
 Nuxt error handling is often multi-surface; solving only half the pattern is a recurring failure mode in strong models.
 
 ### Execution checklist
-- Inputs to inspect: where the error originates and whether recovery is route-wide or local to a subtree.
-- Minimal verification: the intended error surface actually receives and renders the failure.
-- Stop condition: the issue is intentionally scoped to one surface only.
+- [ ] Inputs to inspect: where the error originates and whether recovery is route-wide or local to a subtree.
+- [ ] Minimal verification: the intended error surface actually receives and renders the failure.
+- [ ] Stop condition: the issue is intentionally scoped to one surface only.
 
 ### Rule ID: `error-use-nuxt-recovery-utilities`
 ### Rule: Use Nuxt recovery helpers instead of ad hoc reset logic
@@ -34,6 +34,6 @@ Use Nuxt error helpers such as `clearError`, `showError`, and framework-supporte
 Custom reset logic can leave the app in an inconsistent state if it bypasses Nuxt's error lifecycle.
 
 ### Execution checklist
-- Inputs to inspect: current error state flow and whether Nuxt helpers are already present.
-- Minimal verification: recovery clears the error surface and restores intended navigation or rendering behavior.
-- Stop condition: the task explicitly requires a non-standard recovery path.
+- [ ] Inputs to inspect: current error state flow and whether Nuxt helpers are already present.
+- [ ] Minimal verification: recovery clears the error surface and restores intended navigation or rendering behavior.
+- [ ] Stop condition: the task explicitly requires a non-standard recovery path.

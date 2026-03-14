@@ -15,9 +15,9 @@ Use `definePageMeta` in page files for page behavior and routing-related options
 `definePageMeta` is about how a page behaves inside the app, not what goes into the document head.
 
 ### Execution checklist
-- Inputs to inspect: whether the change lives in a page file and affects app behavior rather than head tags.
-- Minimal verification: page behavior is expressed through page metadata instead of custom glue.
-- Stop condition: the change is not page-scoped.
+- [ ] Inputs to inspect: whether the change lives in a page file and affects app behavior rather than head tags.
+- [ ] Minimal verification: page behavior is expressed through page metadata instead of custom glue.
+- [ ] Stop condition: the change is not page-scoped.
 
 ### Rule ID: `page-use-head-for-document-metadata`
 ### Rule: Use `useHead` or `useSeoMeta` for title and meta tags
@@ -34,9 +34,9 @@ Use `useHead` for general document head state and `useSeoMeta` for SEO-focused m
 Head metadata and page metadata are adjacent concepts but are not interchangeable.
 
 ### Execution checklist
-- Inputs to inspect: the exact metadata surface being changed.
-- Minimal verification: head data is emitted through Nuxt head composables.
-- Stop condition: the task is about route behavior, layout, or middleware instead.
+- [ ] Inputs to inspect: the exact metadata surface being changed.
+- [ ] Minimal verification: head data is emitted through Nuxt head composables.
+- [ ] Stop condition: the task is about route behavior, layout, or middleware instead.
 
 ### Rule ID: `page-layout-structure-belongs-in-layouts`
 ### Rule: Put shared page chrome and structure in layouts or framework shells
@@ -53,6 +53,6 @@ Use layout files or framework-owned shell primitives for shared structure.
 Layout confusion often travels with `definePageMeta` vs `useHead` confusion, so resolve both surfaces together.
 
 ### Execution checklist
-- Inputs to inspect: whether the structure is shared across pages and whether a layout already exists.
-- Minimal verification: shared shell concerns live in the layout layer, not duplicated page markup.
-- Stop condition: the structure is intentionally page-specific.
+- [ ] Inputs to inspect: whether the structure is shared across pages and whether a layout already exists.
+- [ ] Minimal verification: shared shell concerns live in the layout layer, not duplicated page markup.
+- [ ] Stop condition: the structure is intentionally page-specific.

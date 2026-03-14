@@ -7,7 +7,6 @@ import { loadCoreMetadata } from './core-content'
 import {
   discoverInstalledPackageFromDirectory,
   copySkillTree,
-  createManifest,
   createModuleDestination,
   buildCoreTemplateFiles,
   createReferencesIndexTemplate,
@@ -121,6 +120,8 @@ export default defineNuxtModule<ModuleOptions>({
   defaults: {
     skillName: '',
     targets: [],
+    moduleAuthoring: false,
+    fallbackLinksOnly: true,
   },
   async setup(options, nuxt) {
     const logger = useLogger('nuxt-skill-hub')
@@ -143,6 +144,7 @@ export default defineNuxtModule<ModuleOptions>({
     }
 
     nuxt.hook('modules:done', async () => {
+      const fallbackLinksOnly = options.fallbackLinksOnly !== false
       const exportRoot = await resolveExportRoot(nuxt.options.rootDir)
       const monorepoScopePath = resolveMonorepoScopePath(nuxt.options.rootDir, exportRoot)
       const manualContributions: SkillHubContribution[] = []
@@ -276,11 +278,10 @@ export default defineNuxtModule<ModuleOptions>({
         return
       }
 
-      const generatedAt = new Date().toISOString()
       const coreMetadata = await loadCoreMetadata()
 
       for (const target of targets) {
-        const { targetDir, skillRoot } = getTargetSkillRoot(exportRoot, target, resolvedSkillName)
+        const { skillRoot } = getTargetSkillRoot(exportRoot, target, resolvedSkillName)
         const referencesRoot = join(skillRoot, 'references')
         const coreRoot = join(referencesRoot, 'core')
         const modulesRoot = join(referencesRoot, 'modules')
@@ -289,7 +290,7 @@ export default defineNuxtModule<ModuleOptions>({
         await ensureDir(coreRoot)
         await ensureDir(modulesRoot)
 
-        await writeFileIfChanged(join(skillRoot, 'SKILL.md'), createSkillEntrypoint(resolvedSkillName, coreMetadata, monorepoScopePath))
+        await writeFileIfChanged(join(skillRoot, 'SKILL.md'), createSkillEntrypoint(resolvedSkillName, coreMetadata, monorepoScopePath, Boolean(options.moduleAuthoring)))
 
         const coreTemplateFiles = await buildCoreTemplateFiles(coreRoot)
         for (const file of coreTemplateFiles) {
@@ -309,35 +310,45 @@ export default defineNuxtModule<ModuleOptions>({
           const includeScripts = contribution.forceIncludeScripts
           const destination = createModuleDestination(modulesRoot, contribution)
           await copySkillTree(contribution.sourceDir, destination, includeScripts)
+          const isMetadataRouter = contribution.sourceKind === 'generated'
+          const wrapperPath = isMetadataRouter
+            ? join(
+                modulesRoot,
+                sanitizeSegment(contribution.packageName),
+                `${sanitizeSegment(contribution.skillName)}.md`,
+              )
+            : undefined
 
-          const wrapperPath = join(
-            modulesRoot,
-            sanitizeSegment(contribution.packageName),
-            `${sanitizeSegment(contribution.skillName)}.md`,
-          )
-          const wrapperContent = createModuleWrapperContent({
-            packageName: contribution.packageName,
-            version: contribution.version,
-            skillName: contribution.skillName,
-            description: contribution.description,
-            scriptsIncluded: includeScripts,
-            sourceKind: contribution.sourceKind,
-            sourceLabel: getSourceLabel(contribution.sourceKind),
-            sourceRepo: contribution.sourceRepo,
-            sourceRef: contribution.sourceRef,
-            sourcePath: contribution.sourcePath,
-            repoUrl: contribution.repoUrl,
-            docsUrl: contribution.docsUrl,
-            official: contribution.official,
-            trustLevel: getTrustLevel(contribution.official),
-            resolver: contribution.resolver,
-          })
-          await writeFileIfChanged(wrapperPath, wrapperContent)
+          if (wrapperPath) {
+            const wrapperContent = createModuleWrapperContent({
+              packageName: contribution.packageName,
+              version: contribution.version,
+              skillName: contribution.skillName,
+              description: contribution.description,
+              scriptsIncluded: includeScripts,
+              sourceKind: contribution.sourceKind,
+              sourceLabel: getSourceLabel(contribution.sourceKind),
+              sourceRepo: contribution.sourceRepo,
+              sourceRef: contribution.sourceRef,
+              sourcePath: contribution.sourcePath,
+              repoUrl: contribution.repoUrl,
+              docsUrl: contribution.docsUrl,
+              official: contribution.official,
+              trustLevel: getTrustLevel(contribution.official),
+              resolver: contribution.resolver,
+            }, { fallbackLinksOnly })
+            await writeFileIfChanged(wrapperPath, wrapperContent)
+          }
+
+          const entryPath = wrapperPath
+            ? relative(skillRoot, wrapperPath)
+            : relative(skillRoot, join(destination, 'SKILL.md'))
 
           generatedEntries.push({
             packageName: contribution.packageName,
             version: contribution.version,
             skillName: contribution.skillName,
+            entryPath,
             sourceDir: contribution.sourceDir,
             destination: (relative(skillRoot, destination)),
             scriptsIncluded: includeScripts,
@@ -352,7 +363,7 @@ export default defineNuxtModule<ModuleOptions>({
             official: contribution.official,
             trustLevel: getTrustLevel(contribution.official),
             resolver: contribution.resolver,
-            wrapperPath: relative(skillRoot, wrapperPath),
+            wrapperPath: wrapperPath ? relative(skillRoot, wrapperPath) : undefined,
           })
         }
 
@@ -362,17 +373,7 @@ export default defineNuxtModule<ModuleOptions>({
         const referencesIndexTemplate = createReferencesIndexTemplate()
         const referencesIndexTemplatePath = join(referencesRoot, 'index.template.md')
         await writeFileIfChanged(referencesIndexTemplatePath, referencesIndexTemplate)
-        await writeFileIfChanged(join(referencesRoot, 'index.md'), createReferencesIndexContent(coreMetadata, generatedEntries, skipped))
-
-        const manifest = createManifest(
-          generatedAt,
-          resolvedSkillName,
-          target,
-          (targetDir),
-          generatedEntries,
-          skipped,
-        )
-        await writeFileIfChanged(join(skillRoot, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`)
+        await writeFileIfChanged(join(referencesRoot, 'index.md'), createReferencesIndexContent(coreMetadata, generatedEntries, skipped, Boolean(options.moduleAuthoring)))
 
         logger.success(`Generated ${resolvedSkillName} skill at ${(skillRoot)}`)
       }

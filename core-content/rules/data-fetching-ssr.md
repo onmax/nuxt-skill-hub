@@ -15,9 +15,9 @@ Use `useFetch` for HTTP-first fetching and `useAsyncData` for custom async logic
 `$fetch` is ideal for event-driven interactions; initial view data should normally be payload-backed via `useFetch`/`useAsyncData`.
 
 ### Execution checklist
-- Inputs to inspect: setup-time `$fetch` usage and async data composable usage.
-- Minimal verification: initial render data is transferred via Nuxt payload, without extra hydration fetch.
-- Stop condition: call is explicitly client-only and non-SEO-critical.
+- [ ] Inputs to inspect: setup-time `$fetch` usage and async data composable usage.
+- [ ] Minimal verification: initial render data is transferred via Nuxt payload, without extra hydration fetch.
+- [ ] Stop condition: call is explicitly client-only and non-SEO-critical.
 
 ### Rule ID: `data-stable-keys-and-option-consistency`
 ### Rule: Keep async-data keys explicit and option-consistent
@@ -34,9 +34,9 @@ Use explicit stable keys and keep key-sharing options consistent.
 Nuxt warns on incompatible shared-key options and can produce confusing state reuse if keys are unstable.
 
 ### Execution checklist
-- Inputs to inspect: key construction and repeated composable calls.
-- Minimal verification: no key collisions; shared-key options match.
-- Stop condition: scope truly requires isolated state per call site.
+- [ ] Inputs to inspect: key construction and repeated composable calls.
+- [ ] Minimal verification: no key collisions; shared-key options match.
+- [ ] Stop condition: scope truly requires isolated state per call site.
 
 ### Rule ID: `data-side-effects-via-callonce`
 ### Rule: Keep `useAsyncData` handlers side-effect free
@@ -53,9 +53,9 @@ Return data only from handler; move side effects to `callOnce` or explicit event
 `useAsyncData` re-execution paths (`watch`, refresh, navigation) can replay embedded side effects.
 
 ### Execution checklist
-- Inputs to inspect: handler body for side effects, store writes, and non-idempotent calls.
-- Minimal verification: handler remains pure relative to its inputs.
-- Stop condition: third-party API requires coupled side effects and cannot be decoupled.
+- [ ] Inputs to inspect: handler body for side effects, store writes, and non-idempotent calls.
+- [ ] Minimal verification: handler remains pure relative to its inputs.
+- [ ] Stop condition: third-party API requires coupled side effects and cannot be decoupled.
 
 ### Rule ID: `data-reactive-url-not-watch-only`
 ### Rule: Use reactive URL/options, not `watch` alone, for parameterized fetches
@@ -72,9 +72,9 @@ Use computed URL or reactive fetch options (`query`, `params`) and opt out with 
 Reactive fetch options are watched by default; computed URL updates are first-class.
 
 ### Execution checklist
-- Inputs to inspect: URL construction, watch config, and query/params refs.
-- Minimal verification: endpoint and data refresh when reactive dependencies change.
-- Stop condition: endpoint must remain static while auxiliary state changes.
+- [ ] Inputs to inspect: URL construction, watch config, and query/params refs.
+- [ ] Minimal verification: endpoint and data refresh when reactive dependencies change.
+- [ ] Stop condition: endpoint must remain static while auxiliary state changes.
 
 ### Rule ID: `data-minimize-payload-shape`
 ### Rule: Minimize payload transfer for SSR data
@@ -91,9 +91,9 @@ Use `pick`/`transform` for payload shaping and split non-critical data into lazy
 `pick`/`transform` reduce payload transfer size, not upstream API response size.
 
 ### Execution checklist
-- Inputs to inspect: fetched object shape vs template usage.
-- Minimal verification: payload contains only needed fields for first paint.
-- Stop condition: downstream consumers rely on full object in the same render boundary.
+- [ ] Inputs to inspect: fetched object shape vs template usage.
+- [ ] Minimal verification: payload contains only needed fields for first paint.
+- [ ] Stop condition: downstream consumers rely on full object in the same render boundary.
 
 ### Rule ID: `data-serialization-boundary-awareness`
 ### Rule: Respect serialization differences between payload and API routes
@@ -110,6 +110,6 @@ Treat `useAsyncData` payload serialization and server-route JSON serialization a
 Nuxt payload transfer uses `devalue`, while server route responses are serialized via JSON behavior, which has stricter type limits.
 
 ### Execution checklist
-- Inputs to inspect: returned types across `useAsyncData` handlers and `server/api/*` responses.
-- Minimal verification: client receives expected shape/types on both transport paths.
-- Stop condition: upstream contract mandates non-serializable runtime-only values.
+- [ ] Inputs to inspect: returned types across `useAsyncData` handlers and `server/api/*` responses.
+- [ ] Minimal verification: client receives expected shape/types on both transport paths.
+- [ ] Stop condition: upstream contract mandates non-serializable runtime-only values.

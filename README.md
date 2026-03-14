@@ -5,7 +5,7 @@
 [![License][license-src]][license-href]
 [![Nuxt][nuxt-src]][nuxt-href]
 
-Experimental Nuxt module that generates one consolidated project skill entrypoint (`nuxt`) and expands it with installed module skills.
+Teach your AI agent the Nuxt way with best practices and module guidance.
 
 This module is intentionally simple and experimental:
 - Nuxt-first best-practices core
@@ -16,7 +16,6 @@ This module is intentionally simple and experimental:
 ## Core content source
 
 Core best-practices markdown is stored as shareable rule-pack files in:
-- [`core-content/metadata.json`](./core-content/metadata.json)
 - [`core-content/index.template.md`](./core-content/index.template.md)
 - [`core-content/rules/abstraction-disambiguation.md`](./core-content/rules/abstraction-disambiguation.md)
 - [`core-content/rules/page-meta-head-layout.md`](./core-content/rules/page-meta-head-layout.md)
@@ -33,6 +32,8 @@ Core best-practices markdown is stored as shareable rule-pack files in:
 - [`core-content/rules/server-routes-runtime-config.md`](./core-content/rules/server-routes-runtime-config.md)
 - [`core-content/rules/module-authoring.md`](./core-content/rules/module-authoring.md)
 - [`core-content/rules/migrations.md`](./core-content/rules/migrations.md)
+
+Core pack metadata is defined in TypeScript via `DEFAULT_CORE_CONTENT_METADATA`.
 
 ## Resolver flow (`dist -> github -> metadata router`)
 
@@ -75,7 +76,6 @@ For each selected target, the module writes:
 ```txt
 <target-dir>/nuxt/
 ├── SKILL.md
-├── manifest.json
 └── references/
     ├── index.md
     ├── core/
@@ -95,6 +95,8 @@ Example targets:
 ```ts
 export default defineNuxtConfig({
   skillHub: {
+    fallbackLinksOnly: true,
+    moduleAuthoring: true,
     skillName: 'nuxt',
     targets: ['claude-code'],
   },
@@ -106,6 +108,8 @@ export default defineNuxtConfig({
 `nuxt-skill-hub` now uses `unagent` as the source of truth for agent IDs and skills directories.
 
 - `skillHub.targets` accepts `unagent` agent IDs.
+- `skillHub.fallbackLinksOnly` accepts `boolean` and defaults to `true`.
+- `skillHub.moduleAuthoring` accepts `boolean` and defaults to `false`.
 - Leaving `skillHub.targets` empty includes only agents detected as `config` (strict config-only).
 - Generated output is app-local for standalone repos, and workspace-root local for monorepos, mirroring the agent config path + skills dir shape.
 
@@ -144,12 +148,6 @@ Scope rule for module authors:
 - Module skills should only document module-specific behavior.
 - Core guidance remains default.
 - Module guidance overrides core only in explicit module scope.
-
-## Manifest
-
-Generated `manifest.json` includes:
-- `modules`: copied/active module skills with source metadata.
-- `skipped`: validation/network-skipped module skills with reasons.
 
 When no module skill is available but package metadata exposes a repository or homepage, the generated output includes a metadata-routed module skill instead of skipping the package outright.
 

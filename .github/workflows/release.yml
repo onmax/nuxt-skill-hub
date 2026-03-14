@@ -1,0 +1,91 @@
+name: release
+
+permissions:
+  id-token: write
+  contents: write
+  actions: read
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  wait-for-ci:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for CI to complete
+        uses: lewagon/wait-on-check-action@v1.3.4
+        with:
+          ref: ${{ github.sha }}
+          check-name: ci
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          wait-interval: 10
+
+  release:
+    needs: wait-for-ci
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Read package metadata
+        id: package
+        run: |
+          node --input-type=module <<'NODE' >> "$GITHUB_OUTPUT"
+          import { readFileSync } from 'node:fs'
+
+          const pkg = JSON.parse(readFileSync('./package.json', 'utf8'))
+          const version = pkg.version
+          const prerelease = version.includes('-')
+          const npmTag = prerelease ? version.split('-')[1].split('.')[0] : 'latest'
+
+          process.stdout.write(`name=${pkg.name}\n`)
+          process.stdout.write(`version=${version}\n`)
+          process.stdout.write(`expected_tag=v${version}\n`)
+          process.stdout.write(`is_prerelease=${prerelease}\n`)
+          process.stdout.write(`npm_tag=${npmTag}\n`)
+          NODE
+
+      - name: Validate release tag
+        run: |
+          if [ "${GITHUB_REF_NAME}" != "${{ steps.package.outputs.expected_tag }}" ]; then
+            echo "Tag ${GITHUB_REF_NAME} does not match package version ${{ steps.package.outputs.version }}." >&2
+            exit 1
+          fi
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run dev:prepare
+      - run: pnpm run lint
+      - run: pnpm run typecheck
+      - run: pnpm run test
+      - run: pnpm run prepack
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            exit 0
+          fi
+
+          if [ "${{ steps.package.outputs.is_prerelease }}" = "true" ]; then
+            gh release create "${GITHUB_REF_NAME}" --title "${GITHUB_REF_NAME}" --generate-notes --prerelease
+          else
+            gh release create "${GITHUB_REF_NAME}" --title "${GITHUB_REF_NAME}" --generate-notes
+          fi
+
+      - name: Publish to npm
+        run: |
+          if [ "${{ steps.package.outputs.npm_tag }}" = "latest" ]; then
+            npm publish --provenance
+          else
+            npm publish --provenance --tag "${{ steps.package.outputs.npm_tag }}"
+          fi

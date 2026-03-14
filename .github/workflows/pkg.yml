@@ -1,5 +1,8 @@
 name: pkg.new
 
+permissions:
+  contents: read
+
 on:
   push:
     branches: [main, master]
@@ -17,7 +20,7 @@ jobs:
           node-version: 22
           cache: pnpm
 
-      - run: pnpm install
+      - run: pnpm install --frozen-lockfile
       - run: pnpm run dev:prepare
       - run: pnpm run prepack
       - run: pnpm dlx pkg-pr-new publish

@@ -16,7 +16,7 @@ defineOgImage('Home')
       <UContainer>
         <div class="flex flex-col items-center gap-4 text-center">
           <p class="font-mono text-xs text-dimmed">
-            nuxt-skill-hub is experimental. Skills complement docs - they don't replace them.
+            nuxt-skill-hub is experimental. Skills add context, but they do not replace the docs.
           </p>
           <div class="flex gap-4">
             <UButton

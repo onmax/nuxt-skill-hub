@@ -4,7 +4,7 @@ const mobileMenuOpen = ref(false)
 const navItems = [
   { label: 'How it works', to: '#how-it-works' },
   { label: 'Skills', to: '#skills' },
-  { label: 'Preview', to: '#playground' },
+  { label: 'Playground', to: '#playground' },
   { label: 'Docs', to: '#docs' },
 ]
 </script>
