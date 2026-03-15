@@ -3,13 +3,23 @@ const BRANCH = 'main'
 const CACHE_TTL = 1000 * 60 * 60 // 1h
 
 // Module ID → skill folder name in the repo
-const MODULE_SKILL_MAP: Record<string, string> = {
+export const MODULE_SKILL_MAP: Record<string, string> = {
   'nuxt-ui': 'nuxt-ui',
   'nuxt-content': 'nuxt-content',
   'nuxthub': 'nuxthub',
   'nuxt-seo': 'nuxt-seo',
+  'seo': 'nuxt-seo',
   'reka-ui': 'reka-ui',
   'motion': 'motion',
+  'motion-v': 'motion',
+  'better-auth': 'nuxt-better-auth',
+  'nuxt-better-auth': 'nuxt-better-auth',
+  'vueuse': 'vueuse',
+  'vueuse-nuxt': 'vueuse',
+  'nuxt-studio': 'nuxt-studio',
+  'studio': 'nuxt-studio',
+  'vitest': 'vitest',
+  'tresjs': 'tresjs',
 }
 
 const EXCLUDED_DIRS = new Set(['scripts', 'node_modules', '.git'])

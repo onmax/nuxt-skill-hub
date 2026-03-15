@@ -18,9 +18,11 @@ import {
 
 const repoBlobBase = 'https://github.com/onmax/nuxt-skill-hub/blob/main'
 const skillsRepoBlobBase = 'https://github.com/onmax/nuxt-skills/blob/main/skills'
+const skillsRawBase = 'https://raw.githubusercontent.com/onmax/nuxt-skills/main/skills'
 const generatedSkillRoot = '.codex/skills/nuxt-nuxt-skill-hub'
 
 interface ModuleSkillCacheEntry {
+  skillName?: string
   paths: string[]
   files: Record<string, string>
 }
@@ -73,36 +75,22 @@ export function usePlayground() {
 
   const { data: apiData } = useFetch('/api/skill-files')
 
-  // Fetch real module skill files from GitHub
+  // Module skill file cache — seeded from prerendered data, individual content fetched on demand
   const moduleFileCache = ref<Record<string, ModuleSkillCacheEntry>>({})
-  const moduleFileLoading = ref<Set<string>>(new Set())
   const moduleFileContentLoading = ref<Set<string>>(new Set())
 
-  async function fetchModuleFiles(moduleId: string) {
-    if (moduleFileCache.value[moduleId] || moduleFileLoading.value.has(moduleId)) return
-    moduleFileLoading.value = new Set([...moduleFileLoading.value, moduleId])
-    try {
-      const data = await $fetch<{ paths: string[] }>('/api/module-skill-files', { query: { module: moduleId } })
-      moduleFileCache.value = {
-        ...moduleFileCache.value,
-        [moduleId]: {
-          paths: data.paths || [],
-          files: {},
-        },
-      }
-      if (data.paths?.includes('SKILL.md')) {
-        await fetchModuleFileContent(moduleId, 'SKILL.md')
+  // Seed cache from prerendered moduleSkills in apiData
+  watch(apiData, (data) => {
+    const prerendered = (data as any)?.moduleSkills as Record<string, ModuleSkillCacheEntry> | undefined
+    if (!prerendered) return
+    const updated = { ...moduleFileCache.value }
+    for (const [moduleId, entry] of Object.entries(prerendered)) {
+      if (!updated[moduleId]) {
+        updated[moduleId] = { skillName: entry.skillName, paths: entry.paths || [], files: entry.files || {} }
       }
     }
-    catch (e) {
-      console.warn(`Failed to fetch skill files for ${moduleId}`, e)
-    }
-    finally {
-      const next = new Set(moduleFileLoading.value)
-      next.delete(moduleId)
-      moduleFileLoading.value = next
-    }
-  }
+    moduleFileCache.value = updated
+  }, { immediate: true })
 
   async function fetchModuleFileContent(moduleId: string, filePath: string) {
     const cacheKey = `${moduleId}:${filePath}`
@@ -111,18 +99,15 @@ export function usePlayground() {
 
     moduleFileContentLoading.value = new Set([...moduleFileContentLoading.value, cacheKey])
     try {
-      const data = await $fetch<{ content: string | null }>('/api/module-skill-files', {
-        query: { module: moduleId, path: filePath },
-      })
-      if (typeof data.content === 'string') {
+      // Fetch directly from GitHub raw content (works in static deployments)
+      const skillFolder = moduleEntry.skillName || moduleId
+      const content = await $fetch<string>(`${skillsRawBase}/${skillFolder}/${filePath}`, { responseType: 'text' })
+      if (typeof content === 'string') {
         moduleFileCache.value = {
           ...moduleFileCache.value,
           [moduleId]: {
             ...moduleEntry,
-            files: {
-              ...moduleEntry.files,
-              [filePath]: data.content,
-            },
+            files: { ...moduleEntry.files, [filePath]: content },
           },
         }
       }
@@ -136,18 +121,6 @@ export function usePlayground() {
       moduleFileContentLoading.value = next
     }
   }
-
-  // Auto-fetch when modules are enabled
-  watch(selectedModuleIds, (ids) => {
-    if (!ids.size) {
-      return
-    }
-
-    for (const id of ids) {
-      const module = selectedModules.value.find(entry => entry.id === id)
-      if (module?.skillAvailability === 'real' && !moduleFileCache.value[id]) fetchModuleFiles(id)
-    }
-  }, { immediate: true })
 
   watch(activeFilePath, (path) => {
     const match = path.match(/^references\/modules\/([^/]+)\/(.+)$/)

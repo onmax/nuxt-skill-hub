@@ -20,9 +20,16 @@ const addModalOpen = ref(false)
 const onlyWithSkill = ref(false)
 const searchTerm = ref('')
 const { allModules, loading } = useNuxtModuleSearch()
+const moduleListRef = ref<HTMLElement | null>(null)
 
 const enabledCount = computed(() => props.selectedModules.filter(m => m.enabled).length)
 const visibleModules = computed(() => props.selectedModules.filter(m => !m.locked))
+
+watch(() => visibleModules.value.length, (newLen, oldLen) => {
+  if (newLen > oldLen) {
+    nextTick(() => moduleListRef.value?.scrollTo({ top: moduleListRef.value.scrollHeight, behavior: 'smooth' }))
+  }
+})
 
 function formatDownloads(n: number) {
   if (!n) return ''
@@ -83,7 +90,7 @@ const groups = computed(() => [{
     </div>
 
     <!-- Active modules list -->
-    <div class="min-h-0 flex-1 space-y-1 overflow-y-auto">
+    <div ref="moduleListRef" class="min-h-0 flex-1 space-y-1 overflow-y-auto">
       <AnimatePresence>
         <motion.div
           v-for="mod in visibleModules"
