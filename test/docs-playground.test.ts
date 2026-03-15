@@ -10,8 +10,8 @@ import {
 } from '../shared/skill-render'
 
 describe('docs playground metadata routing', () => {
-  it('distinguishes real, generated, and unavailable module guidance', () => {
-    expect(resolveSkillAvailability('@nuxt/ui')).toBe('real')
+  it('distinguishes generated and unavailable module guidance on the client', () => {
+    // 'real' is now resolved server-side via dynamic GitHub discovery
     expect(resolveSkillAvailability('@nuxt/a11y', 'https://github.com/nuxt/a11y', 'https://a11y.nuxt.com')).toBe('generated')
     expect(resolveSkillAvailability('unknown-module')).toBe('unavailable')
   })

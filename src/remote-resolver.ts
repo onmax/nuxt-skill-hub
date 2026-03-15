@@ -46,7 +46,7 @@ function makeSkip(packageName: string, skillName: string, reason: string, source
   }
 }
 
-function slugCandidates(packageName: string): string[] {
+export function slugCandidates(packageName: string): string[] {
   const [scopeOrName, scopedName] = packageName.startsWith('@') ? packageName.split('/') : ['', packageName]
   const base = (scopedName || scopeOrName || '').trim()
   const candidates = new Set<string>()

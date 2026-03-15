@@ -1,12 +1,5 @@
-import { resolveSkillAvailability, type SkillAvailability } from '../../app/data/skill-packages'
-
-// Packages with skills available (mirror of app/data/skill-packages.ts)
-const SKILL_PACKAGES = new Set([
-  'nuxt', '@nuxt/ui', '@nuxt/content', 'nuxt-seo', '@nuxtjs/seo',
-  '@onmax/nuxt-better-auth', '@nuxthub/core', 'reka-ui', 'reka-ui/nuxt',
-  '@vueuse/core', '@vueuse/nuxt', 'motion-v', 'motion-v/nuxt',
-  'nuxt-studio',
-])
+import { getSkillFolders, resolveSkillFolder } from '../utils/skill-discovery'
+import type { SkillAvailability } from '../../app/data/skill-packages'
 
 interface NuxtApiModule {
   name: string
@@ -36,12 +29,21 @@ let cachedModules: NuxtModuleResult[] | null = null
 let cachedAt = 0
 const CACHE_TTL = 1000 * 60 * 60 // 1 hour
 
+function resolveAvailability(npm: string, skillFolders: Set<string>, github?: string, website?: string): SkillAvailability {
+  if (resolveSkillFolder(npm, skillFolders)) return 'real'
+  if (github || website) return 'generated'
+  return 'unavailable'
+}
+
 export default defineEventHandler(async () => {
   if (cachedModules && Date.now() - cachedAt < CACHE_TTL) {
     return { modules: cachedModules }
   }
 
-  const data = await $fetch<{ modules: NuxtApiModule[] }>('https://api.nuxt.com/modules')
+  const [data, skillFolders] = await Promise.all([
+    $fetch<{ modules: NuxtApiModule[] }>('https://api.nuxt.com/modules'),
+    getSkillFolders(),
+  ])
 
   cachedModules = data.modules.map(m => ({
     name: m.name,
@@ -51,9 +53,7 @@ export default defineEventHandler(async () => {
     downloads: m.stats?.downloads ?? 0,
     github: m.github,
     website: m.website,
-    skillAvailability: SKILL_PACKAGES.has(m.npm)
-      ? 'real'
-      : resolveSkillAvailability(m.npm, m.github, m.website),
+    skillAvailability: resolveAvailability(m.npm, skillFolders, m.github, m.website),
     type: m.type,
   }))
   cachedAt = Date.now()
