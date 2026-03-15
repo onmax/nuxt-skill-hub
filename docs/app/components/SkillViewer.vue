@@ -70,6 +70,19 @@ const agents = [
 ]
 const agentIndex = ref(0)
 const currentAgent = computed(() => agents[agentIndex.value]!)
+function handleMarkdownClick(e: MouseEvent) {
+  const anchor = (e.target as HTMLElement).closest('a')
+  if (!anchor) return
+  const href = anchor.getAttribute('href')
+  if (!href) return
+  e.preventDefault()
+  if (href.startsWith('http://') || href.startsWith('https://')) {
+    navigateTo(href, { external: true, open: { target: '_blank' } })
+    return
+  }
+  emit('selectFile', href.replace(/^\.\//, ''))
+}
+
 const canRenderMarkdown = computed(() =>
   /\.md$/i.test(props.activeFile?.path || ''),
 )
@@ -226,13 +239,14 @@ onUnmounted(() => clearInterval(interval))
           >
             {{ renderMarkdownError }}
           </div>
-          <MDCRenderer
-            v-else-if="renderedMarkdown"
-            tag="article"
-            :body="renderedMarkdown.body"
-            :data="renderedMarkdown.data"
-            class="text-base leading-7 text-default [&_a]:text-primary [&_code]:rounded-sm [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.85em] [&_h1]:mb-4 [&_h1]:font-mono [&_h1]:text-2xl [&_h1]:font-semibold [&_h2]:mb-3 [&_h2]:mt-6 [&_h2]:font-mono [&_h2]:text-xl [&_h2]:font-semibold [&_h3]:mb-2 [&_h3]:mt-5 [&_h3]:font-mono [&_h3]:text-lg [&_h3]:font-semibold [&_li]:ml-5 [&_li]:list-disc [&_p]:my-3 [&_pre]:my-4 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:border [&_pre]:border-default [&_pre]:bg-muted [&_pre]:p-3 [&_pre]:font-mono [&_pre]:text-sm"
-          />
+          <div v-else-if="renderedMarkdown" @click="handleMarkdownClick">
+            <MDCRenderer
+              tag="article"
+              :body="renderedMarkdown.body"
+              :data="renderedMarkdown.data"
+              class="text-base leading-7 text-default [&_a]:cursor-pointer [&_a]:text-primary [&_a]:underline [&_code]:rounded-sm [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.85em] [&_h1]:mb-4 [&_h1]:font-mono [&_h1]:text-2xl [&_h1]:font-semibold [&_h2]:mb-3 [&_h2]:mt-6 [&_h2]:font-mono [&_h2]:text-xl [&_h2]:font-semibold [&_h3]:mb-2 [&_h3]:mt-5 [&_h3]:font-mono [&_h3]:text-lg [&_h3]:font-semibold [&_li]:ml-5 [&_li]:list-disc [&_p]:my-3 [&_pre]:my-4 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:border [&_pre]:border-default [&_pre]:bg-muted [&_pre]:p-3 [&_pre]:font-mono [&_pre]:text-sm"
+            />
+          </div>
           <pre
             v-else-if="activeFile"
             class="overflow-auto font-mono text-xs leading-relaxed whitespace-pre-wrap text-default"
@@ -334,13 +348,14 @@ onUnmounted(() => clearInterval(interval))
         >
           {{ renderMarkdownError }}
         </div>
-        <MDCRenderer
-          v-else-if="renderedMarkdown"
-          tag="article"
-          :body="renderedMarkdown.body"
-          :data="renderedMarkdown.data"
-          class="text-base leading-7 text-default [&_a]:text-primary [&_code]:rounded-sm [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.85em] [&_h1]:mb-4 [&_h1]:font-mono [&_h1]:text-2xl [&_h1]:font-semibold [&_h2]:mb-3 [&_h2]:mt-6 [&_h2]:font-mono [&_h2]:text-xl [&_h2]:font-semibold [&_h3]:mb-2 [&_h3]:mt-5 [&_h3]:font-mono [&_h3]:text-lg [&_h3]:font-semibold [&_li]:ml-5 [&_li]:list-disc [&_p]:my-3 [&_pre]:my-4 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:border [&_pre]:border-default [&_pre]:bg-muted [&_pre]:p-3 [&_pre]:font-mono [&_pre]:text-sm"
-        />
+        <div v-else-if="renderedMarkdown" @click="handleMarkdownClick">
+          <MDCRenderer
+            tag="article"
+            :body="renderedMarkdown.body"
+            :data="renderedMarkdown.data"
+            class="text-base leading-7 text-default [&_a]:cursor-pointer [&_a]:text-primary [&_a]:underline [&_code]:rounded-sm [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.85em] [&_h1]:mb-4 [&_h1]:font-mono [&_h1]:text-2xl [&_h1]:font-semibold [&_h2]:mb-3 [&_h2]:mt-6 [&_h2]:font-mono [&_h2]:text-xl [&_h2]:font-semibold [&_h3]:mb-2 [&_h3]:mt-5 [&_h3]:font-mono [&_h3]:text-lg [&_h3]:font-semibold [&_li]:ml-5 [&_li]:list-disc [&_p]:my-3 [&_pre]:my-4 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:border [&_pre]:border-default [&_pre]:bg-muted [&_pre]:p-3 [&_pre]:font-mono [&_pre]:text-sm"
+          />
+        </div>
         <pre
           v-else-if="activeFile"
           class="font-mono text-xs text-default leading-relaxed whitespace-pre-wrap"
