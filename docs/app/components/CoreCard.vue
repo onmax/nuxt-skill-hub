@@ -40,6 +40,23 @@ const tagColors: Record<string, string> = {
 
       <!-- Description -->
       <p class="text-sm text-muted leading-relaxed">{{ skill.description }}</p>
+
+      <!-- Links -->
+      <div v-if="skill.links?.length" class="mt-3 flex flex-wrap gap-2">
+        <UButton
+          v-for="link in skill.links"
+          :key="link.href"
+          :to="link.href"
+          target="_blank"
+          size="xs"
+          color="neutral"
+          variant="subtle"
+          icon="i-lucide-external-link"
+          trailing
+        >
+          {{ link.label }}
+        </UButton>
+      </div>
     </div>
   </motion.div>
 </template>
