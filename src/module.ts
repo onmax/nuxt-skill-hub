@@ -1,7 +1,6 @@
 import { promises as fsp } from 'node:fs'
 import { isAbsolute, join, relative, resolve } from 'pathe'
 import { defineNuxtModule, useLogger } from '@nuxt/kit'
-import { readPackageJSON } from 'pkg-types'
 import { PACKAGE_VERSION } from './package-info'
 import { runInstallWizard } from './install'
 import { loadNuxtMetadata } from './nuxt-content'
@@ -17,6 +16,9 @@ import {
   emptyDir,
   ensureDir,
   extractModuleSpecifier,
+  deriveSkillName,
+  detectConflictingSkills,
+  formatConflictWarning,
   type GeneratedModuleEntry,
   getTargetSkillRoot,
   isValidSkillName,
@@ -57,36 +59,11 @@ async function resolveManualContribution(rootDir: string, contribution: SkillHub
   return normalizeContribution(contribution, sourceDir, sourceDir)
 }
 
-function issuesToSkipped(issues: ValidationIssue[]): SkillManifestSkipped[] {
-  const byKey = new Map<string, SkillManifestSkipped>()
-
-  for (const issue of issues) {
-    const key = `${issue.packageName}::${issue.skillName}`
-    const previous = byKey.get(key)
-    if (!previous) {
-      byKey.set(key, {
-        packageName: issue.packageName,
-        skillName: issue.skillName,
-        reason: issue.reason,
-        sourceKind: issue.sourceKind,
-      })
-      continue
-    }
-
-    const reasons = new Set(previous.reason.split('; ').filter(Boolean))
-    reasons.add(issue.reason)
-    previous.reason = Array.from(reasons).join('; ')
-  }
-
-  return Array.from(byKey.values())
-    .sort((a, b) => `${a.packageName}::${a.skillName}`.localeCompare(`${b.packageName}::${b.skillName}`))
-}
-
-function mergeSkippedEntries(entries: SkillManifestSkipped[]): SkillManifestSkipped[] {
+function mergeSkipped(entries: SkillManifestSkipped[], keyFn: (e: SkillManifestSkipped) => string): SkillManifestSkipped[] {
   const byKey = new Map<string, SkillManifestSkipped>()
 
   for (const entry of entries) {
-    const key = `${entry.packageName}::${entry.skillName}::${entry.sourceKind || ''}`
+    const key = keyFn(entry)
     const previous = byKey.get(key)
     if (!previous) {
       byKey.set(key, { ...entry })
@@ -131,12 +108,7 @@ export default defineNuxtModule<ModuleOptions>({
       if (configuredSkillName) {
         logger.warn(`Invalid skillHub.skillName "${configuredSkillName}". Deriving from package.json.`)
       }
-      const pkg = await readPackageJSON(nuxt.options.rootDir).catch(() => null)
-      const projectName = (pkg?.name || '').replace(/^@[^/]+\//, '').replace(/[^\w-]+/g, '-').replace(/^-+|-+$/g, '')
-      resolvedSkillName = projectName ? `nuxt-${projectName}` : 'nuxt'
-      if (!isValidSkillName(resolvedSkillName)) {
-        resolvedSkillName = 'nuxt'
-      }
+      resolvedSkillName = await deriveSkillName(nuxt.options.rootDir)
     }
 
     nuxt.hook('modules:done', async () => {
@@ -245,22 +217,22 @@ export default defineNuxtModule<ModuleOptions>({
         ...validatedRemote.issues,
         ...validatedManual.issues,
       ]
-      const skipped = mergeSkippedEntries([
-        ...issuesToSkipped(validationIssues),
-        ...remoteSkipped,
-      ])
+      const issuesToSkipped = mergeSkipped(
+        validationIssues.map(i => ({ packageName: i.packageName, skillName: i.skillName, reason: i.reason, sourceKind: i.sourceKind })),
+        e => `${e.packageName}::${e.skillName}`,
+      )
+      const skipped = mergeSkipped(
+        [...issuesToSkipped, ...remoteSkipped],
+        e => `${e.packageName}::${e.skillName}::${e.sourceKind || ''}`,
+      )
 
       for (const issue of validationIssues) {
         logger.warn(`[validation] ${issue.packageName}/${issue.skillName}: ${issue.reason}`)
       }
 
-      const targetResolution = resolveTargets(
-        options.targets || [],
-        nuxt.options.rootDir,
-      )
-      const targets = targetResolution.targets
+      const { targets, invalidTargets } = resolveTargets(options.targets || [])
 
-      for (const invalidTarget of targetResolution.invalidTargets) {
+      for (const invalidTarget of invalidTargets) {
         if (invalidTarget.reason === 'unknown-target') {
           logger.warn(`Target "${invalidTarget.target}" is unknown in unagent and was skipped.`)
           continue
@@ -271,6 +243,10 @@ export default defineNuxtModule<ModuleOptions>({
       if (!targets.length) {
         logger.warn('No detected targets. Set skillHub.targets to force generation for specific agents.')
         return
+      }
+
+      for (const conflict of detectConflictingSkills(targets, resolvedSkillName)) {
+        logger.warn(formatConflictWarning(conflict))
       }
 
       const nuxtMetadata = await loadNuxtMetadata()

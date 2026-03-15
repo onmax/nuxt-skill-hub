@@ -71,16 +71,7 @@ export function slugCandidates(packageName: string): string[] {
 }
 
 function dedupe(values: string[]): string[] {
-  const seen = new Set<string>()
-  const output: string[] = []
-  for (const value of values) {
-    if (!value || seen.has(value)) {
-      continue
-    }
-    seen.add(value)
-    output.push(value)
-  }
-  return output
+  return [...new Set(values.filter(Boolean))]
 }
 
 function normalizeHttpUrl(url: string | undefined): string | undefined {

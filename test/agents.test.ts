@@ -18,7 +18,7 @@ describe('detectInstalledTargets', () => {
     }))
 
     const { detectInstalledTargets } = await import('../src/agents')
-    const targets = detectInstalledTargets('/tmp/project')
+    const targets = detectInstalledTargets()
 
     expect(targets).toEqual(['codex', 'windsurf'])
   })

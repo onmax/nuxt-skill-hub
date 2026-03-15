@@ -502,6 +502,13 @@ export function sortAndDedupeContributions(contributions: ResolvedContribution[]
     })
 }
 
+export async function deriveSkillName(rootDir: string): Promise<string> {
+  const pkg = await readPackageJSON(rootDir).catch(() => null)
+  const projectName = (pkg?.name || '').replace(/^@[^/]+\//, '').replace(/[^\w-]+/g, '-').replace(/^-+|-+$/g, '')
+  const skillName = projectName ? `nuxt-${projectName}` : 'nuxt'
+  return isValidSkillName(skillName) ? skillName : 'nuxt'
+}
+
 export function sanitizeSegment(value: string): string {
   return value.replace(/[^\w.-]+/g, '-').replace(/^-+|-+$/g, '') || 'unknown'
 }
@@ -513,7 +520,7 @@ export async function copySkillTree(sourceDir: string, destinationDir: string, i
     force: true,
     filter: (source) => {
       const relativePath = relative(sourceDir, source)
-      if (!relativePath || relativePath === '') {
+      if (!relativePath) {
         return true
       }
 
@@ -532,7 +539,6 @@ export async function copySkillTree(sourceDir: string, destinationDir: string, i
 
 export function resolveTargets(
   explicitTargets: SkillHubTarget[],
-  rootDir: string,
 ): { targets: SkillHubTarget[], invalidTargets: InvalidTarget[] } {
   if (explicitTargets.length) {
     const { valid, invalid } = validateTargets(explicitTargets)
@@ -543,7 +549,7 @@ export function resolveTargets(
   }
 
   return {
-    targets: detectInstalledTargets(rootDir),
+    targets: detectInstalledTargets(),
     invalidTargets: [],
   }
 }
@@ -573,8 +579,6 @@ export async function buildVueTemplateFiles(vueDir: string, cacheRoot: string): 
     contents,
   }))
 }
-
-export const buildCoreTemplateFiles = buildNuxtTemplateFiles
 
 export async function renderAutomdTemplate(contents: string, dir: string): Promise<string> {
   const result = await transform(contents, { dir })
@@ -614,20 +618,46 @@ export function getTargetSkillRoot(
   throw new Error(`Target "${target}" configDir "${targetConfig.configDir}" is not under home "${home}".`)
 }
 
-export async function upsertAgentsHint(rootDir: string, skillName: string): Promise<void> {
-  const path = join(rootDir, 'AGENTS.md')
-  const hintBlock = `${MANAGED_HINT_START}\nUse the \`${skillName}\` skill as the first entrypoint for Nuxt tasks in this repository.\n${MANAGED_HINT_END}`
+// Skills from old `onmax/nuxt-skills` that nuxt-skill-hub also generates (built-in or via modules)
+const CONFLICTING_SKILL_NAMES = [
+  'nuxt', 'vue', 'nuxt-ui', 'nuxt-content', 'nuxt-seo', 'nuxt-modules',
+  'nuxt-better-auth', 'nuxthub', 'reka-ui', 'vueuse', 'tresjs', 'motion',
+]
 
-  if (!(await pathExists(path))) {
-    await writeFileIfChanged(path, `${hintBlock}\n`)
-    return
+export interface ConflictingSkillsResult {
+  globalDir: string
+  skillNames: string[]
+}
+
+export function detectConflictingSkills(targets: SkillHubTarget[], generatedSkillName: string): ConflictingSkillsResult[] {
+  const seen = new Map<string, ConflictingSkillsResult>()
+
+  for (const target of targets) {
+    const config = resolveAgentTargetConfig(target)
+    if (!config) continue
+
+    const globalSkillsDir = join(config.configDir, config.skillsDir)
+    if (seen.has(globalSkillsDir) || !existsSync(globalSkillsDir)) continue
+
+    const found: string[] = []
+    for (const name of CONFLICTING_SKILL_NAMES) {
+      // When skillName falls back to 'nuxt', skip it since it's ours
+      if (name === generatedSkillName) continue
+      if (existsSync(join(globalSkillsDir, name, 'SKILL.md'))) {
+        found.push(name)
+      }
+    }
+
+    if (found.length) {
+      seen.set(globalSkillsDir, { globalDir: globalSkillsDir, skillNames: found })
+    }
   }
 
-  const current = await fsp.readFile(path, 'utf8')
-  const regex = new RegExp(`${MANAGED_HINT_START}[\\s\\S]*?${MANAGED_HINT_END}`)
-  const next = regex.test(current)
-    ? current.replace(regex, hintBlock)
-    : `${current.trimEnd()}\n\n${hintBlock}\n`
+  return Array.from(seen.values())
+}
 
-  await writeFileIfChanged(path, next)
+export function formatConflictWarning(conflict: ConflictingSkillsResult): string {
+  return `Found ${conflict.skillNames.length} standalone skill(s) that may conflict with nuxt-skill-hub: `
+    + `${conflict.skillNames.join(', ')} (global: ${conflict.globalDir}). `
+    + `Remove with: npx skills remove --global`
 }

@@ -106,9 +106,7 @@ export function detectCurrentTarget(): SkillHubTarget | undefined {
   return skillsDir ? current.id : undefined
 }
 
-export function detectInstalledTargets(rootDir: string): SkillHubTarget[] {
-  void rootDir
-
+export function detectInstalledTargets(): SkillHubTarget[] {
   return Array.from(new Set(
     detectUnagentInstalledAgents()
       .filter(agent => agent.detected === 'config' && resolveSkillsDir(agent.id, agent.config))

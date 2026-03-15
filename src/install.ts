@@ -2,15 +2,15 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, relative } from 'pathe'
 import { useLogger } from '@nuxt/kit'
 import { createConsola } from 'consola'
-import { readPackageJSON } from 'pkg-types'
+import { colorize } from 'consola/utils'
 import type { Nuxt } from '@nuxt/schema'
 import { detectCurrentTarget, detectInstalledTargets, getSupportedTargets } from './agents'
-import { extractModuleSpecifier, discoverInstalledPackageFromSpecifier, getTargetSkillRoot, isValidSkillName, MANAGED_HINT_END, MANAGED_HINT_START, pathExists, resolveExportRoot } from './internal'
+import { deriveSkillName, detectConflictingSkills, extractModuleSpecifier, discoverInstalledPackageFromSpecifier, formatConflictWarning, getTargetSkillRoot, MANAGED_HINT_END, MANAGED_HINT_START, pathExists, resolveExportRoot } from './internal'
 
 interface PendingWrite {
   file: string
   absPath: string
-  description: string
+  preview: string
   content: string
   action: 'create' | 'modify'
 }
@@ -31,10 +31,7 @@ export async function runInstallWizard(nuxt: Nuxt): Promise<void> {
   const consola = createConsola()
   const rootDir = nuxt.options.rootDir
   const exportRoot = await resolveExportRoot(rootDir)
-  const pkg = await readPackageJSON(rootDir).catch(() => null)
-  const projectName = (pkg?.name || '').replace(/^@[^/]+\//, '').replace(/[^\w-]+/g, '-').replace(/^-+|-+$/g, '')
-  let skillName = projectName ? `nuxt-${projectName}` : 'nuxt'
-  if (!isValidSkillName(skillName)) skillName = 'nuxt'
+  const skillName = await deriveSkillName(rootDir)
   const pendingWrites: PendingWrite[] = []
 
   consola.box(
@@ -51,7 +48,7 @@ export async function runInstallWizard(nuxt: Nuxt): Promise<void> {
     selectedTargets = [currentTarget]
   }
   else {
-    const detectedTargets = detectInstalledTargets(rootDir)
+    const detectedTargets = detectInstalledTargets()
     const allTargets = getSupportedTargets()
 
     if (!detectedTargets.length && !allTargets.length) {
@@ -121,6 +118,11 @@ export async function runInstallWizard(nuxt: Nuxt): Promise<void> {
     consola.info('No installed module entries were discovered.')
   }
 
+  // ── Warn about conflicting old standalone skills ──
+  for (const conflict of detectConflictingSkills(selectedTargets, skillName)) {
+    consola.warn(formatConflictWarning(conflict))
+  }
+
   // ── Step 3: .gitignore ──
   const gitignorePath = join(exportRoot, '.gitignore')
   const gitignoreExists = existsSync(gitignorePath)
@@ -128,8 +130,8 @@ export async function runInstallWizard(nuxt: Nuxt): Promise<void> {
 
   const missingPatterns: string[] = []
   for (const target of selectedTargets) {
-    const { targetDir } = getTargetSkillRoot(exportRoot, target, skillName)
-    const pattern = relative(exportRoot, targetDir).replace(/\/?$/, '/')
+    const { skillRoot } = getTargetSkillRoot(exportRoot, target, skillName)
+    const pattern = relative(exportRoot, skillRoot).replace(/\/?$/, '/')
     if (!currentGitignore.includes(pattern)) {
       missingPatterns.push(pattern)
     }
@@ -152,7 +154,7 @@ export async function runInstallWizard(nuxt: Nuxt): Promise<void> {
       pendingWrites.push({
         file: '.gitignore',
         absPath: gitignorePath,
-        description: `Add ${missingPatterns.length} skill directory pattern(s)`,
+        preview: missingPatterns.map(p => `+ ${p}`).join('\n'),
         content: newContent,
         action: gitignoreExists ? 'modify' : 'create',
       })
@@ -198,7 +200,7 @@ export async function runInstallWizard(nuxt: Nuxt): Promise<void> {
     pendingWrites.push({
       file: filename,
       absPath: filePath,
-      description: 'Add skill hint block',
+      preview: `+ Use the \`${skillName}\` skill as the first entrypoint for Nuxt tasks in this repository.`,
       content: newContent,
       action: exists ? 'modify' : 'create',
     })
@@ -221,10 +223,8 @@ export async function runInstallWizard(nuxt: Nuxt): Promise<void> {
   consola.log('')
   consola.info('Planned changes:')
   for (const write of pendingWrites) {
-    const icon = write.action === 'create' ? '+' : '~'
-    consola.log(`  ${icon} ${write.file} — ${write.description}`)
+    consola.box({ title: write.file, message: colorize('green', write.preview), style: { borderColor: 'green' } })
   }
-  consola.log('')
 
   const confirm = await consola.prompt('Apply these changes?', {
     type: 'confirm',

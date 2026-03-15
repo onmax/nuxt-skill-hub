@@ -1,27 +1,10 @@
 import { promises as fsp } from 'node:fs'
-import { basename, join } from 'pathe'
+import { join } from 'pathe'
 import { DEFAULT_NUXT_CONTENT_METADATA, type NuxtContentMetadata } from './skill-render'
+import { loadSkillFilesFromDir } from './load-skill-files'
 
 export async function loadNuxtRuleFilesFromDir(nuxtContentDir: string): Promise<Record<string, string>> {
-  const entries: Array<[string, string]> = []
-
-  for await (const relativePath of fsp.glob('**/*', { cwd: nuxtContentDir })) {
-    const absolutePath = join(nuxtContentDir, relativePath)
-    if (
-      relativePath === 'index.template.md'
-      || relativePath.split('/').some(segment => segment.startsWith('.'))
-      || basename(relativePath).startsWith('_')
-      || !(await fsp.lstat(absolutePath)).isFile()
-    ) {
-      continue
-    }
-
-    entries.push([relativePath, await fsp.readFile(absolutePath, 'utf8')])
-  }
-
-  entries.sort((a, b) => a[0].localeCompare(b[0]))
-
-  return Object.fromEntries(entries)
+  return loadSkillFilesFromDir(nuxtContentDir, ['index.template.md'])
 }
 
 export async function loadNuxtIndexTemplateFromDir(nuxtContentDir: string): Promise<string> {

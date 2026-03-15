@@ -1,8 +1,7 @@
 import type { SkillHubTarget } from './agents'
+import type { SkillSourceKind, SkillResolverKind, SkillTrustLevel } from './render-content'
 
-export type SkillSourceKind = 'dist' | 'github' | 'generated'
-export type SkillResolverKind = 'agentsField' | 'githubHeuristic' | 'metadataRouter'
-export type SkillTrustLevel = 'official' | 'community'
+export type { SkillSourceKind, SkillResolverKind, SkillTrustLevel }
 
 export interface ModuleOptions {
   skillName?: string
