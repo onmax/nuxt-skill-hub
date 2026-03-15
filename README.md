@@ -2,7 +2,7 @@
   <img src="https://nuxt-skill.onmax.me/og-image.png" alt="Nuxt Skill Hub" width="100%">
 </p>
 
-<h1 align="center">nuxt-skill-hub</h1>
+<h1 align="center"><img src="https://nuxt-skill.onmax.me/icon.png" alt="" width="32" height="32" style="vertical-align: middle;"> nuxt-skill-hub</h1>
 
 <p align="center">Teach your AI agent the Nuxt way with best practices and module guidance.</p>
 
