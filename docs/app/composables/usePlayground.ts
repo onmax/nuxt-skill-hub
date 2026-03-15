@@ -23,6 +23,8 @@ const generatedSkillRoot = '.codex/skills/nuxt-nuxt-skill-hub'
 
 interface ModuleSkillCacheEntry {
   skillName?: string
+  /** Base URL for fetching raw file content */
+  rawBase?: string
   paths: string[]
   files: Record<string, string>
 }
@@ -86,7 +88,7 @@ export function usePlayground() {
     const updated = { ...moduleFileCache.value }
     for (const [moduleId, entry] of Object.entries(prerendered)) {
       if (!updated[moduleId]) {
-        updated[moduleId] = { skillName: entry.skillName, paths: entry.paths || [], files: entry.files || {} }
+        updated[moduleId] = { skillName: entry.skillName, rawBase: entry.rawBase, paths: entry.paths || [], files: entry.files || {} }
       }
     }
     moduleFileCache.value = updated
@@ -100,8 +102,8 @@ export function usePlayground() {
     moduleFileContentLoading.value = new Set([...moduleFileContentLoading.value, cacheKey])
     try {
       // Fetch directly from GitHub raw content (works in static deployments)
-      const skillFolder = moduleEntry.skillName || moduleId
-      const content = await $fetch<string>(`${skillsRawBase}/${skillFolder}/${filePath}`, { responseType: 'text' })
+      const base = moduleEntry.rawBase || `${skillsRawBase}/${moduleEntry.skillName || moduleId}`
+      const content = await $fetch<string>(`${base}/${filePath}`, { responseType: 'text' })
       if (typeof content === 'string') {
         moduleFileCache.value = {
           ...moduleFileCache.value,

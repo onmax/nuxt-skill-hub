@@ -1,56 +1,64 @@
 import { slugCandidates } from '../../../src/remote-resolver'
+import { GITHUB_OVERRIDES } from '../../../src/github-overrides'
 
-const REPO = 'onmax/nuxt-skills'
-const BRANCH = 'main'
+const COMMUNITY_REPO = 'onmax/nuxt-skills'
+const COMMUNITY_BRANCH = 'main'
 const CACHE_TTL = 1000 * 60 * 60 // 1h
 const EXCLUDED_DIRS = new Set(['scripts', 'node_modules', '.git'])
 
 interface GitHubTreeItem { path: string, type: 'blob' | 'tree' }
+
+interface ModuleSkillEntry {
+  skillName: string
+  /** Base URL for fetching raw file content on the client */
+  rawBase: string
+  paths: string[]
+  files: Record<string, string>
+  /** Where this skill was resolved from */
+  source: 'official' | 'community'
+}
+
 interface SkillDiscoveryResult {
-  /** All skill folder names found in the repo */
   skillFolders: Set<string>
-  /** Module skills keyed by skill folder name */
-  moduleSkills: Record<string, { skillName: string, paths: string[], files: Record<string, string> }>
-  /** npm packages that resolved to a real skill folder */
+  moduleSkills: Record<string, ModuleSkillEntry>
   realSkillPackages: Set<string>
 }
 
 let cached: { result: SkillDiscoveryResult, at: number } | null = null
 
-async function fetchTree(): Promise<GitHubTreeItem[]> {
-  const url = `https://api.github.com/repos/${REPO}/git/trees/${BRANCH}?recursive=1`
+async function fetchGitHubTree(repo: string, ref: string): Promise<GitHubTreeItem[]> {
+  const url = `https://api.github.com/repos/${repo}/git/trees/${ref}?recursive=1`
   const data = await $fetch<{ tree: GitHubTreeItem[] }>(url)
   return data.tree
+}
+
+function extractSkillFromTree(tree: GitHubTreeItem[], skillPath: string): string[] {
+  const prefix = skillPath.endsWith('/') ? skillPath : `${skillPath}/`
+  return tree
+    .filter(item => item.type === 'blob' && item.path.startsWith(prefix))
+    .map(item => item.path.slice(prefix.length))
+    .filter(p => !EXCLUDED_DIRS.has(p.split('/')[0]!) && (p.endsWith('.md') || p.endsWith('.json')))
 }
 
 // Framework skill folders that should not match arbitrary scoped packages
 const FRAMEWORK_SKILL_FOLDERS = new Set(['nuxt', 'vue', 'nuxt-modules', 'pnpm', 'vite'])
 
-// Aliases for npm packages where slugCandidates convention doesn't produce the right skill folder.
-// Only needed for gaps in the convention — keeps shrinking as slugCandidates improves.
+// Aliases for npm packages where slugCandidates convention doesn't produce the right skill folder
 const PACKAGE_ALIASES: Record<string, string> = {
   '@nuxtjs/seo': 'nuxt-seo',
   '@nuxtjs/mdc': 'nuxt-content',
-  '@vueuse/nuxt': 'vueuse',
+  '@vueuse/nuxt': 'vueuse-functions',
+  '@vueuse/core': 'vueuse-functions',
   'motion-v': 'motion',
   'motion-v/nuxt': 'motion',
   '@tresjs/core': 'tresjs',
   '@tresjs/nuxt': 'tresjs',
 }
 
-/**
- * Resolve a module ID or npm package name to a skill folder using the same
- * convention as the runtime resolver (`slugCandidates`), plus a direct match.
- * Excludes framework-level skill folders to prevent false positives
- * (e.g. `@ant-design-vue/nuxt` should NOT match the `nuxt` skill).
- */
 export function resolveSkillFolder(nameOrPackage: string, skillFolders: Set<string>): string | null {
-  // Explicit alias (covers convention gaps)
   const alias = PACKAGE_ALIASES[nameOrPackage]
   if (alias && skillFolders.has(alias)) return alias
-  // Direct match (e.g. 'nuxt-ui' → 'nuxt-ui')
   if (skillFolders.has(nameOrPackage) && !FRAMEWORK_SKILL_FOLDERS.has(nameOrPackage)) return nameOrPackage
-  // Convention-based match (e.g. '@nuxt/ui' → ['ui', 'nuxt-ui'] → 'nuxt-ui')
   for (const candidate of slugCandidates(nameOrPackage)) {
     if (skillFolders.has(candidate) && !FRAMEWORK_SKILL_FOLDERS.has(candidate)) return candidate
   }
@@ -58,22 +66,55 @@ export function resolveSkillFolder(nameOrPackage: string, skillFolders: Set<stri
 }
 
 /**
- * Discover all module skills from the GitHub repo at build time.
- * Caches for 1h. Returns skill folders, module data, and resolved package set.
+ * Fetch skills from official module repos (GITHUB_OVERRIDES).
+ * These take priority over community skills.
  */
-export async function discoverModuleSkills(npmPackages?: string[]): Promise<SkillDiscoveryResult> {
-  if (cached && Date.now() - cached.at < CACHE_TTL) return cached.result
+async function fetchOfficialSkills(): Promise<Record<string, ModuleSkillEntry>> {
+  const results: Record<string, ModuleSkillEntry> = {}
+  const overridesWithRepo = GITHUB_OVERRIDES.filter(o => o.repo && o.path && o.skillName)
 
+  await Promise.all(overridesWithRepo.map(async (override) => {
+    try {
+      const tree = await fetchGitHubTree(override.repo!, override.ref || 'main')
+      const paths = extractSkillFromTree(tree, override.path!)
+      if (!paths.length) return
+
+      const rawBase = `https://raw.githubusercontent.com/${override.repo}/${override.ref || 'main'}/${override.path}`
+      const entry: ModuleSkillEntry = { skillName: override.skillName!, rawBase, paths, files: {}, source: 'official' }
+
+      if (paths.includes('SKILL.md')) {
+        try {
+          entry.files['SKILL.md'] = await $fetch<string>(
+            `https://raw.githubusercontent.com/${override.repo}/${override.ref || 'main'}/${override.path}/SKILL.md`,
+            { responseType: 'text' },
+          )
+        }
+        catch { /* skip */ }
+      }
+
+      results[override.skillName!] = entry
+    }
+    catch {
+      console.warn(`Failed to fetch official skill from ${override.repo}`)
+    }
+  }))
+
+  return results
+}
+
+/**
+ * Fetch all skills from the community repo (onmax/nuxt-skills).
+ */
+async function fetchCommunitySkills(): Promise<{ skillFolders: Set<string>, moduleSkills: Record<string, ModuleSkillEntry> }> {
   let tree: GitHubTreeItem[]
   try {
-    tree = await fetchTree()
+    tree = await fetchGitHubTree(COMMUNITY_REPO, COMMUNITY_BRANCH)
   }
   catch (error) {
-    console.warn('Failed to fetch GitHub tree for skill discovery:', error)
-    return { skillFolders: new Set(), moduleSkills: {}, realSkillPackages: new Set() }
+    console.warn('Failed to fetch community skills tree:', error)
+    return { skillFolders: new Set(), moduleSkills: {} }
   }
 
-  // Discover all skill folders
   const skillFolders = new Set<string>()
   for (const item of tree) {
     if (item.type === 'tree' && item.path.startsWith('skills/') && item.path.split('/').length === 2) {
@@ -81,24 +122,19 @@ export async function discoverModuleSkills(npmPackages?: string[]): Promise<Skil
     }
   }
 
-  // Build module skills for each folder
-  const moduleSkills: SkillDiscoveryResult['moduleSkills'] = {}
+  const moduleSkills: Record<string, ModuleSkillEntry> = {}
   const fetches: Promise<void>[] = []
 
   for (const skillName of skillFolders) {
-    const prefix = `skills/${skillName}/`
-    const paths = tree
-      .filter(item => item.type === 'blob' && item.path.startsWith(prefix))
-      .map(item => item.path.slice(prefix.length))
-      .filter(p => !EXCLUDED_DIRS.has(p.split('/')[0]!) && (p.endsWith('.md') || p.endsWith('.json')))
-
+    const paths = extractSkillFromTree(tree, `skills/${skillName}`)
     if (!paths.length) continue
 
-    moduleSkills[skillName] = { skillName, paths, files: {} }
+    const rawBase = `https://raw.githubusercontent.com/${COMMUNITY_REPO}/${COMMUNITY_BRANCH}/skills/${skillName}`
+    moduleSkills[skillName] = { skillName, rawBase, paths, files: {}, source: 'community' }
 
     if (paths.includes('SKILL.md')) {
       fetches.push(
-        $fetch<string>(`https://raw.githubusercontent.com/${REPO}/${BRANCH}/${prefix}SKILL.md`, { responseType: 'text' })
+        $fetch<string>(`https://raw.githubusercontent.com/${COMMUNITY_REPO}/${COMMUNITY_BRANCH}/skills/${skillName}/SKILL.md`, { responseType: 'text' })
           .then((content) => { moduleSkills[skillName]!.files['SKILL.md'] = content })
           .catch(() => {}),
       )
@@ -106,14 +142,36 @@ export async function discoverModuleSkills(npmPackages?: string[]): Promise<Skil
   }
 
   await Promise.all(fetches)
+  return { skillFolders, moduleSkills }
+}
 
-  // Resolve npm packages → skill folders
+/**
+ * Discover all module skills. Official repo skills take priority over community.
+ */
+export async function discoverModuleSkills(npmPackages?: string[]): Promise<SkillDiscoveryResult> {
+  if (cached && Date.now() - cached.at < CACHE_TTL) return cached.result
+
+  const [officialSkills, community] = await Promise.all([
+    fetchOfficialSkills(),
+    fetchCommunitySkills(),
+  ])
+
+  // Merge: official wins over community for the same skill name
+  const moduleSkills: Record<string, ModuleSkillEntry> = { ...community.moduleSkills }
+  for (const [skillName, entry] of Object.entries(officialSkills)) {
+    moduleSkills[skillName] = entry
+  }
+
+  // Skill folders = union of community + official
+  const skillFolders = new Set(community.skillFolders)
+  for (const skillName of Object.keys(officialSkills)) {
+    skillFolders.add(skillName)
+  }
+
   const realSkillPackages = new Set<string>()
   if (npmPackages) {
     for (const npm of npmPackages) {
-      if (resolveSkillFolder(npm, skillFolders)) {
-        realSkillPackages.add(npm)
-      }
+      if (resolveSkillFolder(npm, skillFolders)) realSkillPackages.add(npm)
     }
   }
 
@@ -122,10 +180,6 @@ export async function discoverModuleSkills(npmPackages?: string[]): Promise<Skil
   return result
 }
 
-/**
- * Get the set of discovered skill folders. Light wrapper for endpoints
- * that only need the folder listing (not full module skills).
- */
 export async function getSkillFolders(): Promise<Set<string>> {
   const { skillFolders } = await discoverModuleSkills()
   return skillFolders

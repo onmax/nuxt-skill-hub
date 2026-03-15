@@ -331,7 +331,7 @@ function formatCompactLinks(
     links.push(`${labels.repo}: [${entry.repoUrl}](${entry.repoUrl})`)
   }
 
-  return links.join('\n')
+  return links.join('\n\n')
 }
 
 function formatWrapperLinks(

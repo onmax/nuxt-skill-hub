@@ -87,6 +87,7 @@ describe('createModuleWrapperContent', () => {
     }
 
     expect(createModuleWrapperContent(entry).trim()).toBe(`Docs: [https://i18n.nuxtjs.org](https://i18n.nuxtjs.org)
+
 Source code: [https://github.com/nuxt-modules/i18n](https://github.com/nuxt-modules/i18n)`)
   })
 

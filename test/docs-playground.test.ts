@@ -58,6 +58,7 @@ describe('docs playground metadata routing', () => {
     }
 
     expect(createModuleWrapperContent(entry).trim()).toBe(`Docs: [https://a11y.nuxt.com](https://a11y.nuxt.com)
+
 Source code: [https://github.com/nuxt/a11y](https://github.com/nuxt/a11y)`)
   })
 
