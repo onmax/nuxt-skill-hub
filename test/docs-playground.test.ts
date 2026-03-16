@@ -99,12 +99,19 @@ Source code: [https://github.com/nuxt/a11y](https://github.com/nuxt/a11y)`)
     expect(serialized).toContain('"label":"vue"')
   })
 
-  it('shows only selected module files in the preview tree', () => {
+  it('hides modules folder when no modules are selected', () => {
     const tree = buildFileTree(['index.md', 'rules/abstraction-disambiguation.md'], ['SKILL.md'], [])
     const serialized = JSON.stringify(tree)
 
+    expect(serialized).not.toContain('"label":"modules"')
+  })
+
+  it('shows modules folder when modules have files', () => {
+    const tree = buildFileTree(['index.md'], ['SKILL.md'], ['nuxthub'], { nuxthub: ['SKILL.md'] })
+    const serialized = JSON.stringify(tree)
+
     expect(serialized).toContain('"label":"modules"')
-    expect(serialized).not.toContain('_list.md')
+    expect(serialized).toContain('"label":"nuxthub"')
   })
 
   it('falls back to the root skill when a selected module file disappears', () => {

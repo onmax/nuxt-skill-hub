@@ -96,10 +96,8 @@ async function agentThinks(step: SkillStep) {
   scrollToBottom()
   await sleep(PAUSE_MEDIUM)
 
-  // Hide live block first, wait for leave transition, then commit to history
   isThinking.value = false
   liveSkillStep.value = null
-  await sleep(250)
   entries.value.push({ type: 'thinking', skillStep: step, text: step.reason })
   scrollToBottom()
   await sleep(PAUSE_SHORT)
@@ -203,6 +201,14 @@ const { stop: stopSectionObserver } = useIntersectionObserver(
           </h2>
           <ul class="mt-6 flex flex-col gap-3">
             <li class="flex items-start gap-2.5 text-muted">
+              <UIcon name="i-lucide-file-text" class="mt-0.5 size-4 shrink-0 text-primary" />
+              <span>A single root skill becomes the entry point for your agent</span>
+            </li>
+            <li class="flex items-start gap-2.5 text-muted">
+              <UIcon name="i-lucide-sparkles" class="mt-0.5 size-4 shrink-0 text-primary" />
+              <span>Generated from your Nuxt stack</span>
+            </li>
+            <li class="flex items-start gap-2.5 text-muted">
               <UIcon name="i-lucide-folder-search" class="mt-0.5 size-4 shrink-0 text-primary" />
               <span class="flex flex-wrap items-center gap-2">
                 Agents already know how to search your codebase.
@@ -219,14 +225,6 @@ const { stop: stopSectionObserver } = useIntersectionObserver(
                   Learn more
                 </UButton>
               </span>
-            </li>
-            <li class="flex items-start gap-2.5 text-muted">
-              <UIcon name="i-lucide-sparkles" class="mt-0.5 size-4 shrink-0 text-primary" />
-              <span>Generated from your Nuxt stack</span>
-            </li>
-            <li class="flex items-start gap-2.5 text-muted">
-              <UIcon name="i-lucide-file-text" class="mt-0.5 size-4 shrink-0 text-primary" />
-              <span>A single root skill becomes the entry point for your agent</span>
             </li>
             <li class="flex items-start gap-2.5 text-muted">
               <UIcon name="i-lucide-terminal" class="mt-0.5 size-4 shrink-0 text-primary" />
@@ -297,17 +295,9 @@ const { stop: stopSectionObserver } = useIntersectionObserver(
               </template>
 
               <!-- Live: thinking (skill resolution) -->
-              <Transition
-                enter-active-class="transition duration-300 ease-out"
-                enter-from-class="translate-y-1 opacity-0"
-                enter-to-class="translate-y-0 opacity-100"
-                leave-active-class="transition duration-200 ease-in"
-                leave-from-class="opacity-100"
-                leave-to-class="opacity-0"
-              >
+              <template v-if="isThinking && liveSkillStep">
                 <div
-                  v-if="isThinking && liveSkillStep"
-                  class="max-w-[90%] shrink-0 translate-y-0 transform-gpu overflow-hidden rounded-lg border border-default opacity-100 [will-change:transform,opacity]"
+                  class="max-w-[90%] shrink-0 overflow-hidden rounded-lg border border-default"
                 >
                   <div class="flex items-center gap-2 bg-elevated/50 px-3 py-2">
                     <UIcon name="i-lucide-book-open" class="size-3.5 animate-pulse text-primary" />
@@ -320,7 +310,7 @@ const { stop: stopSectionObserver } = useIntersectionObserver(
                     <p class="font-mono text-xs text-muted">{{ liveSkillStep.reason }}</p>
                   </div>
                 </div>
-              </Transition>
+              </template>
 
               <!-- Live: typing user -->
               <div v-if="typingRole === 'user' && typingText" class="flex justify-end">

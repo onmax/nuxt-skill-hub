@@ -19,6 +19,7 @@ export interface NuxtModuleResult {
   description: string
   icon: string
   downloads: number
+  stars: number
   github?: string
   website?: string
   skillAvailability: SkillAvailability
@@ -51,6 +52,7 @@ export default defineEventHandler(async () => {
     description: m.description,
     icon: m.icon,
     downloads: m.stats?.downloads ?? 0,
+    stars: m.stats?.stars ?? 0,
     github: m.github,
     website: m.website,
     skillAvailability: resolveAvailability(m.npm, skillFolders, m.github, m.website),

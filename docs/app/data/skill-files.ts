@@ -80,37 +80,17 @@ export function buildFileTree(
       children: buildNestedTree(`references/modules/${id}`, moduleFileLists[id]!, `dir:modules/${id}`),
     }))
 
+  const referencesChildren: SkillFileTree[] = [
+    { value: 'dir:nuxt', label: 'nuxt', icon: 'i-lucide-folder', defaultExpanded: false, children: nuxtEntries },
+    { value: 'dir:vue', label: 'vue', icon: 'i-lucide-folder', defaultExpanded: false, children: vueEntries },
+  ]
+  if (moduleEntries.length) {
+    referencesChildren.push({ value: MODULES_DIR_PATH, label: 'modules', icon: 'i-lucide-folder', defaultExpanded: true, children: moduleEntries })
+  }
+
   return [
     { label: 'SKILL.md', icon: 'i-lucide-file-text', value: 'SKILL.md' },
-    {
-      value: 'dir:references',
-      label: 'references',
-      icon: 'i-lucide-folder',
-      defaultExpanded: true,
-      children: [
-        {
-          value: 'dir:nuxt',
-          label: 'nuxt',
-          icon: 'i-lucide-folder',
-          defaultExpanded: false,
-          children: nuxtEntries,
-        },
-        {
-          value: 'dir:vue',
-          label: 'vue',
-          icon: 'i-lucide-folder',
-          defaultExpanded: false,
-          children: vueEntries,
-        },
-        {
-          value: MODULES_DIR_PATH,
-          label: 'modules',
-          icon: 'i-lucide-folder',
-          defaultExpanded: true,
-          children: moduleEntries,
-        },
-      ],
-    },
+    { value: 'dir:references', label: 'references', icon: 'i-lucide-folder', defaultExpanded: true, children: referencesChildren },
   ]
 }
 
