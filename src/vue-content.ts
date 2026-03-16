@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath } from 'mlly'
 import { dirname, resolve } from 'pathe'
 import { downloadTemplate } from 'giget'
 import { loadVueSkillFilesFromDir } from '../shared/vue-content'

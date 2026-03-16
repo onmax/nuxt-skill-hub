@@ -57,6 +57,7 @@
     "changelogen": "catalog:release",
     "eslint": "catalog:quality",
     "happy-dom": "catalog:quality",
+    "mlly": "^1.8.1",
     "nuxt": "catalog:nuxt",
     "typescript": "catalog:quality",
     "vitest": "catalog:quality",

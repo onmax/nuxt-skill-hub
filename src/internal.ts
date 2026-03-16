@@ -514,7 +514,7 @@ export function sanitizeSegment(value: string): string {
 }
 
 export async function copySkillTree(sourceDir: string, destinationDir: string, includeScripts: boolean): Promise<void> {
-  await ensureDir(destinationDir)
+  await emptyDir(destinationDir)
   await fsp.cp(sourceDir, destinationDir, {
     recursive: true,
     force: true,

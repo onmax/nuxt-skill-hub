@@ -1,5 +1,5 @@
 import { dirname, resolve } from 'pathe'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath } from 'mlly'
 import {
   loadNuxtIndexTemplateFromDir,
   loadNuxtMetadata as loadSharedNuxtMetadata,
