@@ -60,6 +60,16 @@ catalogs:
     changelogen:
       specifier: ^0.6.2
       version: 0.6.2
+  runtime:
+    automd:
+      specifier: ^0.4.3
+      version: 0.4.3
+    mlly:
+      specifier: ^1.8.1
+      version: 1.8.1
+    unagent:
+      specifier: ^0.0.8
+      version: 0.0.8
 
 importers:
 
@@ -69,7 +79,7 @@ importers:
         specifier: ^4.3.1
         version: 4.3.1(magicast@0.5.2)
       automd:
-        specifier: ^0.4.3
+        specifier: catalog:runtime
         version: 0.4.3(magicast@0.5.2)
       consola:
         specifier: ^3.4.0
@@ -80,6 +90,9 @@ importers:
       gray-matter:
         specifier: ^4.0.3
         version: 4.0.3
+      mlly:
+        specifier: catalog:runtime
+        version: 1.8.1
       ofetch:
         specifier: ^1.5.0
         version: 1.5.1
@@ -90,7 +103,7 @@ importers:
         specifier: ^2.3.0
         version: 2.3.0
       unagent:
-        specifier: ^0.0.8
+        specifier: catalog:runtime
         version: 0.0.8(pg@8.18.0)(unstorage@1.17.4(db0@0.3.4(@electric-sql/pglite@0.3.15)(drizzle-orm@0.41.0(@cloudflare/workers-types@4.20260304.0)(@electric-sql/pglite@0.3.15)(@prisma/client@5.22.0(prisma@7.4.1(@types/react@19.2.14)(magicast@0.5.2)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(typescript@5.9.3)))(@types/pg@8.16.0)(kysely@0.28.11)(mysql2@3.15.3)(pg@8.18.0)(postgres@3.4.7)(prisma@7.4.1(@types/react@19.2.14)(magicast@0.5.2)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(typescript@5.9.3)))(mysql2@3.15.3))(ioredis@5.9.3))
     devDependencies:
       '@nuxt/devtools':
@@ -126,9 +139,6 @@ importers:
       happy-dom:
         specifier: catalog:quality
         version: 20.7.0
-      mlly:
-        specifier: ^1.8.1
-        version: 1.8.1
       nuxt:
         specifier: catalog:nuxt
         version: 4.3.1(e2891d055a20e61b098ea11a54b68c82)

@@ -36,14 +36,15 @@
   },
   "dependencies": {
     "@nuxt/kit": "^4.3.1",
-    "automd": "^0.4.3",
+    "automd": "catalog:runtime",
     "consola": "^3.4.0",
     "giget": "^3.1.2",
     "gray-matter": "^4.0.3",
     "ofetch": "^1.5.0",
     "pathe": "^2.0.0",
     "pkg-types": "^2.3.0",
-    "unagent": "^0.0.8"
+    "mlly": "catalog:runtime",
+    "unagent": "catalog:runtime"
   },
   "devDependencies": {
     "@nuxt/devtools": "catalog:nuxt",
@@ -57,7 +58,6 @@
     "changelogen": "catalog:release",
     "eslint": "catalog:quality",
     "happy-dom": "catalog:quality",
-    "mlly": "^1.8.1",
     "nuxt": "catalog:nuxt",
     "typescript": "catalog:quality",
     "vitest": "catalog:quality",

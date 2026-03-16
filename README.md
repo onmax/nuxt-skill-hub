@@ -7,9 +7,9 @@
 <p align="center">Teach your AI agent the Nuxt way with best practices and module guidance.</p>
 
 <p align="center">
-  <a href="https://npmjs.com/package/nuxt-skill-hub"><img src="https://img.shields.io/npm/v/nuxt-skill-hub/latest.svg?style=flat&colorA=020420&colorB=00DC82" alt="npm version"></a>
-  <a href="https://npm.chart.dev/nuxt-skill-hub"><img src="https://img.shields.io/npm/dm/nuxt-skill-hub.svg?style=flat&colorA=020420&colorB=00DC82" alt="npm downloads"></a>
-  <a href="https://npmjs.com/package/nuxt-skill-hub"><img src="https://img.shields.io/npm/l/nuxt-skill-hub.svg?style=flat&colorA=020420&colorB=00DC82" alt="License"></a>
+  <a href="https://npmx.dev/package/nuxt-skill-hub"><img src="https://npmx.dev/api/registry/badge/version/nuxt-skill-hub" alt="npm version"></a>
+  <a href="https://npmx.dev/package/nuxt-skill-hub"><img src="https://npmx.dev/api/registry/badge/downloads/nuxt-skill-hub" alt="npm downloads"></a>
+  <a href="https://npmx.dev/package/nuxt-skill-hub"><img src="https://npmx.dev/api/registry/badge/license/nuxt-skill-hub" alt="License"></a>
   <a href="https://nuxt.com"><img src="https://img.shields.io/badge/Nuxt-020420?logo=nuxt.js" alt="Nuxt"></a>
 </p>
 

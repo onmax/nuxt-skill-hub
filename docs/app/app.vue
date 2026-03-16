@@ -14,8 +14,9 @@ const navItems = [
     <header class="fixed inset-x-0 top-0 z-50 border-b border-default bg-default/95 backdrop-blur-sm">
       <UContainer>
         <div class="flex h-12 items-center justify-between">
-          <a href="#hero" class="font-mono text-xs font-medium tracking-widest text-highlighted uppercase">
-            nuxt-skill-hub
+          <a href="#hero" class="flex items-center gap-2 text-sm font-semibold text-highlighted">
+            <img src="/icon.png" alt="Nuxt Skill Hub" class="size-6 rounded">
+            Nuxt Skill Hub
           </a>
 
           <nav class="hidden items-center gap-6 md:flex">

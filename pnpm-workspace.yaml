@@ -5,6 +5,7 @@ packages:
 catalogs:
   runtime:
     automd: ^0.4.3
+    mlly: ^1.8.1
     unagent: ^0.0.8
   nuxt:
     '@nuxt/devtools': ^3.2.1
