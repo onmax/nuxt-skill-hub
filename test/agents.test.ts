@@ -7,6 +7,7 @@ vi.mock('unagent/env', () => ({
   expandPath: (value: string) => value,
 }))
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const { detectInstalledAgents, getAgentConfig } = await import('unagent/env') as any
 const { detectInstalledTargets, validateTargets } = await import('../src/agents')
 
