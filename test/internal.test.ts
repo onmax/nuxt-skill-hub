@@ -1,7 +1,7 @@
 import { promises as fsp } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   discoverInstalledPackageFromDirectory,
   getTargetSkillRoot,
@@ -12,11 +12,6 @@ import {
   resolveMonorepoScopePath,
   sortAndDedupeContributions,
 } from '../src/internal'
-
-afterEach(() => {
-  vi.unmock('../src/agents')
-  vi.resetModules()
-})
 
 describe('parseAgentSkillDeclarations', () => {
   it('returns valid entries and reports invalid declarations', () => {
@@ -265,14 +260,14 @@ describe('getTargetSkillRoot', () => {
 
   it('throws when target configDir is outside the home directory', async () => {
     vi.resetModules()
-    vi.doMock('../src/agents', () => ({
-      detectInstalledTargets: vi.fn(() => []),
-      validateTargets: vi.fn(() => ({ valid: [], invalid: [] })),
-      resolveAgentTargetConfig: vi.fn(() => ({
-        target: 'custom-agent',
+    vi.doMock('unagent/env', () => ({
+      detectInstalledAgents: vi.fn(() => []),
+      getAgentConfig: vi.fn(() => ({
         configDir: '/opt/custom-agent-config',
         skillsDir: 'rules',
       })),
+      getAgentIds: vi.fn(() => ['custom-agent']),
+      expandPath: (value: string) => value,
     }))
 
     const { getTargetSkillRoot: getTargetSkillRootWithMock } = await import('../src/internal')
