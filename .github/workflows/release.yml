@@ -22,9 +22,11 @@ jobs:
           cache: pnpm
 
       - run: pnpm install
-      - run: pnpm lint
-      - run: pnpm prepack
-      - run: pnpm test
+      - run: pnpm run dev:prepare
+      - run: pnpm run lint
+      - run: pnpm run typecheck
+      - run: pnpm run test
+      - run: pnpm run prepack
 
   release:
     needs: ci
