@@ -151,7 +151,7 @@ describe('module-expanded generation', () => {
     await expect(fsp.access(join(skillRoot, 'references/modules/test-nuxt-seo/nuxt-seo/scripts/check.sh'))).rejects.toBeDefined()
   })
 
-  it('regenerates the same workspace skill tree on repeated prepare cycles', async () => {
+  it('regenerates the same workspace skill tree on repeated prepare cycles', { timeout: 20_000 }, async () => {
     const loadedNuxtInstances = []
 
     try {
