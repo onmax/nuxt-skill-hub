@@ -2,6 +2,7 @@ import { promises as fsp } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { loadNuxt } from '@nuxt/kit'
 import { setup, $fetch } from '@nuxt/test-utils/e2e'
 
 const rootDir = fileURLToPath(new URL('./fixtures/with-modules', import.meta.url))
@@ -148,5 +149,24 @@ describe('module-expanded generation', () => {
 
     await expect(fsp.access(join(skillRoot, 'references/modules/test-nuxt-ui/nuxt-ui/scripts/check.sh'))).rejects.toBeDefined()
     await expect(fsp.access(join(skillRoot, 'references/modules/test-nuxt-seo/nuxt-seo/scripts/check.sh'))).rejects.toBeDefined()
+  })
+
+  it('regenerates the same workspace skill tree on repeated prepare cycles', async () => {
+    const loadedNuxtInstances = []
+
+    try {
+      loadedNuxtInstances.push(await loadNuxt({ cwd: rootDir, dev: false, ready: true }))
+      loadedNuxtInstances.push(await loadNuxt({ cwd: rootDir, dev: false, ready: true }))
+    }
+    finally {
+      for (const nuxt of loadedNuxtInstances.reverse()) {
+        await nuxt.close()
+      }
+    }
+
+    const skillRoot = join(workspaceRoot, '.claude', 'skills', 'nuxt-with-modules-fixture')
+    await expect(fsp.readFile(join(skillRoot, 'SKILL.md'), 'utf8')).resolves.toContain('## Module guides')
+    await expect(fsp.readFile(join(skillRoot, 'references/modules/test-nuxt-ui/nuxt-ui/SKILL.md'), 'utf8')).resolves.toContain('description: Test Nuxt UI module skill.')
+    await expect(fsp.readFile(join(skillRoot, 'references/modules/test-meta-router/test-meta-router/SKILL.md'), 'utf8')).resolves.toContain('Generated from package metadata.')
   })
 })

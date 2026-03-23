@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import {
+  copySkillTree,
   discoverInstalledPackageFromDirectory,
   getTargetSkillRoot,
   isValidSkillName,
@@ -190,6 +191,58 @@ describe('resolveContributions', () => {
       skillName: 'nuxt-ui',
       reason: 'SKILL.md must include YAML frontmatter',
     }))
+  })
+})
+
+describe('copySkillTree', () => {
+  it('is idempotent for nested references when scripts are excluded', async () => {
+    const root = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-copy-'))
+    const sourceDir = join(root, 'source')
+    const destinationDir = join(root, 'destination')
+    const referencesDir = join(sourceDir, 'references', 'modules', 'nuxt-ui')
+    const scriptsDir = join(sourceDir, 'scripts')
+
+    await fsp.mkdir(referencesDir, { recursive: true })
+    await fsp.mkdir(scriptsDir, { recursive: true })
+    await fsp.writeFile(join(sourceDir, 'SKILL.md'), '---\nname: nuxt-ui\ndescription: ok\n---\n', 'utf8')
+    await fsp.writeFile(join(referencesDir, 'guide.md'), '# original\n', 'utf8')
+    await fsp.writeFile(join(referencesDir, 'stale.md'), '# stale\n', 'utf8')
+    await fsp.writeFile(join(scriptsDir, 'check.sh'), '#!/usr/bin/env sh\necho skip\n', 'utf8')
+
+    await copySkillTree(sourceDir, destinationDir, false)
+
+    await fsp.writeFile(join(sourceDir, 'SKILL.md'), '---\nname: nuxt-ui\ndescription: updated\n---\n', 'utf8')
+    await fsp.rm(join(referencesDir, 'stale.md'))
+    await fsp.writeFile(join(referencesDir, 'guide.md'), '# updated\n', 'utf8')
+    await fsp.writeFile(join(referencesDir, 'fresh.md'), '# fresh\n', 'utf8')
+
+    await expect(copySkillTree(sourceDir, destinationDir, false)).resolves.toBeUndefined()
+    await expect(fsp.readFile(join(destinationDir, 'SKILL.md'), 'utf8')).resolves.toContain('description: updated')
+    await expect(fsp.readFile(join(destinationDir, 'references', 'modules', 'nuxt-ui', 'guide.md'), 'utf8')).resolves.toBe('# updated\n')
+    await expect(fsp.readFile(join(destinationDir, 'references', 'modules', 'nuxt-ui', 'fresh.md'), 'utf8')).resolves.toBe('# fresh\n')
+    await expect(fsp.access(join(destinationDir, 'references', 'modules', 'nuxt-ui', 'stale.md'))).rejects.toBeDefined()
+    await expect(fsp.access(join(destinationDir, 'scripts', 'check.sh'))).rejects.toBeDefined()
+  })
+
+  it('is idempotent for nested references when scripts are included', async () => {
+    const root = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-copy-'))
+    const sourceDir = join(root, 'source')
+    const destinationDir = join(root, 'destination')
+    const referencesDir = join(sourceDir, 'references', 'modules', 'nuxt-ui')
+    const scriptsDir = join(sourceDir, 'scripts')
+
+    await fsp.mkdir(referencesDir, { recursive: true })
+    await fsp.mkdir(scriptsDir, { recursive: true })
+    await fsp.writeFile(join(sourceDir, 'SKILL.md'), '---\nname: nuxt-ui\ndescription: ok\n---\n', 'utf8')
+    await fsp.writeFile(join(referencesDir, 'guide.md'), '# original\n', 'utf8')
+    await fsp.writeFile(join(scriptsDir, 'check.sh'), '#!/usr/bin/env sh\necho first\n', 'utf8')
+
+    await copySkillTree(sourceDir, destinationDir, true)
+    await fsp.writeFile(join(scriptsDir, 'check.sh'), '#!/usr/bin/env sh\necho second\n', 'utf8')
+
+    await expect(copySkillTree(sourceDir, destinationDir, true)).resolves.toBeUndefined()
+    await expect(fsp.readFile(join(destinationDir, 'scripts', 'check.sh'), 'utf8')).resolves.toContain('echo second')
+    await expect(fsp.readFile(join(destinationDir, 'references', 'modules', 'nuxt-ui', 'guide.md'), 'utf8')).resolves.toBe('# original\n')
   })
 })
 
