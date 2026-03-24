@@ -105,6 +105,10 @@ export default defineNuxtModule<ModuleOptions>({
       return
     }
 
+    if (nuxt.options._prepare) {
+      return
+    }
+
     const configuredSkillName = options.skillName?.trim()
     let resolvedSkillName: string
 
