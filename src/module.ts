@@ -1,7 +1,7 @@
 import { promises as fsp } from 'node:fs'
 import { isAbsolute, join, relative, resolve } from 'pathe'
 import { defineNuxtModule, useLogger } from '@nuxt/kit'
-import { isCI } from 'std-env'
+import { isCI, isTest } from 'std-env'
 import { PACKAGE_VERSION } from './package-info'
 import { runInstallWizard } from './install'
 import { loadNuxtMetadata } from './nuxt-content'
@@ -100,7 +100,7 @@ export default defineNuxtModule<ModuleOptions>({
   async setup(options, nuxt) {
     const logger = useLogger('nuxt-skill-hub')
 
-    if (isCI) {
+    if (isCI && !isTest) {
       logger.info('Skipping skill generation in CI')
       return
     }
