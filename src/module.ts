@@ -1,6 +1,7 @@
 import { promises as fsp } from 'node:fs'
 import { isAbsolute, join, relative, resolve } from 'pathe'
 import { defineNuxtModule, useLogger } from '@nuxt/kit'
+import { isCI } from 'std-env'
 import { PACKAGE_VERSION } from './package-info'
 import { runInstallWizard } from './install'
 import { loadNuxtMetadata } from './nuxt-content'
@@ -98,6 +99,12 @@ export default defineNuxtModule<ModuleOptions>({
   },
   async setup(options, nuxt) {
     const logger = useLogger('nuxt-skill-hub')
+
+    if (isCI) {
+      logger.info('Skipping skill generation in CI')
+      return
+    }
+
     const configuredSkillName = options.skillName?.trim()
     let resolvedSkillName: string
 
@@ -179,14 +186,12 @@ export default defineNuxtModule<ModuleOptions>({
       const remoteCacheRoot = join(nuxt.options.rootDir, '.nuxt', 'skill-hub-cache')
       await emptyDir(remoteCacheRoot)
 
-      for (const pkg of installedPackages) {
-        if (pkg.packageName === 'nuxt-skill-hub') {
-          continue
-        }
+      const packagesToResolve = installedPackages.filter(pkg => pkg.packageName !== 'nuxt-skill-hub' && !distResolvedPackages.has(pkg.packageName))
+      const totalToResolve = packagesToResolve.length
 
-        if (distResolvedPackages.has(pkg.packageName)) {
-          continue
-        }
+      for (let i = 0; i < packagesToResolve.length; i++) {
+        const pkg = packagesToResolve[i]
+        logger.start(`[${i + 1}/${totalToResolve}] Resolving skills for ${pkg.packageName}...`)
 
         const remote = await resolveRemoteContributionsForPackage(pkg, {
           cacheRoot: remoteCacheRoot,
@@ -251,7 +256,8 @@ export default defineNuxtModule<ModuleOptions>({
 
       const nuxtMetadata = await loadNuxtMetadata()
 
-      for (const target of targets) {
+      for (let targetIdx = 0; targetIdx < targets.length; targetIdx++) {
+        const target = targets[targetIdx]
         const { skillRoot } = getTargetSkillRoot(exportRoot, target, resolvedSkillName)
         const referencesRoot = join(skillRoot, 'references')
         const nuxtRoot = join(referencesRoot, 'nuxt')
@@ -275,6 +281,8 @@ export default defineNuxtModule<ModuleOptions>({
         const nuxtIndexContent = await renderAutomdTemplate(nuxtIndexTemplate, nuxtRoot)
         await writeFileIfChanged(join(nuxtRoot, 'index.md'), nuxtIndexContent)
 
+        if (targetIdx === 0)
+          logger.start('Fetching Vue best-practices content...')
         const vueTemplateFiles = await buildVueTemplateFiles(vueRoot, remoteCacheRoot)
         for (const file of vueTemplateFiles) {
           await writeFileIfChanged(file.path, file.contents)
