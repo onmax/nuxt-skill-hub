@@ -1,7 +1,7 @@
 import { promises as fsp } from 'node:fs'
 import { execSync } from 'node:child_process'
-import { fileURLToPath } from 'node:url'
 import { join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { resolveGeneratedSkillRoot } from './utils'
 

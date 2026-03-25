@@ -4,10 +4,8 @@ import { ensureStableSkillWrappers, generateSkillTree } from './generator'
 import { resolveExportRoot, deriveSkillName, detectConflictingSkills, formatConflictWarning, isValidSkillName, resolveTargets } from './internal'
 import { PACKAGE_VERSION } from './package-info'
 import { runInstallWizard } from './install'
-import type {
-  ModuleOptions,
-  SkillHubContributionContext,
-} from './types'
+import { DEFAULT_SKILL_HUB_GENERATION_MODE, normalizeGenerationMode } from './types'
+import type { ModuleOptions, SkillHubContributionContext } from './types'
 
 export default defineNuxtModule<ModuleOptions>({
   meta: {
@@ -25,7 +23,7 @@ export default defineNuxtModule<ModuleOptions>({
     skillName: '',
     targets: [],
     moduleAuthoring: false,
-    generationMode: 'prepare',
+    generationMode: DEFAULT_SKILL_HUB_GENERATION_MODE,
   },
   async setup(options, nuxt) {
     const logger = useLogger('nuxt-skill-hub')
@@ -49,9 +47,13 @@ export default defineNuxtModule<ModuleOptions>({
     }
 
     const exportRoot = await resolveExportRoot(nuxt.options.rootDir)
-    const generationMode = options.generationMode || 'prepare'
+    const rawGenerationMode = options.generationMode
+    const generationMode = normalizeGenerationMode(rawGenerationMode)
     const { targets, invalidTargets } = resolveTargets(options.targets || [])
 
+    if (rawGenerationMode && rawGenerationMode !== generationMode) {
+      logger.warn(`Invalid skillHub.generationMode "${rawGenerationMode}". Falling back to "prepare".`)
+    }
     for (const invalidTarget of invalidTargets) {
       if (invalidTarget.reason === 'unknown-target') {
         logger.warn(`Target "${invalidTarget.target}" is unknown in unagent and was skipped.`)

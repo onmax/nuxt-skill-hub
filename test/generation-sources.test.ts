@@ -1,5 +1,28 @@
-import { describe, expect, it } from 'vitest'
-import { collectWorkspaceDiscoverySources } from '../src/generation/sources'
+import { promises as fsp } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, describe, expect, it } from 'vitest'
+import { collectWorkspaceDiscoverySources, createLocalSourceFingerprints } from '../src/generation/sources'
+import type { ResolvedContribution } from '../src/types'
+
+const cleanupPaths: string[] = []
+
+function createContribution(sourceDir: string): ResolvedContribution {
+  return {
+    packageName: 'test-package',
+    skillName: 'test-skill',
+    sourceDir,
+    sourceRoot: sourceDir,
+    sourceKind: 'dist',
+    official: false,
+    resolver: 'agentsField',
+    forceIncludeScripts: false,
+  }
+}
+
+afterEach(async () => {
+  await Promise.all(cleanupPaths.splice(0).map(path => fsp.rm(path, { recursive: true, force: true })))
+})
 
 describe('collectWorkspaceDiscoverySources', () => {
   it('includes non-node_modules local discoveries and skips installed package roots', () => {
@@ -41,6 +64,23 @@ describe('collectWorkspaceDiscoverySources', () => {
         skillName: 'workspace-skill',
         sourceDir: '/repo/packages/workspace-module/skills/workspace-skill',
         sourceRoot: '/repo/packages/workspace-module',
+      }),
+    ])
+  })
+})
+
+describe('createLocalSourceFingerprints', () => {
+  it('returns a null hash for non-directory source paths', async () => {
+    const tempRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-source-fingerprint-'))
+    cleanupPaths.push(tempRoot)
+
+    const sourceFile = join(tempRoot, 'not-a-directory.md')
+    await fsp.writeFile(sourceFile, '# not a skill directory\n', 'utf8')
+
+    await expect(createLocalSourceFingerprints([createContribution(sourceFile)])).resolves.toEqual([
+      expect.objectContaining({
+        sourceDir: sourceFile,
+        hash: null,
       }),
     ])
   })

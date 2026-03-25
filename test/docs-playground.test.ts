@@ -35,10 +35,13 @@ describe('docs playground metadata routing', () => {
   it('renders additive module-author preview content when enabled', () => {
     const entry = createSkillEntrypoint('nuxt', DEFAULT_CORE_CONTENT_METADATA, undefined, true)
 
-    expect(entry).toContain('## Module Author Focus')
-    expect(entry).toContain('## Module author focus')
-    expect(entry).toContain('Writing, refactoring, or publishing a Nuxt module')
-    expect(entry).toContain('## Vue guidance')
+    expect(entry).toContain('# Nuxt Skill Router')
+    expect(entry).toContain('Writing or refactoring a Nuxt module (`defineNuxtModule`, hooks, public APIs)')
+    expect(entry).toContain('"Add a Nuxt module option, hook, or runtime extension"')
+    expect(entry).toContain('Hydration and SSR Consistency')
+    expect(entry).toContain('Verification and Finish')
+    expect(entry).not.toContain('## Vue guidance')
+    expect(entry).not.toContain('## Module authoring')
   })
 
   it('keeps generated preview wrappers compact by default', () => {

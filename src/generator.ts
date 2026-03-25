@@ -222,21 +222,19 @@ export async function generateSkillTree(input: {
   const resolvedManual = await Promise.all(
     manualContributions.map(contribution => resolveManualContribution(nuxt.options.rootDir, contribution)),
   )
-  const fingerprint = await createGenerationFingerprint(
-    {
-      packageVersion: PACKAGE_VERSION,
-      rootDir: nuxt.options.rootDir,
-      buildDir: nuxt.options.buildDir,
-      exportRoot,
-      skillName,
-      options,
-      installedPackages,
-      localSources: await createLocalSourceFingerprints([
-        ...workspaceDiscoverySources,
-        ...sortAndDedupeContributions(resolvedManual),
-      ]),
-    },
-  )
+  const fingerprint = await createGenerationFingerprint({
+    packageVersion: PACKAGE_VERSION,
+    rootDir: nuxt.options.rootDir,
+    buildDir: nuxt.options.buildDir,
+    exportRoot,
+    skillName,
+    options,
+    installedPackages,
+    localSources: await createLocalSourceFingerprints([
+      ...workspaceDiscoverySources,
+      ...sortAndDedupeContributions(resolvedManual),
+    ]),
+  })
 
   if (generationMode === 'prepare' && await isGeneratedSkillFresh(generatedSkillRoot, fingerprint)) {
     logger.info(`Generated ${skillName} skill is already up to date at ${generatedSkillRoot}`)
@@ -270,7 +268,6 @@ export async function generateSkillTree(input: {
   }
 
   const validatedRemote = await validateResolvedContributions(sortAndDedupeContributions(remoteContributions))
-
   const validatedManual = await validateResolvedContributions(sortAndDedupeContributions(resolvedManual))
 
   const contributions = sortAndDedupeContributions([

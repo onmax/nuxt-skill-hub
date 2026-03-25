@@ -4,6 +4,11 @@ import type { SkillSourceKind, SkillResolverKind, SkillTrustLevel } from './rend
 export type { SkillSourceKind, SkillResolverKind, SkillTrustLevel }
 
 export type SkillHubGenerationMode = 'prepare' | 'manual'
+export const DEFAULT_SKILL_HUB_GENERATION_MODE: SkillHubGenerationMode = 'prepare'
+
+export function normalizeGenerationMode(value: string | undefined | null): SkillHubGenerationMode {
+  return value === 'manual' ? 'manual' : DEFAULT_SKILL_HUB_GENERATION_MODE
+}
 
 export interface ModuleOptions {
   skillName?: string
