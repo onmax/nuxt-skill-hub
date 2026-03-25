@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { promises as fsp } from 'node:fs'
-import { join, relative, resolve } from 'pathe'
+import { isAbsolute, join, relative, resolve } from 'pathe'
 import type { Nuxt } from '@nuxt/schema'
 import { PACKAGE_VERSION } from './package-info'
 import { loadNuxtMetadata } from './nuxt-content'
@@ -19,6 +19,7 @@ import {
   getTargetSkillRoot,
   normalizeContribution,
   pathExists,
+  type PackageSkillDiscovery,
   renderAutomdTemplate,
   resolveContributions,
   resolveMonorepoScopePath,
@@ -89,7 +90,7 @@ function getGenerationStatePath(generatedSkillRoot: string): string {
 }
 
 async function resolveManualContribution(rootDir: string, contribution: SkillHubContribution): Promise<ResolvedContribution> {
-  const sourceDir = contribution.sourceDir.startsWith('/')
+  const sourceDir = isAbsolute(contribution.sourceDir)
     ? contribution.sourceDir
     : resolve(rootDir, contribution.sourceDir)
 
@@ -157,6 +158,43 @@ async function hashFileIfExists(path: string): Promise<string | null> {
   return createHash('sha256').update(contents).digest('hex')
 }
 
+async function hashDirectoryTreeIfExists(path: string): Promise<string | null> {
+  if (!(await pathExists(path))) {
+    return null
+  }
+
+  const hash = createHash('sha256')
+
+  const visit = async (currentPath: string, basePath: string) => {
+    const stat = await fsp.lstat(currentPath)
+    const relativePath = relative(basePath, currentPath).replaceAll('\\', '/') || '.'
+
+    if (stat.isSymbolicLink()) {
+      hash.update(`symlink:${relativePath}:`)
+      hash.update(await fsp.readlink(currentPath))
+      return
+    }
+
+    if (stat.isDirectory()) {
+      hash.update(`dir:${relativePath}\n`)
+      const entries = await fsp.readdir(currentPath, { withFileTypes: true })
+      entries.sort((a, b) => a.name.localeCompare(b.name))
+
+      for (const entry of entries) {
+        await visit(join(currentPath, entry.name), basePath)
+      }
+      return
+    }
+
+    hash.update(`file:${relativePath}:`)
+    hash.update(await fsp.readFile(currentPath))
+    hash.update('\n')
+  }
+
+  await visit(path, path)
+  return hash.digest('hex')
+}
+
 async function resolveLockfileInfo(exportRoot: string): Promise<{ path: string, hash: string } | null> {
   const candidates = [
     'pnpm-lock.yaml',
@@ -186,6 +224,14 @@ async function createGenerationFingerprint(
   skillName: string,
   exportRoot: string,
   installedPackages: InstalledPackageMetadata[],
+  localSources: Array<{
+    packageName: string
+    skillName: string
+    sourceDir: string
+    sourceRoot: string
+    sourceKind: ResolvedContribution['sourceKind']
+    hash: string | null
+  }>,
 ): Promise<string> {
   const rootPackageHash = await hashFileIfExists(join(nuxt.options.rootDir, 'package.json'))
   const lockfile = await resolveLockfileInfo(exportRoot)
@@ -202,6 +248,7 @@ async function createGenerationFingerprint(
     rootPackageHash,
     lockfile,
     modules,
+    localSources,
     skillHub: {
       skillName: options.skillName?.trim() || null,
       targets: [...(options.targets || [])].sort(),
@@ -220,6 +267,53 @@ async function isGeneratedSkillFresh(generatedSkillRoot: string, fingerprint: st
   ])
 
   return Boolean(entryExists && state?.fingerprint === fingerprint)
+}
+
+function collectWorkspaceDiscoverySources(rootDir: string, discoveries: PackageSkillDiscovery[]): ResolvedContribution[] {
+  const workspaceRoot = resolve(rootDir)
+  const contributions: ResolvedContribution[] = []
+
+  for (const discovery of discoveries) {
+    if (resolve(discovery.packageRoot) !== workspaceRoot) {
+      continue
+    }
+
+    for (const skill of discovery.skills) {
+      const sourceDir = resolve(discovery.packageRoot, skill.path)
+      contributions.push(normalizeContribution({
+        packageName: discovery.packageName,
+        version: discovery.version,
+        sourceDir,
+        skillName: skill.name,
+      }, sourceDir, discovery.packageRoot))
+    }
+  }
+
+  return sortAndDedupeContributions(contributions)
+}
+
+async function createLocalSourceFingerprints(contributions: ResolvedContribution[]): Promise<Array<{
+  packageName: string
+  skillName: string
+  sourceDir: string
+  sourceRoot: string
+  sourceKind: ResolvedContribution['sourceKind']
+  hash: string | null
+}>> {
+  const fingerprints = await Promise.all(contributions.map(async contribution => ({
+    packageName: contribution.packageName,
+    skillName: contribution.skillName,
+    sourceDir: resolve(contribution.sourceDir).replaceAll('\\', '/'),
+    sourceRoot: resolve(contribution.sourceRoot).replaceAll('\\', '/'),
+    sourceKind: contribution.sourceKind,
+    hash: await hashDirectoryTreeIfExists(contribution.sourceDir),
+  })))
+
+  return fingerprints.sort((a, b) => {
+    const left = `${a.packageName}::${a.skillName}::${a.sourceDir}`
+    const right = `${b.packageName}::${b.skillName}::${b.sourceDir}`
+    return left.localeCompare(right)
+  })
 }
 
 async function collectInstalledPackages(nuxt: Nuxt) {
@@ -330,14 +424,28 @@ export async function generateSkillTree(input: {
   await callSkillContributeHook('skill-hub:contribute', contributionContext)
 
   const { discoveries, installedPackages } = await collectInstalledPackages(nuxt)
-  const fingerprint = await createGenerationFingerprint(nuxt, options, skillName, exportRoot, installedPackages)
+  const discoveredContributions = await resolveContributions(discoveries)
+  const workspaceDiscoverySources = collectWorkspaceDiscoverySources(nuxt.options.rootDir, discoveries)
+  const resolvedManual = await Promise.all(
+    manualContributions.map(contribution => resolveManualContribution(nuxt.options.rootDir, contribution)),
+  )
+  const fingerprint = await createGenerationFingerprint(
+    nuxt,
+    options,
+    skillName,
+    exportRoot,
+    installedPackages,
+    await createLocalSourceFingerprints([
+      ...workspaceDiscoverySources,
+      ...sortAndDedupeContributions(resolvedManual),
+    ]),
+  )
 
   if (generationMode === 'prepare' && await isGeneratedSkillFresh(generatedSkillRoot, fingerprint)) {
     logger.info(`Generated ${skillName} skill is already up to date at ${generatedSkillRoot}`)
     return
   }
 
-  const discoveredContributions = await resolveContributions(discoveries)
   const distResolvedPackages = new Set(discoveredContributions.contributions.map(item => item.packageName))
 
   const remoteIssues: ValidationIssue[] = []
@@ -366,9 +474,6 @@ export async function generateSkillTree(input: {
 
   const validatedRemote = await validateResolvedContributions(sortAndDedupeContributions(remoteContributions))
 
-  const resolvedManual = await Promise.all(
-    manualContributions.map(contribution => resolveManualContribution(nuxt.options.rootDir, contribution)),
-  )
   const validatedManual = await validateResolvedContributions(sortAndDedupeContributions(resolvedManual))
 
   const contributions = sortAndDedupeContributions([
