@@ -210,6 +210,6 @@ export async function runInstallWizard(nuxt: Nuxt): Promise<void> {
   consola.box(
     `Setup complete!\n\n`
     + `Run \`nuxt prepare\` to generate the build-dir skill output.\n`
-    + `Configure \`skillHub.skillName\`, \`skillHub.targets\`, or \`skillHub.generationMode\` in nuxt.config.ts if needed.`,
+    + `Configure \`skillHub.skillName\`, \`skillHub.targets\`, or set \`skillHub.generationMode: 'manual'\` in nuxt.config.ts if needed.`,
   )
 }

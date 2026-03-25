@@ -93,18 +93,11 @@ export default defineNuxtModule<ModuleOptions>({
       })
     }
 
-    if (generationMode === 'prepare') {
-      if (!nuxt.options._prepare) {
-        return
-      }
-
-      nuxt.hook('prepare:types', runGeneration)
+    if (generationMode !== 'prepare' || !nuxt.options._prepare) {
       return
     }
 
-    if (!nuxt.options._prepare) {
-      nuxt.hook('modules:done', runGeneration)
-    }
+    nuxt.hook('prepare:types', runGeneration)
   },
 })
 

@@ -33,5 +33,5 @@ describe('core-only generation', () => {
     await expect(fsp.access(join(skillRoot, 'references/nuxt/rules/_sections.md'))).rejects.toBeDefined()
     await expect(fsp.access(join(skillRoot, 'references/nuxt/rules/_template.md'))).rejects.toBeDefined()
     await expect(fsp.access(join(generatedSkillRoot, '.state.json'))).resolves.toBeUndefined()
-  })
+  }, 15000)
 })

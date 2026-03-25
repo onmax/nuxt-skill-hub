@@ -748,23 +748,18 @@ export function createStableSkillWrapper(
   skillName: string,
   generatedEntryPath: string,
   generatedRootPath: string,
-  generationMode: 'prepare' | 'manual' | 'legacy-auto',
+  generationMode: 'prepare' | 'manual',
 ): string {
   const description = 'Stable Nuxt skill wrapper for this repository. Use it to reach generated Nuxt guidance and recover by running nuxt prepare when generated content is missing.'
   const recoveryInstructions = generationMode === 'manual'
     ? [
         'Automatic skill generation is currently disabled by `skillHub.generationMode: \'manual\'`.',
-        'Ask the user to switch `skillHub.generationMode` to `\'prepare\'` or `\'legacy-auto\'`, then run `nuxt prepare`.',
+        'Ask the user to switch `skillHub.generationMode` to `\'prepare\'`, then run `nuxt prepare`.',
       ].join('\n')
-    : generationMode === 'legacy-auto'
-      ? [
-          'This project only generates full skill content during the legacy automatic lifecycle mode.',
-          'Ask the user to run `nuxt dev` or `nuxt build`, or switch `skillHub.generationMode` to `\'prepare\'` and run `nuxt prepare`.',
-        ].join('\n')
-      : [
-          'Run `nuxt prepare` from this project before continuing.',
-          'That regenerates the Nuxt build directory, refreshes types, and writes the generated Nuxt skill content.',
-        ].join('\n')
+    : [
+        'Run `nuxt prepare` from this project before continuing.',
+        'That regenerates the Nuxt build directory, refreshes types, and writes the generated Nuxt skill content.',
+      ].join('\n')
 
   return `---
 name: ${yamlString(skillName)}

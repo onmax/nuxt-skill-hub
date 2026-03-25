@@ -137,7 +137,7 @@ describe('createStableSkillWrapper', () => {
     const entry = createStableSkillWrapper('nuxt', './.nuxt/skill-hub/nuxt/SKILL.md', './.nuxt/skill-hub/nuxt', 'manual')
 
     expect(entry).toContain('Automatic skill generation is currently disabled')
-    expect(entry).toContain('switch `skillHub.generationMode` to `\'prepare\'` or `\'legacy-auto\'`')
+    expect(entry).toContain('switch `skillHub.generationMode` to `\'prepare\'`')
   })
 })
 
