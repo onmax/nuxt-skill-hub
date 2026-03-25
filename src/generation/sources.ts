@@ -19,6 +19,7 @@ export interface LocalSourceFingerprint {
   sourceDir: string
   sourceRoot: string
   sourceKind: ResolvedContribution['sourceKind']
+  forceIncludeScripts: boolean
   hash: string | null
 }
 
@@ -64,6 +65,7 @@ export async function createLocalSourceFingerprints(contributions: ResolvedContr
     sourceDir: resolve(contribution.sourceDir).replaceAll('\\', '/'),
     sourceRoot: resolve(contribution.sourceRoot).replaceAll('\\', '/'),
     sourceKind: contribution.sourceKind,
+    forceIncludeScripts: contribution.forceIncludeScripts,
     hash: await hashDirectoryTreeIfExists(contribution.sourceDir),
   })))
 
