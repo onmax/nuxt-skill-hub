@@ -7,6 +7,7 @@ import { loadVueSkillFiles } from '../src/vue-content'
 import {
   createModuleWrapperContent,
   createSkillEntrypoint,
+  createStableSkillWrapper,
   DEFAULT_CORE_CONTENT_METADATA,
 } from '../src/render-content'
 
@@ -114,6 +115,29 @@ Source code: [https://github.com/nuxt-modules/i18n](https://github.com/nuxt-modu
     expect(entry).toContain('Resolved module skill. Trust: `official`.')
     expect(entry).not.toContain('GitHub-resolved')
     expect(entry).not.toContain('`unknown`')
+  })
+})
+
+describe('createStableSkillWrapper', () => {
+  it('renders a stable wrapper that points to generated build-dir content', () => {
+    const entry = createStableSkillWrapper(
+      'nuxt',
+      '../../../apps/web/.nuxt/skill-hub/nuxt/SKILL.md',
+      '../../../apps/web/.nuxt/skill-hub/nuxt',
+      'prepare',
+    )
+
+    expect(entry).toContain('# Nuxt Skill Wrapper')
+    expect(entry).toContain('The full generated skill tree lives in the Nuxt build directory')
+    expect(entry).toContain('[../../../apps/web/.nuxt/skill-hub/nuxt/SKILL.md](../../../apps/web/.nuxt/skill-hub/nuxt/SKILL.md)')
+    expect(entry).toContain('Run `nuxt prepare` from this project before continuing.')
+  })
+
+  it('explains manual mode recovery without pretending prepare will regenerate automatically', () => {
+    const entry = createStableSkillWrapper('nuxt', './.nuxt/skill-hub/nuxt/SKILL.md', './.nuxt/skill-hub/nuxt', 'manual')
+
+    expect(entry).toContain('Automatic skill generation is currently disabled')
+    expect(entry).toContain('switch `skillHub.generationMode` to `\'prepare\'` or `\'legacy-auto\'`')
   })
 })
 

@@ -3,10 +3,13 @@ import type { SkillSourceKind, SkillResolverKind, SkillTrustLevel } from './rend
 
 export type { SkillSourceKind, SkillResolverKind, SkillTrustLevel }
 
+export type SkillHubGenerationMode = 'prepare' | 'manual' | 'legacy-auto'
+
 export interface ModuleOptions {
   skillName?: string
   targets?: SkillHubTarget[]
   moduleAuthoring?: boolean
+  generationMode?: SkillHubGenerationMode
 }
 
 export interface AgentSkillDeclaration {

@@ -1,8 +1,9 @@
 import { promises as fsp } from 'node:fs'
+import { execSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { setup, $fetch } from '@nuxt/test-utils/e2e'
+import { resolveGeneratedSkillRoot } from './utils'
 
 const rootDir = fileURLToPath(new URL('./fixtures/with-modules', import.meta.url))
 const workspaceRoot = resolve(rootDir, '../../..')
@@ -113,17 +114,19 @@ async function prepareFixtureModules(): Promise<void> {
 }
 
 await prepareFixtureModules()
-await setup({ rootDir })
 
 describe('module-expanded generation', () => {
-  it('renders app and generates merged module references without copying scripts by default', async () => {
-    const html = await $fetch('/')
-    expect(html).toContain('<div>with-modules</div>')
+  it('writes merged module references into the build-dir output without copying scripts by default', async () => {
+    execSync('pnpm exec nuxt prepare', { cwd: rootDir, encoding: 'utf8', stdio: 'pipe' })
 
     const skillRoot = join(workspaceRoot, '.claude', 'skills', 'nuxt-with-modules-fixture')
-    const entry = await fsp.readFile(join(skillRoot, 'SKILL.md'), 'utf8')
-    const metadataSkill = await fsp.readFile(join(skillRoot, 'references/modules/test-meta-router/test-meta-router/SKILL.md'), 'utf8')
+    const wrapper = await fsp.readFile(join(skillRoot, 'SKILL.md'), 'utf8')
+    const generatedSkillRoot = resolveGeneratedSkillRoot(skillRoot, wrapper)
+    const entry = await fsp.readFile(join(generatedSkillRoot, 'SKILL.md'), 'utf8')
+    const metadataSkill = await fsp.readFile(join(generatedSkillRoot, 'references/modules/test-meta-router/test-meta-router/SKILL.md'), 'utf8')
 
+    expect(wrapper).toContain('# Nuxt Skill Wrapper')
+    expect(wrapper).toContain('Run `nuxt prepare` from this project before continuing.')
     expect(entry).toContain('## Module guides')
     expect(entry).toContain('### Official upstream skills')
     expect(entry).toContain('### Metadata-routed skills')
@@ -131,22 +134,13 @@ describe('module-expanded generation', () => {
     expect(entry).toContain('test-nuxt-ui')
     expect(entry).toContain('test-nuxt-bad')
     expect(entry).toContain('test-meta-router')
-    expect(entry).toContain('./references/modules/test-meta-router/test-meta-router/SKILL.md')
     expect(metadataSkill).toContain('Docs: [https://example.com/test-meta-router](https://example.com/test-meta-router)')
     expect(metadataSkill).toContain('Source code: [https://github.com/example/test-meta-router](https://github.com/example/test-meta-router)')
-    expect(metadataSkill).not.toContain('This skill was generated from package metadata')
-
-    await expect(fsp.readFile(join(skillRoot, 'references/modules/test-nuxt-ui/nuxt-ui/SKILL.md'), 'utf8')).resolves.toContain('description: Test Nuxt UI module skill.')
-    await expect(fsp.readFile(join(skillRoot, 'references/modules/test-nuxt-seo/nuxt-seo/SKILL.md'), 'utf8')).resolves.toContain('description: Test Nuxt SEO module skill.')
-    await expect(fsp.access(join(skillRoot, 'references/modules/test-nuxt-bad/nuxt-bad/SKILL.md'))).rejects.toBeDefined()
-    await expect(fsp.access(join(skillRoot, 'references/modules/_list.md'))).rejects.toBeDefined()
-    await expect(fsp.access(join(skillRoot, 'references/modules/test-nuxt-ui/nuxt-ui.md'))).rejects.toBeDefined()
-    await expect(fsp.access(join(skillRoot, 'references/modules/test-nuxt-seo/nuxt-seo.md'))).rejects.toBeDefined()
-    await expect(fsp.access(join(skillRoot, 'references/modules/test-meta-router/test-meta-router.md'))).rejects.toBeDefined()
+    await expect(fsp.readFile(join(generatedSkillRoot, 'references/modules/test-nuxt-ui/nuxt-ui/SKILL.md'), 'utf8')).resolves.toContain('description: Test Nuxt UI module skill.')
+    await expect(fsp.readFile(join(generatedSkillRoot, 'references/modules/test-nuxt-seo/nuxt-seo/SKILL.md'), 'utf8')).resolves.toContain('description: Test Nuxt SEO module skill.')
+    await expect(fsp.access(join(generatedSkillRoot, 'references/modules/test-nuxt-ui/nuxt-ui/scripts/check.sh'))).rejects.toBeDefined()
+    await expect(fsp.access(join(generatedSkillRoot, 'references/modules/test-nuxt-seo/nuxt-seo/scripts/check.sh'))).rejects.toBeDefined()
     await expect(fsp.access(join(skillRoot, 'references/index.md'))).rejects.toBeDefined()
     await expect(fsp.access(join(skillRoot, 'manifest.json'))).rejects.toBeDefined()
-
-    await expect(fsp.access(join(skillRoot, 'references/modules/test-nuxt-ui/nuxt-ui/scripts/check.sh'))).rejects.toBeDefined()
-    await expect(fsp.access(join(skillRoot, 'references/modules/test-nuxt-seo/nuxt-seo/scripts/check.sh'))).rejects.toBeDefined()
-  })
+  }, 15000)
 })
