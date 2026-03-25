@@ -86,4 +86,44 @@ describe('module setup', () => {
       generationMode: 'prepare',
     }))
   })
+
+  it('skips generation entirely during typecheck', async () => {
+    vi.resetModules()
+    const originalArgv = [...process.argv]
+    process.argv.splice(2, 0, 'typecheck')
+
+    try {
+      const { default: importedModule } = await import('../src/module')
+      const moduleDefinition = importedModule as unknown as {
+        setup: (options: Record<string, unknown>, nuxt: unknown) => Promise<void>
+      }
+
+      const prepareHooks = new Map<string, () => Promise<void>>()
+      const nuxt = {
+        options: {
+          rootDir: '/repo',
+          buildDir: '/repo/.nuxt',
+          _prepare: true,
+        },
+        hook: vi.fn((name: string, handler: () => Promise<void>) => {
+          prepareHooks.set(name, handler)
+        }),
+      }
+
+      await moduleDefinition.setup({
+        skillName: 'nuxt-test',
+        generationMode: 'prepare',
+        targets: ['claude'],
+      }, nuxt)
+
+      expect(mockLogger.info).toHaveBeenCalledWith('Skipping skill generation during typecheck')
+      expect(mockEnsureStableSkillWrappers).not.toHaveBeenCalled()
+      expect(mockGenerateSkillTree).not.toHaveBeenCalled()
+      expect(prepareHooks.size).toBe(0)
+    }
+    finally {
+      process.argv.length = 0
+      process.argv.push(...originalArgv)
+    }
+  })
 })

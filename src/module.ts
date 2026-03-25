@@ -33,6 +33,11 @@ export default defineNuxtModule<ModuleOptions>({
       return
     }
 
+    if (process.argv.slice(2).includes('typecheck')) {
+      logger.info('Skipping skill generation during typecheck')
+      return
+    }
+
     const configuredSkillName = options.skillName?.trim()
     let resolvedSkillName: string
 
