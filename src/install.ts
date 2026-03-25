@@ -1,11 +1,11 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
-import { join, relative } from 'pathe'
+import { readFileSync, writeFileSync } from 'node:fs'
+import { join } from 'pathe'
 import { useLogger } from '@nuxt/kit'
 import { createConsola } from 'consola'
 import { colorize } from 'consola/utils'
 import type { Nuxt } from '@nuxt/schema'
 import { detectCurrentTarget, detectInstalledTargets, getSupportedTargets } from './agents'
-import { deriveSkillName, detectConflictingSkills, extractModuleSpecifier, discoverInstalledPackageFromSpecifier, formatConflictWarning, getTargetSkillRoot, MANAGED_HINT_END, MANAGED_HINT_START, pathExists, resolveExportRoot } from './internal'
+import { deriveSkillName, detectConflictingSkills, extractModuleSpecifier, discoverInstalledPackageFromSpecifier, formatConflictWarning, MANAGED_HINT_END, MANAGED_HINT_START, pathExists, resolveExportRoot } from './internal'
 
 interface PendingWrite {
   file: string
@@ -123,45 +123,7 @@ export async function runInstallWizard(nuxt: Nuxt): Promise<void> {
     consola.warn(formatConflictWarning(conflict))
   }
 
-  // ── Step 3: .gitignore ──
-  const gitignorePath = join(exportRoot, '.gitignore')
-  const gitignoreExists = existsSync(gitignorePath)
-  const currentGitignore = gitignoreExists ? readFileSync(gitignorePath, 'utf8') : ''
-
-  const missingPatterns: string[] = []
-  for (const target of selectedTargets) {
-    const { skillRoot } = getTargetSkillRoot(exportRoot, target, skillName)
-    const pattern = relative(exportRoot, skillRoot).replace(/\/?$/, '/')
-    if (!currentGitignore.includes(pattern)) {
-      missingPatterns.push(pattern)
-    }
-  }
-
-  if (missingPatterns.length) {
-    const addGitignore = await consola.prompt(
-      `Add generated skill directories to .gitignore?\n${missingPatterns.map(p => `  ${p}`).join('\n')}`,
-      { type: 'confirm', initial: true, cancel: 'null' },
-    )
-
-    if (isCancelled(addGitignore)) {
-      consola.info('Setup cancelled.')
-      return
-    }
-
-    if (addGitignore) {
-      const block = `\n# nuxt-skill-hub (generated skills)\n${missingPatterns.join('\n')}\n`
-      const newContent = currentGitignore.trimEnd() + '\n' + block
-      pendingWrites.push({
-        file: '.gitignore',
-        absPath: gitignorePath,
-        preview: missingPatterns.map(p => `+ ${p}`).join('\n'),
-        content: newContent,
-        action: gitignoreExists ? 'modify' : 'create',
-      })
-    }
-  }
-
-  // ── Step 4: CLAUDE.md / AGENTS.md hint ──
+  // ── Step 3: CLAUDE.md / AGENTS.md hint ──
   const hintBlock = `${MANAGED_HINT_START}\nUse the \`${skillName}\` skill as the first entrypoint for Nuxt tasks in this repository.\n${MANAGED_HINT_END}`
 
   const hintFileChoice = await consola.prompt('Add a skill hint to help agents discover the skill?', {
@@ -213,10 +175,10 @@ export async function runInstallWizard(nuxt: Nuxt): Promise<void> {
     await addToFile('AGENTS.md')
   }
 
-  // ── Step 5: Summary + Confirmation ──
+  // ── Step 4: Summary + Confirmation ──
   if (!pendingWrites.length) {
     consola.success('No file changes needed. Setup complete!')
-    consola.info('Run `nuxt dev` or `nuxt prepare` to generate skills.')
+    consola.info('Run `nuxt prepare` to generate the build-dir skill output.')
     return
   }
 
@@ -237,7 +199,7 @@ export async function runInstallWizard(nuxt: Nuxt): Promise<void> {
     return
   }
 
-  // ── Step 6: Execute writes ──
+  // ── Step 5: Execute writes ──
   for (const write of pendingWrites) {
     writeFileSync(write.absPath, write.content, 'utf8')
     const verb = write.action === 'create' ? 'Created' : 'Updated'
@@ -247,7 +209,7 @@ export async function runInstallWizard(nuxt: Nuxt): Promise<void> {
   consola.log('')
   consola.box(
     `Setup complete!\n\n`
-    + `Run \`nuxt dev\` or \`nuxt prepare\` to generate skills.\n`
-    + `Configure \`skillHub.skillName\` or \`skillHub.targets\` in nuxt.config.ts if needed.`,
+    + `Run \`nuxt prepare\` to generate the build-dir skill output.\n`
+    + `Configure \`skillHub.skillName\`, \`skillHub.targets\`, or set \`skillHub.generationMode: 'manual'\` in nuxt.config.ts if needed.`,
   )
 }
