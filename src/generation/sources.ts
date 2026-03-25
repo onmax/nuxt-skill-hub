@@ -30,12 +30,11 @@ export async function resolveManualContribution(rootDir: string, contribution: S
   return normalizeContribution(contribution, sourceDir, sourceDir)
 }
 
-export function collectWorkspaceDiscoverySources(rootDir: string, discoveries: PackageSkillDiscovery[]): ResolvedContribution[] {
-  const workspaceRoot = resolve(rootDir)
+export function collectWorkspaceDiscoverySources(_rootDir: string, discoveries: PackageSkillDiscovery[]): ResolvedContribution[] {
   const contributions: ResolvedContribution[] = []
 
   for (const discovery of discoveries) {
-    if (resolve(discovery.packageRoot) !== workspaceRoot) {
+    if (!isLocalDiscoveryRoot(discovery.packageRoot)) {
       continue
     }
 
@@ -51,6 +50,11 @@ export function collectWorkspaceDiscoverySources(rootDir: string, discoveries: P
   }
 
   return sortAndDedupeContributions(contributions)
+}
+
+function isLocalDiscoveryRoot(packageRoot: string): boolean {
+  const normalizedRoot = resolve(packageRoot).replaceAll('\\', '/')
+  return !/(?:^|\/)node_modules(?:\/|$)/.test(normalizedRoot)
 }
 
 export async function createLocalSourceFingerprints(contributions: ResolvedContribution[]): Promise<LocalSourceFingerprint[]> {

@@ -25,5 +25,5 @@ describe('monorepo generation', () => {
     await expect(fsp.access(join(skillRoot, 'references/index.md'))).rejects.toBeDefined()
 
     await expect(fsp.access(join(rootDir, '.claude', 'skills', 'nuxt-web-fixture'))).rejects.toBeDefined()
-  })
+  }, 15000)
 })

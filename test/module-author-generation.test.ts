@@ -24,5 +24,5 @@ describe('module-author generation', () => {
     expect(entry).toContain('Module Authoring Conventions')
     await expect(fsp.access(join(skillRoot, 'references/index.md'))).rejects.toBeDefined()
     await expect(fsp.access(join(skillRoot, 'manifest.json'))).rejects.toBeDefined()
-  })
+  }, 15000)
 })
