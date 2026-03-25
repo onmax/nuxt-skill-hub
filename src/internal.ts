@@ -2,7 +2,7 @@ import { existsSync, lstatSync, promises as fsp } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'pathe'
 import matter from 'gray-matter'
-import { readPackageJSON, resolvePackageJSON } from 'pkg-types'
+import { findWorkspaceDir, readPackageJSON, resolvePackageJSON } from 'pkg-types'
 import { transform } from 'automd'
 import type {
   AgentSkillDeclaration,
@@ -121,11 +121,20 @@ async function hasWorkspacePackageConfig(path: string): Promise<boolean> {
 
 export async function resolveExportRoot(rootDir: string): Promise<string> {
   const appRoot = resolve(rootDir)
-  let current = appRoot
+  const workspaceDir = await findWorkspaceDir(appRoot).catch(() => null)
+  if (!workspaceDir) {
+    return appRoot
+  }
 
+  const resolvedWorkspaceDir = resolve(workspaceDir)
+  let current = appRoot
   while (true) {
     if (await pathExists(join(current, 'pnpm-workspace.yaml')) || await hasWorkspacePackageConfig(current)) {
       return current
+    }
+
+    if (current === resolvedWorkspaceDir) {
+      return appRoot
     }
 
     const parent = dirname(current)

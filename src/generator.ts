@@ -1,6 +1,5 @@
-import { createHash } from 'node:crypto'
 import { promises as fsp } from 'node:fs'
-import { isAbsolute, join, relative, resolve } from 'pathe'
+import { join, relative, resolve } from 'pathe'
 import type { Nuxt } from '@nuxt/schema'
 import { PACKAGE_VERSION } from './package-info'
 import { loadNuxtMetadata } from './nuxt-content'
@@ -17,9 +16,7 @@ import {
   ensureDir,
   extractModuleSpecifier,
   getTargetSkillRoot,
-  normalizeContribution,
   pathExists,
-  type PackageSkillDiscovery,
   renderAutomdTemplate,
   resolveContributions,
   resolveMonorepoScopePath,
@@ -36,6 +33,13 @@ import {
   getSourceLabel,
   getTrustLevel,
 } from './render-content'
+import { createGenerationFingerprint } from './generation/fingerprint'
+import {
+  collectWorkspaceDiscoverySources,
+  createLocalSourceFingerprints,
+  resolveManualContribution,
+} from './generation/sources'
+import { isGeneratedSkillFresh, writeGenerationState } from './generation/state'
 import type {
   ModuleOptions,
   ResolvedContribution,
@@ -48,19 +52,12 @@ import type {
 import type { SkillHubTarget } from './agents'
 
 const GITHUB_LOOKUP_TIMEOUT_MS = 1500
-const GENERATION_STATE_FILE = '.state.json'
 
 export interface SkillHubLogger {
   start: (message: string) => void
   success: (message: string) => void
   warn: (message: string) => void
   info: (message: string) => void
-}
-
-interface GenerationState {
-  fingerprint: string
-  generatedAt: string
-  packageVersion: string
 }
 
 export function resolveStableSkillBuildDir(rootDir: string, buildDir: string): string {
@@ -83,18 +80,6 @@ function normalizeRelativePath(from: string, to: string): string {
 
 function getGeneratedSkillRoot(buildDir: string, skillName: string): string {
   return join(buildDir, 'skill-hub', skillName)
-}
-
-function getGenerationStatePath(generatedSkillRoot: string): string {
-  return join(generatedSkillRoot, GENERATION_STATE_FILE)
-}
-
-async function resolveManualContribution(rootDir: string, contribution: SkillHubContribution): Promise<ResolvedContribution> {
-  const sourceDir = isAbsolute(contribution.sourceDir)
-    ? contribution.sourceDir
-    : resolve(rootDir, contribution.sourceDir)
-
-  return normalizeContribution(contribution, sourceDir, sourceDir)
 }
 
 function mergeSkipped(entries: SkillManifestSkipped[], keyFn: (entry: SkillManifestSkipped) => string): SkillManifestSkipped[] {
@@ -122,198 +107,6 @@ async function removeLegacyRootArtifacts(skillRoot: string): Promise<void> {
     fsp.rm(join(skillRoot, 'references'), { recursive: true, force: true }),
     fsp.rm(join(skillRoot, 'manifest.json'), { force: true }),
   ])
-}
-
-async function readGenerationState(generatedSkillRoot: string): Promise<GenerationState | null> {
-  const statePath = getGenerationStatePath(generatedSkillRoot)
-  if (!(await pathExists(statePath))) {
-    return null
-  }
-
-  try {
-    return JSON.parse(await fsp.readFile(statePath, 'utf8')) as GenerationState
-  }
-  catch {
-    return null
-  }
-}
-
-async function writeGenerationState(generatedSkillRoot: string, fingerprint: string): Promise<void> {
-  const statePath = getGenerationStatePath(generatedSkillRoot)
-  const state: GenerationState = {
-    fingerprint,
-    generatedAt: new Date().toISOString(),
-    packageVersion: PACKAGE_VERSION,
-  }
-
-  await writeFileIfChanged(statePath, `${JSON.stringify(state, null, 2)}\n`)
-}
-
-async function hashFileIfExists(path: string): Promise<string | null> {
-  if (!(await pathExists(path))) {
-    return null
-  }
-
-  const contents = await fsp.readFile(path)
-  return createHash('sha256').update(contents).digest('hex')
-}
-
-async function hashDirectoryTreeIfExists(path: string): Promise<string | null> {
-  if (!(await pathExists(path))) {
-    return null
-  }
-
-  const hash = createHash('sha256')
-
-  const visit = async (currentPath: string, basePath: string) => {
-    const stat = await fsp.lstat(currentPath)
-    const relativePath = relative(basePath, currentPath).replaceAll('\\', '/') || '.'
-
-    if (stat.isSymbolicLink()) {
-      hash.update(`symlink:${relativePath}:`)
-      hash.update(await fsp.readlink(currentPath))
-      return
-    }
-
-    if (stat.isDirectory()) {
-      hash.update(`dir:${relativePath}\n`)
-      const entries = await fsp.readdir(currentPath, { withFileTypes: true })
-      entries.sort((a, b) => a.name.localeCompare(b.name))
-
-      for (const entry of entries) {
-        await visit(join(currentPath, entry.name), basePath)
-      }
-      return
-    }
-
-    hash.update(`file:${relativePath}:`)
-    hash.update(await fsp.readFile(currentPath))
-    hash.update('\n')
-  }
-
-  await visit(path, path)
-  return hash.digest('hex')
-}
-
-async function resolveLockfileInfo(exportRoot: string): Promise<{ path: string, hash: string } | null> {
-  const candidates = [
-    'pnpm-lock.yaml',
-    'package-lock.json',
-    'yarn.lock',
-    'bun.lock',
-    'bun.lockb',
-  ]
-
-  for (const candidate of candidates) {
-    const lockfilePath = join(exportRoot, candidate)
-    const hash = await hashFileIfExists(lockfilePath)
-    if (hash) {
-      return {
-        path: candidate,
-        hash,
-      }
-    }
-  }
-
-  return null
-}
-
-async function createGenerationFingerprint(
-  nuxt: Nuxt,
-  options: ModuleOptions,
-  skillName: string,
-  exportRoot: string,
-  installedPackages: InstalledPackageMetadata[],
-  localSources: Array<{
-    packageName: string
-    skillName: string
-    sourceDir: string
-    sourceRoot: string
-    sourceKind: ResolvedContribution['sourceKind']
-    hash: string | null
-  }>,
-): Promise<string> {
-  const rootPackageHash = await hashFileIfExists(join(nuxt.options.rootDir, 'package.json'))
-  const lockfile = await resolveLockfileInfo(exportRoot)
-  const modules = installedPackages
-    .filter(pkg => pkg.packageName !== 'nuxt-skill-hub')
-    .map(pkg => ({ name: pkg.packageName, version: pkg.version || null }))
-    .sort((a, b) => a.name.localeCompare(b.name))
-
-  const payload = {
-    packageVersion: PACKAGE_VERSION,
-    skillName,
-    rootDir: nuxt.options.rootDir,
-    buildDir: nuxt.options.buildDir,
-    rootPackageHash,
-    lockfile,
-    modules,
-    localSources,
-    skillHub: {
-      skillName: options.skillName?.trim() || null,
-      targets: [...(options.targets || [])].sort(),
-      moduleAuthoring: Boolean(options.moduleAuthoring),
-      generationMode: options.generationMode || 'prepare',
-    },
-  }
-
-  return createHash('sha256').update(JSON.stringify(payload)).digest('hex')
-}
-
-async function isGeneratedSkillFresh(generatedSkillRoot: string, fingerprint: string): Promise<boolean> {
-  const [state, entryExists] = await Promise.all([
-    readGenerationState(generatedSkillRoot),
-    pathExists(join(generatedSkillRoot, 'SKILL.md')),
-  ])
-
-  return Boolean(entryExists && state?.fingerprint === fingerprint)
-}
-
-function collectWorkspaceDiscoverySources(rootDir: string, discoveries: PackageSkillDiscovery[]): ResolvedContribution[] {
-  const workspaceRoot = resolve(rootDir)
-  const contributions: ResolvedContribution[] = []
-
-  for (const discovery of discoveries) {
-    if (resolve(discovery.packageRoot) !== workspaceRoot) {
-      continue
-    }
-
-    for (const skill of discovery.skills) {
-      const sourceDir = resolve(discovery.packageRoot, skill.path)
-      contributions.push(normalizeContribution({
-        packageName: discovery.packageName,
-        version: discovery.version,
-        sourceDir,
-        skillName: skill.name,
-      }, sourceDir, discovery.packageRoot))
-    }
-  }
-
-  return sortAndDedupeContributions(contributions)
-}
-
-async function createLocalSourceFingerprints(contributions: ResolvedContribution[]): Promise<Array<{
-  packageName: string
-  skillName: string
-  sourceDir: string
-  sourceRoot: string
-  sourceKind: ResolvedContribution['sourceKind']
-  hash: string | null
-}>> {
-  const fingerprints = await Promise.all(contributions.map(async contribution => ({
-    packageName: contribution.packageName,
-    skillName: contribution.skillName,
-    sourceDir: resolve(contribution.sourceDir).replaceAll('\\', '/'),
-    sourceRoot: resolve(contribution.sourceRoot).replaceAll('\\', '/'),
-    sourceKind: contribution.sourceKind,
-    hash: await hashDirectoryTreeIfExists(contribution.sourceDir),
-  })))
-
-  return fingerprints.sort((a, b) => {
-    const left = `${a.packageName}::${a.skillName}::${a.sourceDir}`
-    const right = `${b.packageName}::${b.skillName}::${b.sourceDir}`
-    return left.localeCompare(right)
-  })
 }
 
 async function collectInstalledPackages(nuxt: Nuxt) {
@@ -430,15 +223,19 @@ export async function generateSkillTree(input: {
     manualContributions.map(contribution => resolveManualContribution(nuxt.options.rootDir, contribution)),
   )
   const fingerprint = await createGenerationFingerprint(
-    nuxt,
-    options,
-    skillName,
-    exportRoot,
-    installedPackages,
-    await createLocalSourceFingerprints([
-      ...workspaceDiscoverySources,
-      ...sortAndDedupeContributions(resolvedManual),
-    ]),
+    {
+      packageVersion: PACKAGE_VERSION,
+      rootDir: nuxt.options.rootDir,
+      buildDir: nuxt.options.buildDir,
+      exportRoot,
+      skillName,
+      options,
+      installedPackages,
+      localSources: await createLocalSourceFingerprints([
+        ...workspaceDiscoverySources,
+        ...sortAndDedupeContributions(resolvedManual),
+      ]),
+    },
   )
 
   if (generationMode === 'prepare' && await isGeneratedSkillFresh(generatedSkillRoot, fingerprint)) {
