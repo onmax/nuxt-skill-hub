@@ -22,23 +22,45 @@ describe('createSkillEntrypoint', () => {
   it('omits the monorepo scope section for standalone apps', () => {
     const entry = createSkillEntrypoint('nuxt', DEFAULT_CORE_CONTENT_METADATA)
 
-    expect(entry).toContain('# Nuxt Skill Index')
-    expect(entry).toContain('## Activation Flow')
-    expect(entry).toContain('## High-Frequency Nuxt Decisions')
-    expect(entry).toContain('Explore the project first')
-    expect(entry).toContain('## Precedence')
-    expect(entry).toContain('## Before Completion')
-    expect(entry).toContain('## Vue guidance')
+    expect(entry).toContain('# Nuxt Skill Router')
+    expect(entry).toContain('## Loading rules')
+    expect(entry).toContain('## Routing')
+    expect(entry).toContain('## Routing examples')
+    expect(entry).toContain('| Task shape or symptom | Open first |')
     expect(entry).toContain('./references/vue/SKILL.md')
-    expect(entry).not.toContain('## Monorepo Scope')
+    expect(entry).toContain('"This page fetches twice on first load"')
+    expect(entry).toContain('"Why do I get a hydration mismatch from Date.now()?"')
+    expect(entry).toContain('"Change canonical URL and OG tags"')
+    expect(entry).toContain('"Expose only the public runtimeConfig key"')
+    expect(entry).toContain('"This server/api handler cache or route rule is wrong"')
+    expect(entry).toContain('"This modal/table/dropdown was hand-built in raw HTML"')
+    expect(entry).toContain('"`clearError` is not behaving as expected"')
+    expect(entry).toContain('"Should this secret live in runtime config or client code?"')
+    expect(entry).toContain('Hydration and SSR Consistency')
+    expect(entry).toContain('Server Routes and Runtime Config')
+    expect(entry).toContain('Nitro and h3 Server Patterns')
+    expect(entry).toContain('Plugins and Runtime Boot')
+    expect(entry).toContain('Performance and Rendering')
+    expect(entry).toContain('Migrations and Compatibility')
+    expect(entry).toContain('Verification and Finish')
+    expect(entry).toContain('## Finish')
+    expect(entry).not.toContain('## Monorepo scope')
+    expect(entry).not.toContain('## Activation Flow')
+    expect(entry).not.toContain('## High-Frequency Nuxt Decisions')
+    expect(entry).not.toContain('## Precedence')
+    expect(entry).not.toContain('## Before Completion')
+    expect(entry).not.toContain('## Vue guidance')
+    expect(entry).not.toContain('## All Nuxt packs')
+    expect(entry).not.toContain('## Primary Packs')
   })
 
   it('renders a hard monorepo scope warning when a scope path is provided', () => {
     const entry = createSkillEntrypoint('nuxt-web', DEFAULT_CORE_CONTENT_METADATA, 'apps/web')
 
-    expect(entry).toContain('## Monorepo Scope')
+    expect(entry).toContain('## Monorepo scope')
     expect(entry).toContain('`apps/web`')
-    expect(entry).toContain('Treat files and tasks outside `apps/web` as out of scope unless the user explicitly redirects you there.')
+    expect(entry).toContain('This skill applies only to `apps/web`.')
+    expect(entry).toContain('Treat files and tasks outside that subtree as out of scope unless the user explicitly redirects you there.')
   })
 
   it('prioritizes the eval-derived disambiguation packs', () => {
@@ -53,20 +75,19 @@ describe('createSkillEntrypoint', () => {
   it('keeps the default skill app-oriented when module authoring is disabled', () => {
     const entry = createSkillEntrypoint('nuxt', DEFAULT_CORE_CONTENT_METADATA)
 
-    expect(entry).not.toContain('## Module Author Focus')
-    expect(entry).not.toContain('## Module author focus')
-    expect(entry).not.toContain('Writing, refactoring, or publishing a Nuxt module')
+    expect(entry).not.toContain('"Add a Nuxt module option, hook, or runtime extension"')
+    expect(entry).not.toContain('Writing or refactoring a Nuxt module')
   })
 
   it('layers module-author guidance on top of the default skill', () => {
     const entry = createSkillEntrypoint('nuxt', DEFAULT_CORE_CONTENT_METADATA, undefined, true)
 
-    expect(entry).toContain('## Module Author Focus')
-    expect(entry).toContain('## High-Frequency Nuxt Decisions')
-    expect(entry).toContain('This skill keeps the default Nuxt app guidance and adds an authoring layer')
     expect(entry).toContain('Module Authoring Conventions')
-    expect(entry).toContain('## Module author focus')
-    expect(entry).toContain('Writing, refactoring, or publishing a Nuxt module')
+    expect(entry).toContain('Writing or refactoring a Nuxt module (`defineNuxtModule`, hooks, public APIs)')
+    expect(entry).toContain('"Add a Nuxt module option, hook, or runtime extension"')
+    expect(entry).not.toContain('## Module authoring')
+    expect(entry).not.toContain('## Module Author Focus')
+    expect(entry).not.toContain('## Module author focus')
   })
 })
 
@@ -131,6 +152,7 @@ describe('createStableSkillWrapper', () => {
     expect(entry).toContain('The full generated skill tree lives in the Nuxt build directory')
     expect(entry).toContain('[../../../apps/web/.nuxt/skill-hub/nuxt/SKILL.md](../../../apps/web/.nuxt/skill-hub/nuxt/SKILL.md)')
     expect(entry).toContain('Run `nuxt prepare` from this project before continuing.')
+    expect(entry).toContain('Use for Nuxt SSR, hydration, pages, `runtimeConfig`, Nitro/h3, plugins, Nuxt UI, Nuxt Content, or Nuxt module work.')
   })
 
   it('explains manual mode recovery without pretending prepare will regenerate automatically', () => {

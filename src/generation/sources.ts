@@ -4,7 +4,6 @@ import { glob } from 'tinyglobby'
 import { isAbsolute, join, relative, resolve } from 'pathe'
 import {
   normalizeContribution,
-  pathExists,
   sortAndDedupeContributions,
   type PackageSkillDiscovery,
 } from '../internal'
@@ -77,7 +76,15 @@ export async function createLocalSourceFingerprints(contributions: ResolvedContr
 }
 
 async function hashDirectoryTreeIfExists(rootPath: string): Promise<string | null> {
-  if (!(await pathExists(rootPath))) {
+  let rootStat
+  try {
+    rootStat = await fsp.lstat(rootPath)
+  }
+  catch {
+    return null
+  }
+
+  if (!rootStat.isDirectory()) {
     return null
   }
 

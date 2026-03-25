@@ -124,7 +124,7 @@ export async function runInstallWizard(nuxt: Nuxt): Promise<void> {
   }
 
   // ── Step 3: CLAUDE.md / AGENTS.md hint ──
-  const hintBlock = `${MANAGED_HINT_START}\nUse the \`${skillName}\` skill as the first entrypoint for Nuxt tasks in this repository.\n${MANAGED_HINT_END}`
+  const hintBlock = `${MANAGED_HINT_START}\nUse the \`${skillName}\` skill as the Nuxt router/entrypoint for tasks in this repository.\n${MANAGED_HINT_END}`
 
   const hintFileChoice = await consola.prompt('Add a skill hint to help agents discover the skill?', {
     type: 'select',
@@ -162,7 +162,7 @@ export async function runInstallWizard(nuxt: Nuxt): Promise<void> {
     pendingWrites.push({
       file: filename,
       absPath: filePath,
-      preview: `+ Use the \`${skillName}\` skill as the first entrypoint for Nuxt tasks in this repository.`,
+      preview: `+ Use the \`${skillName}\` skill as the Nuxt router/entrypoint for tasks in this repository.`,
       content: newContent,
       action: exists ? 'modify' : 'create',
     })

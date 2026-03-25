@@ -51,11 +51,6 @@ export interface SkillSkippedRenderEntry {
   sourceKind?: SkillSourceKind
 }
 
-export interface SkillRenderProfile {
-  includeModuleAuthoring: boolean
-  packSummaryIds: string[]
-}
-
 export interface SkillFrontmatter {
   name?: string
   description?: string
@@ -177,8 +172,6 @@ export const DEFAULT_NUXT_CONTENT_METADATA: NuxtContentMetadata = {
 }
 
 export const DEFAULT_CORE_CONTENT_METADATA = DEFAULT_NUXT_CONTENT_METADATA
-
-export const EMPTY_MODULE_GUIDANCE_MARKDOWN = '_No module skills discovered. Use Nuxt guidance plus official module docs when module-specific guidance is missing._'
 
 function yamlString(value: string): string {
   return JSON.stringify(value)
@@ -451,119 +444,93 @@ function findPack(metadata: NuxtContentMetadata, id: string): NuxtPackMetadata {
   return metadata.packs.find(pack => pack.id === id) || metadata.packs[0]!
 }
 
-function createPackSummary(metadata: NuxtContentMetadata, packIds: string[]): string {
-  return packIds
-    .map(packId => `\`${findPack(metadata, packId).title}\``)
-    .join(', ')
-}
-
-export function getSkillRenderProfile(includeModuleAuthoring = false): SkillRenderProfile {
-  if (includeModuleAuthoring) {
-    return {
-      includeModuleAuthoring,
-      packSummaryIds: [
-        'module-authoring',
-        'plugins',
-        'architecture-boundaries',
-        'nitro-h3-patterns',
-        'migrations',
-      ],
-    }
-  }
-
-  return {
-    includeModuleAuthoring: false,
-    packSummaryIds: [
-      'abstraction-disambiguation',
-      'page-meta-head-layout',
-      'error-surfaces-recovery',
-      'verification-finish',
-      'data-fetching-ssr',
-    ],
-  }
-}
-
 function packLink(metadata: NuxtContentMetadata, id: string): string {
   const pack = findPack(metadata, id)
   return `[${pack.title}](./references/nuxt/${pack.relativePath})`
 }
 
 function createRoutingTable(metadata: NuxtContentMetadata, includeModuleAuthoring = false): string {
-  const rows = [
+  const rows: Array<[string, string]> = [
     ...(includeModuleAuthoring
-      ? [{
-          symptom: 'Writing, refactoring, or publishing a Nuxt module',
-          packId: 'module-authoring',
-          why: 'Start with Nuxt Kit-safe authoring patterns, lifecycle hooks, prefixed public APIs, and skill scope boundaries.',
-        }]
+      ? [[
+          'Writing or refactoring a Nuxt module (`defineNuxtModule`, hooks, public APIs)',
+          packLink(metadata, 'module-authoring'),
+        ] as [string, string]]
       : []),
-    {
-      symptom: 'SSR, initial page load, route params, or hydration-sensitive data',
-      packId: 'data-fetching-ssr',
-      why: 'Prefer `useFetch` or `useAsyncData` over setup-time `$fetch` or `onMounted` fetches.',
-    },
-    {
-      symptom: 'Page options, route middleware, layout selection, title, meta tags, or OG data',
-      packId: 'page-meta-head-layout',
-      why: 'Separate page behavior from document metadata and layout structure before editing.',
-    },
-    {
-      symptom: 'A generic Vue fix or raw HTML implementation looks tempting',
-      packId: 'abstraction-disambiguation',
-      why: 'Check whether Nuxt, Nuxt Content, or Nuxt UI already owns the abstraction.',
-    },
-    {
-      symptom: 'The remaining work is mostly `.vue` components, composables, reactivity, or SFC structure',
-      link: '[Vue Best Practices](./references/vue/SKILL.md)',
-      why: 'Switch to Vue-specific guidance after the Nuxt ownership and routing decisions are already settled.',
-    },
-    {
-      symptom: 'Global errors, local fallback UI, `clearError`, `showError`, or recovery flows',
-      packId: 'error-surfaces-recovery',
-      why: 'Nuxt error handling often needs both global and local surfaces to be correct.',
-    },
-    {
-      symptom: 'Secrets, runtime config, privileged API calls, or server/client boundary confusion',
-      packId: 'architecture-boundaries',
-      why: 'Move sensitive logic server-side first, then pair with config and route rules as needed.',
-    },
-    {
-      symptom: 'Before finishing a fix that spans multiple files or surfaces',
-      packId: 'verification-finish',
-      why: 'Re-check paired surfaces and verify framework behavior, not only the visible output.',
-    },
+    [
+      'SSR, initial page load, route params, or data fetched for first render',
+      packLink(metadata, 'data-fetching-ssr'),
+    ],
+    [
+      'Hydration warnings, `ClientOnly`, browser-only APIs, time/randomness, or SSR/CSR mismatch',
+      packLink(metadata, 'hydration-consistency'),
+    ],
+    [
+      'Page options, middleware, layout selection, title, meta tags, canonical URLs, or OG data',
+      packLink(metadata, 'page-meta-head-layout'),
+    ],
+    [
+      '`nuxt.config.*`, `runtimeConfig`, env wiring, or public/private config exposure',
+      packLink(metadata, 'server-routes-runtime-config'),
+    ],
+    [
+      '`server/api/**`, `server/routes/**`, `defineEventHandler`, route rules, caching, or Nitro plugins',
+      packLink(metadata, 'nitro-h3-patterns'),
+    ],
+    [
+      'Plugins, injections, app boot logic, or global runtime initialization',
+      packLink(metadata, 'plugins'),
+    ],
+    [
+      'Secrets, privileged API calls, request isolation, or server/client boundary confusion',
+      packLink(metadata, 'architecture-boundaries'),
+    ],
+    [
+      'Performance regressions, rendering strategy, lazy loading, or payload/bundle cost',
+      packLink(metadata, 'performance-rendering'),
+    ],
+    [
+      'Upgrades, deprecations, compatibility fixes, or version-boundary work',
+      packLink(metadata, 'migrations'),
+    ],
+    [
+      'A generic Vue or raw HTML fix looks plausible',
+      packLink(metadata, 'abstraction-disambiguation'),
+    ],
+    [
+      'The remaining work is mostly components, composables, reactivity, props/emits, or SFC structure',
+      '[Vue Best Practices](./references/vue/SKILL.md)',
+    ],
+    [
+      'Global/local errors, `clearError`, `showError`, or recovery flows',
+      packLink(metadata, 'error-surfaces-recovery'),
+    ],
   ]
 
   return [
-    '| Task shape or symptom | Load first | Why |',
-    '| --- | --- | --- |',
-    ...rows.map(row => `| ${row.symptom} | ${'link' in row ? row.link : packLink(metadata, row.packId)} | ${row.why} |`),
+    '| Task shape or symptom | Open first |',
+    '| --- | --- |',
+    ...rows.map(([symptom, target]) => `| ${symptom} | ${target} |`),
   ].join('\n')
 }
 
-function createNuxtPackTable(metadata: NuxtContentMetadata): string {
-  const rows = metadata.packs.map(pack =>
-    `| [${pack.title}](./references/nuxt/${pack.relativePath}) | ${pack.focus} | ${pack.triggers.join('<br>')} |`,
-  )
+function createRoutingExamples(metadata: NuxtContentMetadata, includeModuleAuthoring = false): string {
+  const lines = [
+    `- "This page fetches twice on first load" → ${packLink(metadata, 'data-fetching-ssr')}`,
+    `- "Why do I get a hydration mismatch from Date.now()?" → ${packLink(metadata, 'hydration-consistency')}`,
+    `- "Change canonical URL and OG tags" → ${packLink(metadata, 'page-meta-head-layout')}`,
+    `- "Expose only the public runtimeConfig key" → ${packLink(metadata, 'server-routes-runtime-config')}`,
+    `- "This server/api handler cache or route rule is wrong" → ${packLink(metadata, 'nitro-h3-patterns')}`,
+    `- "This modal/table/dropdown was hand-built in raw HTML" → ${packLink(metadata, 'abstraction-disambiguation')}`,
+    `- "\`clearError\` is not behaving as expected" → ${packLink(metadata, 'error-surfaces-recovery')}`,
+    `- "Should this secret live in runtime config or client code?" → ${packLink(metadata, 'architecture-boundaries')}`,
+    ...(includeModuleAuthoring
+      ? [`- "Add a Nuxt module option, hook, or runtime extension" → ${packLink(metadata, 'module-authoring')}`]
+      : []),
+  ]
 
-  return [
-    '| Pack | Focus | Typical triggers |',
-    '| --- | --- | --- |',
-    ...rows,
-  ].join('\n')
-}
-
-function createVueGuidanceSection(): string {
-  return `## Vue guidance
-
-Use [Vue Best Practices](./references/vue/SKILL.md) when the task is mainly Vue component, composable, reactivity, props/emits, or SFC work and Nuxt no longer owns the abstraction.
-
-Start with these must-read Vue references:
-- [reactivity](./references/vue/references/reactivity.md)
-- [sfc](./references/vue/references/sfc.md)
-- [component-data-flow](./references/vue/references/component-data-flow.md)
-- [composables](./references/vue/references/composables.md)
-`
+  return `## Routing examples
+${lines.join('\n')}`
 }
 
 function createSkillMapSections(
@@ -580,53 +547,20 @@ function createSkillMapSections(
     renderModuleGroup('Metadata-routed skills', grouped.metadataRouted, './references/modules/'),
     renderSkippedEntries(skipped),
   ].filter(Boolean)
-  const moduleGuideContent = moduleSections.join('\n')
-  const audienceGuide = includeModuleAuthoring
-    ? `
-## Module author focus
-
-This skill includes extra guidance for Nuxt module authors on top of the default app-oriented Nuxt packs.
-If the task touches \`defineNuxtModule\`, Nuxt Kit hooks, generated runtime files, prefixed public APIs, or release compatibility, start with ${packLink(metadata, 'module-authoring')} before branching into the broader app-oriented packs.
-`
-    : ''
-  const moduleWorkflowSteps = includeModuleSections
-    ? `
-5. If an installed module is involved, open its entry under \`references/modules\`.
-6. Copied skills go straight to their \`SKILL.md\`; metadata-routed modules only expose docs and source links.`
-    : ''
   const moduleGuidesSection = includeModuleSections
-    ? `
-## Module guides
+    ? `## Module guides
+Use a module entry only when an installed module owns the surface. Module guidance is delta-only and should not replace broad Nuxt rules outside that module.
 
-Open the linked module entry first. Copied skills link straight to their \`SKILL.md\`; metadata-routed modules use a small docs/source router when no copied skill exists.
+${moduleSections.join('\n')}`
+    : ''
 
-${moduleGuideContent}
-`
-    : `
-## Module guides
-
-${EMPTY_MODULE_GUIDANCE_MARKDOWN}
-`
-
-  return `## How to use this skill map
-1. Explore the current surface first: page, layout, component, server handler, content collection, or module-owned file.
-2. Load the first matching Nuxt pack from the routing table below.
-3. If the remaining work is mainly Vue component or composable implementation, switch to [Vue Best Practices](./references/vue/SKILL.md).
-4. Open deeper Nuxt packs only when the first pack points you there.
-${moduleWorkflowSteps}
-${audienceGuide}
-
-## Common forks in the road
-
-${createRoutingTable(metadata, includeModuleAuthoring)}
-
-${createVueGuidanceSection()}
-
-## All Nuxt packs
-
-${createNuxtPackTable(metadata)}
-${moduleGuidesSection}
-`
+  return [
+    '## Routing',
+    'Load one matching guide first. Open more guides only when the first guide points you there or the task clearly crosses boundaries.',
+    createRoutingTable(metadata, includeModuleAuthoring),
+    createRoutingExamples(metadata, includeModuleAuthoring),
+    moduleGuidesSection,
+  ].filter(Boolean).join('\n\n')
 }
 
 export function createSkillEntrypoint(
@@ -637,106 +571,36 @@ export function createSkillEntrypoint(
   entries: SkillModuleRenderEntry[] = [],
   skipped: SkillSkippedRenderEntry[] = [],
 ): string {
-  const profile = getSkillRenderProfile(includeModuleAuthoring)
-  const includeModuleSections = hasModuleGuidance(entries, skipped)
-  const description = 'Always-on Nuxt disambiguation layer for this project. Use it to choose the right Nuxt pack first, then switch to Vue or module guidance only when Nuxt no longer owns the abstraction.'
+  const description = 'Routes Nuxt work to the smallest relevant guide. Use for `useFetch`/`useAsyncData`, SSR, hydration mismatches, `definePageMeta`, `useHead`/`useSeoMeta`, `runtimeConfig`, Nitro/h3 server routes, plugins, Nuxt UI, Nuxt Content, or Nuxt module authoring.'
   const monorepoScopeSection = monorepoScopePath
-    ? `
-## Monorepo Scope
-This skill applies only to the \`${monorepoScopePath}\` subtree of this monorepo.
-Treat files and tasks outside \`${monorepoScopePath}\` as out of scope unless the user explicitly redirects you there.
-`
+    ? `## Monorepo scope
+This skill applies only to \`${monorepoScopePath}\`. Treat files and tasks outside that subtree as out of scope unless the user explicitly redirects you there.`
     : ''
-  const audienceSection = profile.includeModuleAuthoring
-    ? `
-
-## Module Author Focus
-This skill keeps the default Nuxt app guidance and adds an authoring layer for repositories that build Nuxt modules.
-Start with [Module Authoring Conventions](./references/nuxt/rules/module-authoring.md) for \`defineNuxtModule\`, lifecycle hooks, prefixed public APIs, and module-scoped skill boundaries, then fall back to the broader app packs when the task crosses into runtime behavior.
-`
-    : ''
-  const activationFlow = `1. Explore the project first: inspect the real page, component, route, server handler, collection, or module surface you are changing.
-2. Use the routing sections in this file and load the smallest matching Nuxt pack.
-3. If the remaining work is mainly Vue component, composable, reactivity, or SFC work, open [Vue Best Practices](./references/vue/SKILL.md).
-4. If module authoring is part of the task, load [Module Authoring Conventions](./references/nuxt/rules/module-authoring.md) before changing \`defineNuxtModule\`, runtime extensions, hooks, or release scaffolding.${includeModuleSections
-  ? `
-5. If an installed module owns the problem, open its entry under [references/modules](./references/modules).
-6. Apply module guidance as delta-only rules inside that module's APIs, config, runtime behavior, and owned files.`
-  : ''}`
-  const frequencyBullets = profile.includeModuleAuthoring
-    ? `- If the task changes module boot or heavy setup work, prefer lightweight \`setup\` plus lifecycle hooks before adding blocking async work.
-- If the module exposes routes, composables, components, or config, prefix public surfaces with module identity before shipping generic names.
-- If the implementation relies on undocumented Nuxt internals, confirm there is not a public \`@nuxt/kit\` API or documented hook first.
-- If the task adds or edits a bundled module skill, keep it strictly scoped to the module's APIs, integration points, and caveats.
-- If runtime config, server handlers, or generated files are involved, pair module-author guidance with the relevant server, Nitro, plugin, or migration pack instead of improvising cross-boundary behavior.
-- If the work is version-sensitive, check compatibility constraints and migration boundaries before expanding the module surface.
-- If the task touches SSR, initial page load, or route-driven data, prefer \`useFetch\` or \`useAsyncData\` before \`onMounted\` plus \`$fetch\`.
-- If the task changes page options, layout selection, route middleware, or page-level behavior, check \`definePageMeta\` before adding ad hoc wiring.
-- If the task changes title, meta tags, canonical URLs, or OG data, check \`useHead\` or \`useSeoMeta\` before page-meta or template markup.
-- If content lives in JSON or YAML records, or the UI needs generated docs navigation, choose data collections and collection-navigation primitives before manual assembly.
-- If the UI surface is page chrome, a table, a form, a modal, a command palette, or a dropdown, prefer a Nuxt UI primitive before raw HTML or custom listeners.
-- If runtime config, tokens, secrets, or privileged API calls are involved, keep them server-side and expose only a server route or the minimum public config.
-- If hydration, browser-only APIs, time, randomness, or cookies are involved, use SSR-safe primitives first and isolate browser-only work behind \`ClientOnly\` or \`onMounted\`.
-- If the fix touches errors, fallback UI, or recovery flow, check both global and local surfaces before concluding the work is complete.
-- If the solution looks correct but uses generic Vue or hand-rolled HTML, confirm Nuxt, Nuxt Content, or Nuxt UI does not already own that abstraction.${includeModuleSections
-  ? `
-- If the task is module-specific, use the module entry and keep module guidance scoped; do not replace broad Nuxt rules with module-specific rules.`
-  : ''}`
-    : `- If the task touches SSR, initial page load, or route-driven data, prefer \`useFetch\` or \`useAsyncData\` before \`onMounted\` plus \`$fetch\`.
-- If the task changes page options, layout selection, route middleware, or page-level behavior, check \`definePageMeta\` before adding ad hoc wiring.
-- If the task changes title, meta tags, canonical URLs, or OG data, check \`useHead\` or \`useSeoMeta\` before page-meta or template markup.
-- If content lives in JSON or YAML records, or the UI needs generated docs navigation, choose data collections and collection-navigation primitives before manual assembly.
-- If the UI surface is page chrome, a table, a form, a modal, a command palette, or a dropdown, prefer a Nuxt UI primitive before raw HTML or custom listeners.
-- If runtime config, tokens, secrets, or privileged API calls are involved, keep them server-side and expose only a server route or the minimum public config.
-- If hydration, browser-only APIs, time, randomness, or cookies are involved, use SSR-safe primitives first and isolate browser-only work behind \`ClientOnly\` or \`onMounted\`.
-- If the fix touches errors, fallback UI, or recovery flow, check both global and local surfaces before concluding the work is complete.
-- If the solution looks correct but uses generic Vue or hand-rolled HTML, confirm Nuxt, Nuxt Content, or Nuxt UI does not already own that abstraction.${includeModuleSections
-  ? `
-- If the task is module-specific, use the module entry and keep module guidance scoped; do not replace broad Nuxt rules with module-specific rules.`
-  : ''}`
-  const beforeCompletion = profile.includeModuleAuthoring
-    ? `- Did I start from Nuxt Kit and documented lifecycle hooks before reaching for private internals?
-- Did I keep public APIs collision-resistant and module-scoped?
-- Did I keep module skill guidance as a delta on top of Nuxt guidance instead of restating framework-global rules?
-- Did I verify compatibility, install/setup cost, and cross-boundary behavior before concluding the work is complete?
-- Did I still verify the relevant app/runtime surfaces when the module work crossed into SSR, Nitro, plugins, config, or UI behavior?`
-    : `- Did I choose a Nuxt primitive where a generic Vue or raw HTML solution would be tempting?
-- Did I check whether the fix needs a second surface such as global or local, or server or client?
-- Did I choose the right concept pair: page meta vs head, data collection vs page collection, component primitive vs custom markup?
-- Did I verify the framework behavior that matters, not just the visible output?`
 
   return `---
 name: ${yamlString(skillName)}
 description: ${yamlString(description)}
 ---
 
-# Nuxt Skill Index
+# Nuxt Skill Router
 
-This file keeps the highest-frequency Nuxt decisions in context.
-Use it to avoid generic Vue fallbacks, then route into the right Nuxt pack, Vue guidance, or module delta skill.
-${monorepoScopeSection}
-${audienceSection}
-
-## Activation Flow
-${activationFlow}
-
-## High-Frequency Nuxt Decisions
-${frequencyBullets}
-
-## Precedence
-- Repository-global instructions and required workflows win first.
-- This file keeps the common Nuxt forks in context.
-- Nuxt packs provide deeper framework guidance.
-- Vue guidance covers component, composable, and SFC patterns after the Nuxt decision is settled.
-${includeModuleSections ? '- Module entries add delta-only guidance inside explicit module scope.' : ''}
+Use this skill to make the Nuxt ownership decision first, then route to the smallest relevant Nuxt, Vue, or module guide.
+${monorepoScopeSection ? `\n${monorepoScopeSection}\n` : '\n'}## Loading rules
+1. Repository-global instructions and required workflows win first.
+2. Inspect the exact owned surface first: page, layout, component, server handler, collection, config file, or module-owned file.
+3. Load one matching guide from the routing table below.
+4. Switch to [Vue Best Practices](./references/vue/SKILL.md) only when Nuxt no longer owns the abstraction.
+5. Use module entries only inside module-owned APIs, config, runtime behavior, and files.
+6. Open additional guides only when the first guide points you there or the task clearly crosses boundaries.
 
 ${createSkillMapSections(metadata, entries, skipped, includeModuleAuthoring)}
 
-## Before Completion
-${beforeCompletion}
+## Finish
+For multi-surface changes or final verification, open ${packLink(metadata, 'verification-finish')}.
 
-## Primary Packs
-Start with ${createPackSummary(metadata, profile.packSummaryIds)} when the task matches one of those common routes.
+- Verify paired surfaces when relevant: page/head, server/client, global/local.
+- Verify framework behavior, not only visible output.
+- Keep module guidance scoped to the owning module.
 
 ---
 
@@ -750,7 +614,7 @@ export function createStableSkillWrapper(
   generatedRootPath: string,
   generationMode: 'prepare' | 'manual',
 ): string {
-  const description = 'Stable Nuxt skill wrapper for this repository. Use it to reach generated Nuxt guidance and recover by running nuxt prepare when generated content is missing.'
+  const description = 'Stable entrypoint for generated Nuxt guidance in this repository. Use for Nuxt SSR, hydration, pages, `runtimeConfig`, Nitro/h3, plugins, Nuxt UI, Nuxt Content, or Nuxt module work. If generated content is missing, regenerate it with `nuxt prepare`.'
   const recoveryInstructions = generationMode === 'manual'
     ? [
         'Automatic skill generation is currently disabled by `skillHub.generationMode: \'manual\'`.',
