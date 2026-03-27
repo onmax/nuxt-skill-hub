@@ -7,9 +7,12 @@ import { resolveGeneratedSkillRoot } from './utils'
 
 const rootDir = fileURLToPath(new URL('./fixtures/core-only', import.meta.url))
 const workspaceRoot = resolve(rootDir, '../../..')
+const cacheRoot = join(workspaceRoot, 'node_modules', '.cache', 'nuxt-skill-hub')
 
 describe('core-only generation', () => {
   it('writes the stable wrapper and build-dir output during prepare', async () => {
+    await fsp.rm(cacheRoot, { recursive: true, force: true })
+
     execSync('pnpm exec nuxt prepare', { cwd: rootDir, encoding: 'utf8', stdio: 'pipe' })
     execSync('pnpm exec nuxt prepare', { cwd: rootDir, encoding: 'utf8', stdio: 'pipe' })
 

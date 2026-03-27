@@ -100,7 +100,7 @@ async function mapWithConcurrency<T, R>(
     return []
   }
 
-  const results = new Array<R>(items.length)
+  const results: R[] = []
   let nextIndex = 0
   const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
     while (true) {
