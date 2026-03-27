@@ -7,6 +7,7 @@ import { resolveGeneratedSkillRoot } from './utils'
 
 const rootDir = fileURLToPath(new URL('./fixtures/with-modules', import.meta.url))
 const workspaceRoot = resolve(rootDir, '../../..')
+const cacheRoot = join(workspaceRoot, 'node_modules', '.cache', 'nuxt-skill-hub')
 
 async function writeFixtureModule(
   pkgName: string,
@@ -117,6 +118,14 @@ await prepareFixtureModules()
 
 describe('module-expanded generation', () => {
   it('writes merged module references into the build-dir output without copying scripts by default', async () => {
+    await fsp.rm(cacheRoot, { recursive: true, force: true })
+
+    execSync('pnpm exec nuxt prepare', { cwd: rootDir, encoding: 'utf8', stdio: 'pipe' })
+
+    const cachedGeneratedRoot = join(cacheRoot, 'generated', 'nuxt-with-modules-fixture')
+    const cacheMarker = '\n<!-- restored-from-cache -->\n'
+    await fsp.appendFile(join(cachedGeneratedRoot, 'SKILL.md'), cacheMarker, 'utf8')
+
     execSync('pnpm exec nuxt prepare', { cwd: rootDir, encoding: 'utf8', stdio: 'pipe' })
 
     const skillRoot = join(workspaceRoot, '.claude', 'skills', 'nuxt-with-modules-fixture')
@@ -134,6 +143,7 @@ describe('module-expanded generation', () => {
     expect(entry).toContain('test-nuxt-ui')
     expect(entry).toContain('test-nuxt-bad')
     expect(entry).toContain('test-meta-router')
+    expect(entry).toContain('restored-from-cache')
     expect(metadataSkill).toContain('Docs: [https://example.com/test-meta-router](https://example.com/test-meta-router)')
     expect(metadataSkill).toContain('Source code: [https://github.com/example/test-meta-router](https://github.com/example/test-meta-router)')
     await expect(fsp.readFile(join(generatedSkillRoot, 'references/modules/test-nuxt-ui/nuxt-ui/SKILL.md'), 'utf8')).resolves.toContain('description: Test Nuxt UI module skill.')
@@ -142,5 +152,6 @@ describe('module-expanded generation', () => {
     await expect(fsp.access(join(generatedSkillRoot, 'references/modules/test-nuxt-seo/nuxt-seo/scripts/check.sh'))).rejects.toBeDefined()
     await expect(fsp.access(join(skillRoot, 'references/index.md'))).rejects.toBeDefined()
     await expect(fsp.access(join(skillRoot, 'manifest.json'))).rejects.toBeDefined()
+    await expect(fsp.access(join(cacheRoot, 'generated', 'nuxt-with-modules-fixture', '.state.json'))).resolves.toBeUndefined()
   }, 15000)
 })

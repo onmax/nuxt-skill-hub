@@ -8,6 +8,10 @@ interface GitHubTreeEntry {
   type: 'blob' | 'tree'
 }
 
+const githubDirectoryCache = new Map<string, Promise<string[]>>()
+const githubDefaultBranchCache = new Map<string, Promise<string | null>>()
+const githubFileTextCache = new Map<string, Promise<{ ok: boolean, data?: string, status?: number, error?: string }>>()
+
 function githubFetchOptions(timeoutMs: number) {
   return {
     timeout: timeoutMs,
@@ -62,6 +66,17 @@ function toRepoPath(value: string): string | null {
   return null
 }
 
+function memoize<T>(cache: Map<string, Promise<T>>, key: string, factory: () => Promise<T>): Promise<T> {
+  const cached = cache.get(key)
+  if (cached) {
+    return cached
+  }
+
+  const pending = factory()
+  cache.set(key, pending)
+  return pending
+}
+
 export function parseGitHubRepo(input: string | undefined | null): string | null {
   if (!input) {
     return null
@@ -79,29 +94,31 @@ export async function listGitHubDirectory(repo: string, ref: string, dirPath: st
   const normalizedDirPath = dirPath.replace(/^\/+|\/+$/g, '')
   const prefix = normalizedDirPath ? `${normalizedDirPath}/` : ''
 
-  try {
-    const data = await ofetch<{ tree?: GitHubTreeEntry[] }>(
-      `${GITHUB_API_BASE}/repos/${repoPath}/git/trees/${encodeURIComponent(ref)}?recursive=1`,
-      githubFetchOptions(timeoutMs),
-    )
+  return await memoize(githubDirectoryCache, `${repoPath}::${ref}::${normalizedDirPath}`, async () => {
+    try {
+      const data = await ofetch<{ tree?: GitHubTreeEntry[] }>(
+        `${GITHUB_API_BASE}/repos/${repoPath}/git/trees/${encodeURIComponent(ref)}?recursive=1`,
+        githubFetchOptions(timeoutMs),
+      )
 
-    const entries = new Set<string>()
-    for (const entry of data.tree || []) {
-      if (entry.type !== 'tree' || !entry.path.startsWith(prefix)) {
-        continue
+      const entries = new Set<string>()
+      for (const entry of data.tree || []) {
+        if (entry.type !== 'tree' || !entry.path.startsWith(prefix)) {
+          continue
+        }
+
+        const remainder = entry.path.slice(prefix.length)
+        if (remainder && !remainder.includes('/')) {
+          entries.add(remainder)
+        }
       }
 
-      const remainder = entry.path.slice(prefix.length)
-      if (remainder && !remainder.includes('/')) {
-        entries.add(remainder)
-      }
+      return Array.from(entries).sort((a, b) => a.localeCompare(b))
     }
-
-    return Array.from(entries).sort((a, b) => a.localeCompare(b))
-  }
-  catch {
-    return []
-  }
+    catch {
+      return []
+    }
+  })
 }
 
 export async function fetchGitHubDefaultBranch(repo: string, timeoutMs: number): Promise<string | null> {
@@ -115,16 +132,18 @@ export async function fetchGitHubDefaultBranch(repo: string, timeoutMs: number):
     return null
   }
 
-  try {
-    const data = await ofetch<{ repo?: { defaultBranch?: string } }>(
-      `${UNGH_API_BASE}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}`,
-      githubFetchOptions(timeoutMs),
-    )
-    return data.repo?.defaultBranch || null
-  }
-  catch {
-    return null
-  }
+  return await memoize(githubDefaultBranchCache, repoPath, async () => {
+    try {
+      const data = await ofetch<{ repo?: { defaultBranch?: string } }>(
+        `${UNGH_API_BASE}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}`,
+        githubFetchOptions(timeoutMs),
+      )
+      return data.repo?.defaultBranch || null
+    }
+    catch {
+      return null
+    }
+  })
 }
 
 export async function fetchGitHubFileText(
@@ -138,25 +157,27 @@ export async function fetchGitHubFileText(
     return { ok: false, error: 'Invalid GitHub repository format' }
   }
 
-  try {
-    const data = await ofetch(
-      `https://raw.githubusercontent.com/${repoPath}/${encodeURIComponent(ref)}/${encodeGitHubPath(filePath)}`,
-      {
-        ...githubFetchOptions(timeoutMs),
-        responseType: 'text' as const,
-      },
-    )
-    return { ok: true, data }
-  }
-  catch (error) {
-    const status = typeof error === 'object' && error && 'status' in error
-      ? Number((error as { status?: number }).status)
-      : undefined
-
-    return {
-      ok: false,
-      status,
-      error: (error as Error).message,
+  return await memoize(githubFileTextCache, `${repoPath}::${ref}::${filePath}`, async () => {
+    try {
+      const data = await ofetch(
+        `https://raw.githubusercontent.com/${repoPath}/${encodeURIComponent(ref)}/${encodeGitHubPath(filePath)}`,
+        {
+          ...githubFetchOptions(timeoutMs),
+          responseType: 'text' as const,
+        },
+      )
+      return { ok: true, data }
     }
-  }
+    catch (error) {
+      const status = typeof error === 'object' && error && 'status' in error
+        ? Number((error as { status?: number }).status)
+        : undefined
+
+      return {
+        ok: false,
+        status,
+        error: (error as Error).message,
+      }
+    }
+  })
 }

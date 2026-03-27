@@ -105,6 +105,18 @@ function resolveRepositoryUrl(packageInfo: InstalledPackageInfo): { repoUrl?: st
   }
 }
 
+function isImmutableRef(ref: string, version?: string): boolean {
+  if (!ref) {
+    return false
+  }
+
+  if (version && (ref === version || ref === `v${version}`)) {
+    return true
+  }
+
+  return /^[a-f0-9]{7,40}$/i.test(ref)
+}
+
 async function materializeCandidate(
   packageInfo: InstalledPackageInfo,
   candidate: RemoteSkillCandidate,
@@ -116,8 +128,26 @@ async function materializeCandidate(
     sanitizeSegment(candidate.sourceRepo),
     sanitizeSegment(candidate.sourceRef),
     sanitizeSegment(packageInfo.packageName),
+    sanitizeSegment(packageInfo.version || 'unknown'),
     sanitizeSegment(candidate.skillName),
   )
+  const skillFilePath = join(targetDir, 'SKILL.md')
+
+  if (isImmutableRef(candidate.sourceRef, packageInfo.version) && await pathExists(skillFilePath)) {
+    return normalizeContribution({
+      packageName: packageInfo.packageName,
+      version: packageInfo.version,
+      sourceDir: targetDir,
+      skillName: candidate.skillName,
+      sourceKind: candidate.sourceKind,
+      sourceRepo: candidate.sourceRepo,
+      sourceRef: candidate.sourceRef,
+      sourcePath: candidate.sourcePath,
+      official: candidate.official,
+      resolver: candidate.resolver,
+      forceIncludeScripts: true,
+    }, targetDir, join(targetDir, '..'))
+  }
 
   try {
     await downloadTemplate(`gh:${candidate.sourceRepo}/${candidate.sourcePath}#${candidate.sourceRef}`, {
@@ -132,7 +162,7 @@ async function materializeCandidate(
     return null
   }
 
-  if (!(await pathExists(join(targetDir, 'SKILL.md')))) {
+  if (!(await pathExists(skillFilePath))) {
     return null
   }
 
@@ -175,9 +205,6 @@ async function resolveViaGitHub(
     override?.ref || '',
     packageInfo.version ? `v${packageInfo.version}` : '',
     packageInfo.version || '',
-    await fetchGitHubDefaultBranch(repo, timeoutMs) || '',
-    'main',
-    'master',
   ])
 
   const candidates = dedupe([
@@ -195,7 +222,7 @@ async function resolveViaGitHub(
     }),
   ])
 
-  for (const ref of refs) {
+  const tryResolveForRef = async (ref: string, allowTreeLookup: boolean): Promise<ResolvedContribution[] | null> => {
     const packageJson = await fetchGitHubFileText(repo, ref, 'package.json', timeoutMs)
     if (packageJson.ok && packageJson.data) {
       try {
@@ -214,7 +241,7 @@ async function resolveViaGitHub(
             resolver: 'agentsField',
           }, cacheRoot)
           if (resolved) {
-            return { contributions: [resolved], issues, skipped }
+            return [resolved]
           }
         }
       }
@@ -223,7 +250,10 @@ async function resolveViaGitHub(
       }
     }
 
-    // List skills/ directory at repo root to discover all skills
+    if (!allowTreeLookup) {
+      return null
+    }
+
     const skillsDirs = await listGitHubDirectory(repo, ref, 'skills', timeoutMs)
     if (skillsDirs.length) {
       const contributions: ResolvedContribution[] = []
@@ -242,7 +272,7 @@ async function resolveViaGitHub(
         }
       }
       if (contributions.length) {
-        return { contributions, issues, skipped }
+        return contributions
       }
     }
 
@@ -262,8 +292,37 @@ async function resolveViaGitHub(
       }, cacheRoot)
 
       if (resolved) {
-        return { contributions: [resolved], issues, skipped }
+        return [resolved]
       }
+    }
+
+    return null
+  }
+
+  for (const ref of refs) {
+    const resolved = await tryResolveForRef(ref, false)
+    if (resolved?.length) {
+      return { contributions: resolved, issues, skipped }
+    }
+  }
+
+  const fallbackRefs = dedupe([
+    await fetchGitHubDefaultBranch(repo, timeoutMs) || '',
+    'main',
+    'master',
+  ])
+
+  for (const ref of fallbackRefs) {
+    const resolved = await tryResolveForRef(ref, true)
+    if (resolved?.length) {
+      return { contributions: resolved, issues, skipped }
+    }
+  }
+
+  for (const ref of refs) {
+    const resolved = await tryResolveForRef(ref, true)
+    if (resolved?.length) {
+      return { contributions: resolved, issues, skipped }
     }
   }
 
@@ -296,8 +355,33 @@ async function resolveViaMetadataRouter(
     'generated',
     'metadata-router',
     sanitizeSegment(packageInfo.packageName),
+    sanitizeSegment(packageInfo.version || 'unknown'),
     sanitizeSegment(skillName),
   )
+  const skillFilePath = join(targetDir, 'SKILL.md')
+
+  if (await pathExists(skillFilePath)) {
+    return {
+      contributions: [
+        normalizeContribution({
+          packageName: packageInfo.packageName,
+          version: packageInfo.version,
+          sourceDir: targetDir,
+          skillName,
+          description: packageInfo.description,
+          sourceKind: 'generated',
+          sourceRepo,
+          repoUrl,
+          docsUrl,
+          official: true,
+          resolver: 'metadataRouter',
+          forceIncludeScripts: false,
+        }, targetDir, join(targetDir, '..')),
+      ],
+      issues: [],
+      skipped: [],
+    }
+  }
 
   const files = createMetadataRouterSkillFiles({
     packageName: packageInfo.packageName,
