@@ -157,7 +157,8 @@ describe('resolveRemoteContributionsForPackage', () => {
     const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
     const downloadMock = mockDownloadTemplate(async (input, destinationDir) => {
       if (
-        input === 'gh:nuxt-content/docus/skills/create-docs#main'
+        input === 'gh:nuxt-content/docus/skills/docus#main'
+        || input === 'gh:nuxt-content/docus/skills/create-docs#main'
         || input === 'gh:nuxt-content/docus/skills/review-docs#main'
       ) {
         await createSkillFiles(destinationDir, input.split('/').pop()?.split('#')[0] || 'unknown')
@@ -172,7 +173,7 @@ describe('resolveRemoteContributionsForPackage', () => {
       parseGitHubRepo: vi.fn((input: string) => input || null),
       fetchGitHubDefaultBranch: vi.fn(async () => 'main'),
       fetchGitHubFileText: vi.fn(async () => ({ ok: false, status: 404 })),
-      listGitHubDirectory: vi.fn(async () => ['create-docs', 'review-docs']),
+      listGitHubDirectory: vi.fn(async () => ['docus', 'create-docs', 'review-docs']),
     }))
     vi.doMock('giget', () => ({
       downloadTemplate: downloadMock,
@@ -189,8 +190,8 @@ describe('resolveRemoteContributionsForPackage', () => {
       enableGithubLookup: true,
     })
 
-    expect(result.contributions).toHaveLength(2)
-    expect(result.contributions.map(item => item.skillName)).toEqual(['create-docs', 'review-docs'])
+    expect(result.contributions).toHaveLength(3)
+    expect(result.contributions.map(item => item.skillName)).toEqual(['docus', 'create-docs', 'review-docs'])
     expect(result.contributions.every(item => item.sourceKind === 'github')).toBe(true)
     expect(result.contributions.every(item => item.official)).toBe(true)
     expect(result.skipped).toEqual([])
@@ -292,6 +293,52 @@ describe('resolveRemoteContributionsForPackage', () => {
     expect(second.contributions).toHaveLength(1)
     expect(downloadCallsAfterFirstRun).toBeGreaterThan(0)
     expect(downloadMock.mock.calls).toHaveLength(downloadCallsAfterFirstRun)
+    expect(second.contributions[0]?.sourceDir).toBe(first.contributions[0]?.sourceDir)
+  })
+
+  it('re-fetches cached github skill trees for mutable branch refs', async () => {
+    const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
+    const downloadMock = mockDownloadTemplate(async (input, destinationDir) => {
+      if (input === 'gh:acme/reka-ui/skills/reka-ui#main') {
+        await createSkillFiles(destinationDir, 'reka-ui')
+        return
+      }
+
+      throw new Error('not found')
+    })
+
+    vi.resetModules()
+    vi.doMock('../src/remote-fetch', () => ({
+      parseGitHubRepo: vi.fn((input: string) => input || null),
+      fetchGitHubDefaultBranch: vi.fn(async () => 'main'),
+      fetchGitHubFileText: vi.fn(async () => ({ ok: false, status: 404 })),
+      listGitHubDirectory: vi.fn(async () => ['reka-ui']),
+    }))
+    vi.doMock('giget', () => ({
+      downloadTemplate: downloadMock,
+    }))
+
+    const { resolveRemoteContributionsForPackage } = await import('../src/remote-resolver')
+    const packageInfo = {
+      packageName: 'reka-ui',
+      version: '1.2.3',
+      repository: 'acme/reka-ui',
+    }
+
+    const first = await resolveRemoteContributionsForPackage(packageInfo, {
+      cacheRoot,
+      githubLookupTimeoutMs: 200,
+      enableGithubLookup: true,
+    })
+    const second = await resolveRemoteContributionsForPackage(packageInfo, {
+      cacheRoot,
+      githubLookupTimeoutMs: 200,
+      enableGithubLookup: true,
+    })
+
+    expect(first.contributions).toHaveLength(1)
+    expect(second.contributions).toHaveLength(1)
+    expect(downloadMock).toHaveBeenCalledTimes(2)
     expect(second.contributions[0]?.sourceDir).toBe(first.contributions[0]?.sourceDir)
   })
 

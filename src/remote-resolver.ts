@@ -105,6 +105,18 @@ function resolveRepositoryUrl(packageInfo: InstalledPackageInfo): { repoUrl?: st
   }
 }
 
+function isImmutableRef(ref: string, version?: string): boolean {
+  if (!ref) {
+    return false
+  }
+
+  if (version && (ref === version || ref === `v${version}`)) {
+    return true
+  }
+
+  return /^[a-f0-9]{7,40}$/i.test(ref)
+}
+
 async function materializeCandidate(
   packageInfo: InstalledPackageInfo,
   candidate: RemoteSkillCandidate,
@@ -121,7 +133,7 @@ async function materializeCandidate(
   )
   const skillFilePath = join(targetDir, 'SKILL.md')
 
-  if (await pathExists(skillFilePath)) {
+  if (isImmutableRef(candidate.sourceRef, packageInfo.version) && await pathExists(skillFilePath)) {
     return normalizeContribution({
       packageName: packageInfo.packageName,
       version: packageInfo.version,
@@ -238,26 +250,6 @@ async function resolveViaGitHub(
       }
     }
 
-    for (const path of pathCandidates) {
-      const candidateSkillName = override?.path && path === override.path
-        ? (override.skillName || path.split('/').pop() || packageInfo.packageName)
-        : path.split('/').pop() || packageInfo.packageName
-
-      const resolved = await materializeCandidate(packageInfo, {
-        skillName: candidateSkillName,
-        sourcePath: path,
-        sourceKind: 'github',
-        sourceRepo: repo,
-        sourceRef: ref,
-        official: true,
-        resolver: 'githubHeuristic',
-      }, cacheRoot)
-
-      if (resolved) {
-        return [resolved]
-      }
-    }
-
     if (!allowTreeLookup) {
       return null
     }
@@ -281,6 +273,26 @@ async function resolveViaGitHub(
       }
       if (contributions.length) {
         return contributions
+      }
+    }
+
+    for (const path of pathCandidates) {
+      const candidateSkillName = override?.path && path === override.path
+        ? (override.skillName || path.split('/').pop() || packageInfo.packageName)
+        : path.split('/').pop() || packageInfo.packageName
+
+      const resolved = await materializeCandidate(packageInfo, {
+        skillName: candidateSkillName,
+        sourcePath: path,
+        sourceKind: 'github',
+        sourceRepo: repo,
+        sourceRef: ref,
+        official: true,
+        resolver: 'githubHeuristic',
+      }, cacheRoot)
+
+      if (resolved) {
+        return [resolved]
       }
     }
 
