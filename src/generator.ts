@@ -52,6 +52,7 @@ import type {
 import type { SkillHubTarget } from './agents'
 
 const GITHUB_LOOKUP_TIMEOUT_MS = 1500
+const REMOTE_RESOLUTION_CONCURRENCY = 4
 
 export interface SkillHubLogger {
   start: (message: string) => void
@@ -80,6 +81,40 @@ function normalizeRelativePath(from: string, to: string): string {
 
 function getGeneratedSkillRoot(buildDir: string, skillName: string): string {
   return join(buildDir, 'skill-hub', skillName)
+}
+
+function getPersistentCacheRoot(exportRoot: string): string {
+  return join(exportRoot, 'node_modules', '.cache', 'nuxt-skill-hub')
+}
+
+function getCachedGeneratedSkillRoot(cacheRoot: string, skillName: string): string {
+  return join(cacheRoot, 'generated', skillName)
+}
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  mapper: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  if (!items.length) {
+    return []
+  }
+
+  const results = new Array<R>(items.length)
+  let nextIndex = 0
+  const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    while (true) {
+      const index = nextIndex++
+      if (index >= items.length) {
+        return
+      }
+
+      results[index] = await mapper(items[index]!, index)
+    }
+  })
+
+  await Promise.all(workers)
+  return results
 }
 
 function mergeSkipped(entries: SkillManifestSkipped[], keyFn: (entry: SkillManifestSkipped) => string): SkillManifestSkipped[] {
@@ -196,6 +231,8 @@ export async function generateSkillTree(input: {
 }): Promise<void> {
   const { nuxt, logger, options, skillName, exportRoot, generationMode } = input
   const stableBuildDir = resolveStableSkillBuildDir(nuxt.options.rootDir, nuxt.options.buildDir)
+  const persistentCacheRoot = getPersistentCacheRoot(exportRoot)
+  const cachedGeneratedSkillRoot = getCachedGeneratedSkillRoot(persistentCacheRoot, skillName)
   const generatedSkillRoot = getGeneratedSkillRoot(stableBuildDir, skillName)
   const referencesRoot = join(generatedSkillRoot, 'references')
   const nuxtRoot = join(referencesRoot, 'nuxt')
@@ -236,8 +273,9 @@ export async function generateSkillTree(input: {
     ]),
   })
 
-  if (generationMode === 'prepare' && await isGeneratedSkillFresh(generatedSkillRoot, fingerprint)) {
-    logger.info(`Generated ${skillName} skill is already up to date at ${generatedSkillRoot}`)
+  if (generationMode === 'prepare' && await isGeneratedSkillFresh(cachedGeneratedSkillRoot, fingerprint)) {
+    await copySkillTree(cachedGeneratedSkillRoot, generatedSkillRoot, true)
+    logger.info(`Restored cached ${skillName} skill from ${cachedGeneratedSkillRoot}`)
     return
   }
 
@@ -246,22 +284,26 @@ export async function generateSkillTree(input: {
   const remoteIssues: ValidationIssue[] = []
   const remoteSkipped: SkillManifestSkipped[] = []
   const remoteContributions: ResolvedContribution[] = []
-  const remoteCacheRoot = join(stableBuildDir, 'skill-hub-cache')
-  await emptyDir(remoteCacheRoot)
+  const remoteCacheRoot = join(persistentCacheRoot, 'remote')
+  await ensureDir(remoteCacheRoot)
 
   const packagesToResolve = installedPackages.filter(pkg => pkg.packageName !== 'nuxt-skill-hub' && !distResolvedPackages.has(pkg.packageName))
   const totalToResolve = packagesToResolve.length
 
-  for (let i = 0; i < packagesToResolve.length; i++) {
-    const pkg = packagesToResolve[i]
-    logger.start(`[${i + 1}/${totalToResolve}] Resolving skills for ${pkg.packageName}...`)
+  const remoteResults = await mapWithConcurrency(
+    packagesToResolve,
+    REMOTE_RESOLUTION_CONCURRENCY,
+    async (pkg, index) => {
+      logger.start(`Resolving skills for ${pkg.packageName} (${index + 1}/${totalToResolve})...`)
+      return await resolveRemoteContributionsForPackage(pkg, {
+        cacheRoot: remoteCacheRoot,
+        githubLookupTimeoutMs: GITHUB_LOOKUP_TIMEOUT_MS,
+        enableGithubLookup: true,
+      })
+    },
+  )
 
-    const remote = await resolveRemoteContributionsForPackage(pkg, {
-      cacheRoot: remoteCacheRoot,
-      githubLookupTimeoutMs: GITHUB_LOOKUP_TIMEOUT_MS,
-      enableGithubLookup: true,
-    })
-
+  for (const remote of remoteResults) {
     remoteIssues.push(...remote.issues)
     remoteSkipped.push(...remote.skipped)
     remoteContributions.push(...remote.contributions)
@@ -357,6 +399,7 @@ export async function generateSkillTree(input: {
     skipped,
   ))
   await writeGenerationState(generatedSkillRoot, fingerprint)
+  await copySkillTree(generatedSkillRoot, cachedGeneratedSkillRoot, true)
 
   logger.success(`Generated ${skillName} skill at ${generatedSkillRoot}`)
 }

@@ -105,7 +105,7 @@ describe('resolveRemoteContributionsForPackage', () => {
   it('uses remote package agents.skills before heuristics', async () => {
     const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
     const downloadMock = mockDownloadTemplate(async (input, destinationDir) => {
-      if (input === 'gh:acme/nuxt-module/skills/nuxt-module#main') {
+      if (input === 'gh:acme/nuxt-module/skills/nuxt-module#v0.3.0') {
         await createSkillFiles(destinationDir, 'nuxt-module')
       }
       else {
@@ -114,9 +114,10 @@ describe('resolveRemoteContributionsForPackage', () => {
     })
 
     vi.resetModules()
+    const defaultBranchMock = vi.fn(async () => 'main')
     vi.doMock('../src/remote-fetch', () => ({
       parseGitHubRepo: vi.fn((input: string) => input || null),
-      fetchGitHubDefaultBranch: vi.fn(async () => 'main'),
+      fetchGitHubDefaultBranch: defaultBranchMock,
       listGitHubDirectory: vi.fn(async () => []),
       fetchGitHubFileText: vi.fn(async () => ({
         ok: true,
@@ -149,6 +150,7 @@ describe('resolveRemoteContributionsForPackage', () => {
     expect(result.contributions[0]?.sourceKind).toBe('github')
     expect(result.contributions[0]?.resolver).toBe('agentsField')
     expect(result.contributions[0]?.sourcePath).toBe('skills/nuxt-module')
+    expect(defaultBranchMock).not.toHaveBeenCalled()
   })
 
   it('discovers all root github skills for docus', async () => {
@@ -233,6 +235,113 @@ describe('resolveRemoteContributionsForPackage', () => {
     await expect(fsp.readFile(join(result.contributions[0]!.sourceDir, 'SKILL.md'), 'utf8')).resolves.toContain('Docs: [https://a11y.nuxt.com/](https://a11y.nuxt.com/)')
     await expect(fsp.readFile(join(result.contributions[0]!.sourceDir, 'SKILL.md'), 'utf8')).resolves.not.toContain('This skill was generated from package metadata')
     await expect(fsp.access(join(result.contributions[0]!.sourceDir, 'references/index.md'))).rejects.toBeDefined()
+  })
+
+  it('reuses cached github skill trees across runs', async () => {
+    const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
+    const downloadMock = mockDownloadTemplate(async (input, destinationDir) => {
+      if (input === 'gh:acme/nuxt-module/skills/nuxt-module#v0.3.0') {
+        await createSkillFiles(destinationDir, 'nuxt-module')
+        return
+      }
+
+      throw new Error('not found')
+    })
+
+    vi.resetModules()
+    vi.doMock('../src/remote-fetch', () => ({
+      parseGitHubRepo: vi.fn((input: string) => input || null),
+      fetchGitHubDefaultBranch: vi.fn(async () => 'main'),
+      listGitHubDirectory: vi.fn(async () => []),
+      fetchGitHubFileText: vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        data: JSON.stringify({
+          agents: {
+            skills: [
+              { name: 'nuxt-module', path: 'skills/nuxt-module' },
+            ],
+          },
+        }),
+      })),
+    }))
+    vi.doMock('giget', () => ({
+      downloadTemplate: downloadMock,
+    }))
+
+    const { resolveRemoteContributionsForPackage } = await import('../src/remote-resolver')
+    const packageInfo = {
+      packageName: '@acme/nuxt-module',
+      version: '0.3.0',
+      repository: 'acme/nuxt-module',
+    }
+
+    const first = await resolveRemoteContributionsForPackage(packageInfo, {
+      cacheRoot,
+      githubLookupTimeoutMs: 200,
+      enableGithubLookup: true,
+    })
+    const downloadCallsAfterFirstRun = downloadMock.mock.calls.length
+    const second = await resolveRemoteContributionsForPackage(packageInfo, {
+      cacheRoot,
+      githubLookupTimeoutMs: 200,
+      enableGithubLookup: true,
+    })
+
+    expect(first.contributions).toHaveLength(1)
+    expect(second.contributions).toHaveLength(1)
+    expect(downloadCallsAfterFirstRun).toBeGreaterThan(0)
+    expect(downloadMock.mock.calls).toHaveLength(downloadCallsAfterFirstRun)
+    expect(second.contributions[0]?.sourceDir).toBe(first.contributions[0]?.sourceDir)
+  })
+
+  it('reuses cached metadata-router skill files across runs', async () => {
+    const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
+    const downloadMock = mockDownloadTemplate(async () => {
+      throw new Error('not found')
+    })
+
+    vi.resetModules()
+    vi.doMock('../src/remote-fetch', () => ({
+      parseGitHubRepo: vi.fn(() => null),
+      fetchGitHubDefaultBranch: vi.fn(async () => 'main'),
+      fetchGitHubFileText: vi.fn(async () => ({ ok: false, status: 404 })),
+      listGitHubDirectory: vi.fn(async () => []),
+    }))
+    vi.doMock('giget', () => ({
+      downloadTemplate: downloadMock,
+    }))
+
+    const { resolveRemoteContributionsForPackage } = await import('../src/remote-resolver')
+    const packageInfo = {
+      packageName: '@nuxt/a11y',
+      version: '1.0.0',
+      description: 'Accessibility tooling for Nuxt.',
+      repository: 'https://github.com/nuxt/a11y',
+      homepage: 'https://a11y.nuxt.com/',
+    }
+
+    const first = await resolveRemoteContributionsForPackage(packageInfo, {
+      cacheRoot,
+      githubLookupTimeoutMs: 200,
+      enableGithubLookup: true,
+    })
+    const skillPath = join(first.contributions[0]!.sourceDir, 'SKILL.md')
+    const firstStat = await fsp.stat(skillPath)
+
+    await new Promise(resolve => setTimeout(resolve, 25))
+
+    const second = await resolveRemoteContributionsForPackage(packageInfo, {
+      cacheRoot,
+      githubLookupTimeoutMs: 200,
+      enableGithubLookup: true,
+    })
+    const secondStat = await fsp.stat(skillPath)
+
+    expect(second.contributions).toHaveLength(1)
+    expect(second.contributions[0]?.sourceDir).toBe(first.contributions[0]?.sourceDir)
+    expect(secondStat.mtimeMs).toBe(firstStat.mtimeMs)
+    expect(downloadMock).not.toHaveBeenCalled()
   })
 
   it('keeps package skipped when metadata cannot produce a router skill', async () => {

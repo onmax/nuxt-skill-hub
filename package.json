@@ -26,6 +26,7 @@
     "dev": "pnpm --dir docs dev",
     "dev:build": "nuxt-module-build build --stub --watch",
     "dev:prepare": "nuxt-module-build build --stub && nuxt-module-build prepare",
+    "bench:portal": "node ./scripts/benchmark-portal-prepare.mjs",
     "release": "bumpp --push --no-push-all",
     "lint": "eslint .",
     "test": "pnpm run dev:prepare && vitest run && pnpm run test:pack",
