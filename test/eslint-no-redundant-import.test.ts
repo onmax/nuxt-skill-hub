@@ -41,6 +41,8 @@ describe('no-redundant-import', () => {
         { code: `import { createApp, defineComponent } from 'vue'`, settings },
         // Type-only auto imports must not remove runtime imports
         { code: `import { Foo } from 'pkg'`, settings: { 'skill-hub/autoImports': [{ name: 'Foo', from: 'pkg', type: true }] } },
+        // Local alias collision must not remove a different imported symbol
+        { code: `import { reactive as ref } from 'vue'`, settings },
       ],
       invalid: [
         // Single redundant → remove entire statement

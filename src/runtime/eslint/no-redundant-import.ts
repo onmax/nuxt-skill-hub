@@ -8,7 +8,12 @@ interface AutoImportEntry {
 }
 
 type ImportSourceNode = Rule.Node & { value: string, range: [number, number] }
-type ImportSpecifierNode = Rule.Node & { type: 'ImportSpecifier', local: { name: string }, importKind?: 'type' | 'value' }
+type ImportSpecifierNode = Rule.Node & {
+  type: 'ImportSpecifier'
+  imported: { name?: string, value?: string }
+  local: { name: string }
+  importKind?: 'type' | 'value'
+}
 type ImportDefaultSpecifierNode = Rule.Node & { type: 'ImportDefaultSpecifier' }
 type ImportNamespaceSpecifierNode = Rule.Node & { type: 'ImportNamespaceSpecifier' }
 type ImportNode = Rule.Node & {
@@ -20,7 +25,8 @@ type ImportNode = Rule.Node & {
 }
 
 interface SpecInfo { spec: ImportNode['specifiers'][number], localName: string, isRedundant: boolean }
-interface SourceLookup { type: Set<string>, value: Set<string> }
+type AutoImportNames = Map<string, Set<string>>
+interface SourceLookup { type: AutoImportNames, value: AutoImportNames }
 
 const SETTINGS_KEY = 'skill-hub/autoImports'
 
@@ -44,8 +50,8 @@ export const noRedundantImport: Rule.RuleModule = {
     const lookup = new Map<string, SourceLookup>()
     for (const entry of entries) {
       const localName = entry.as || entry.name
-      const existing = lookup.get(entry.from) || { type: new Set<string>(), value: new Set<string>() }
-      existing[entry.type ? 'type' : 'value'].add(localName)
+      const existing = lookup.get(entry.from) || { type: new Map(), value: new Map() }
+      addAutoImportName(existing[entry.type ? 'type' : 'value'], localName, entry.name)
       lookup.set(entry.from, existing)
     }
 
@@ -71,7 +77,8 @@ export const noRedundantImport: Rule.RuleModule = {
 
           const localName = spec.local.name
           const names = isTypeOnlyImport(importNode, spec) ? autoImported.type : autoImported.value
-          specInfos.push({ spec, localName, isRedundant: names.has(localName) })
+          const importedName = getImportedName(spec)
+          specInfos.push({ spec, localName, isRedundant: importedName ? names.get(localName)?.has(importedName) === true : false })
         }
 
         const redundant = specInfos.filter(s => s.isRedundant)
@@ -126,6 +133,20 @@ function importRemovalRange(text: string, range: [number, number]): [number, num
 
 function isTypeOnlyImport(node: ImportNode, spec: ImportSpecifierNode): boolean {
   return node.importKind === 'type' || spec.importKind === 'type'
+}
+
+function addAutoImportName(lookup: AutoImportNames, localName: string, importedName: string): void {
+  const importedNames = lookup.get(localName) || new Set<string>()
+  importedNames.add(importedName)
+  lookup.set(localName, importedNames)
+}
+
+function getImportedName(spec: ImportSpecifierNode): string | undefined {
+  return typeof spec.imported.name === 'string'
+    ? spec.imported.name
+    : typeof spec.imported.value === 'string'
+      ? spec.imported.value
+      : undefined
 }
 
 function rebuildImportDeclaration(context: Rule.RuleContext, node: ImportNode, kept: SpecInfo[]): string {
