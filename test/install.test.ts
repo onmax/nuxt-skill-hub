@@ -96,6 +96,7 @@ describe('install wizard', () => {
 
   it('keeps the interactive wizard for human TTY installs', async () => {
     setTTY(true)
+    vi.stubEnv('CI', '')
     mockInstalledTargets = ['claude-code', 'codex']
     mockSupportedTargets = ['claude-code', 'codex']
     mockConsola.prompt
