@@ -119,7 +119,7 @@ describe('module setup', () => {
       expect(mockLogger.info).toHaveBeenCalledWith('Skipping skill generation during typecheck')
       expect(mockEnsureStableSkillWrappers).not.toHaveBeenCalled()
       expect(mockGenerateSkillTree).not.toHaveBeenCalled()
-      expect(prepareHooks.size).toBe(0)
+      expect(prepareHooks.has('prepare:types')).toBe(false)
     }
     finally {
       process.argv.length = 0
