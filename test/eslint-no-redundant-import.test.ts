@@ -13,6 +13,7 @@ const settings = {
     { name: 'useFetch', from: '#app' },
     { name: 'useRoute', from: 'vue-router' },
     { name: 'navigateTo', from: '#app' },
+    { name: 'useAppConfig', as: 'useConfig', from: '#imports' },
   ],
 }
 
@@ -38,6 +39,8 @@ describe('no-redundant-import', () => {
         { code: `import { ref } from 'vue'`, settings: {} },
         // Mixed: only non-auto-imported specifiers
         { code: `import { createApp, defineComponent } from 'vue'`, settings },
+        // Type-only auto imports must not remove runtime imports
+        { code: `import { Foo } from 'pkg'`, settings: { 'skill-hub/autoImports': [{ name: 'Foo', from: 'pkg', type: true }] } },
       ],
       invalid: [
         // Single redundant → remove entire statement
@@ -88,6 +91,20 @@ describe('no-redundant-import', () => {
         {
           code: `import { ref, createApp, computed } from 'vue'`,
           output: `import { createApp } from 'vue'`,
+          errors: [{ messageId: 'redundant' }],
+          settings,
+        },
+        // Aliased auto-imports should still be considered redundant
+        {
+          code: `import { useAppConfig as useConfig } from '#imports'\n`,
+          output: ``,
+          errors: [{ messageId: 'redundant' }],
+          settings,
+        },
+        // Keep default imports intact when removing redundant named specifiers
+        {
+          code: `import Vue, { ref } from 'vue'`,
+          output: `import Vue from 'vue'`,
           errors: [{ messageId: 'redundant' }],
           settings,
         },

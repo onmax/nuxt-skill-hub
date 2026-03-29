@@ -7,7 +7,8 @@ interface AutoImportEntry {
   type?: boolean
 }
 
-interface SpecInfo { spec: Rule.Node, importedName: string, localName: string, isRedundant: boolean }
+interface SpecInfo { spec: Rule.Node, localName: string, isRedundant: boolean }
+interface SourceLookup { type: Set<string>, value: Set<string> }
 
 type ImportSpecifier = Rule.Node & { imported: { type: string, name: string, value?: string }, local: { name: string }, importKind?: string }
 type ImportDeclaration = Rule.Node & { source: { value: string }, specifiers: ImportSpecifier[], importKind?: string }
@@ -31,13 +32,12 @@ export const noRedundantImport: Rule.RuleModule = {
     if (!entries?.length)
       return {}
 
-    // Build lookup: source -> Set<name>
-    const lookup = new Map<string, Set<string>>()
+    const lookup = new Map<string, SourceLookup>()
     for (const entry of entries) {
-      const name = entry.as || entry.name
-      const existing = lookup.get(entry.from)
-      if (existing) existing.add(name)
-      else lookup.set(entry.from, new Set([name]))
+      const localName = entry.as || entry.name
+      const existing = lookup.get(entry.from) || { type: new Set<string>(), value: new Set<string>() }
+      existing[entry.type ? 'type' : 'value'].add(localName)
+      lookup.set(entry.from, existing)
     }
 
     return {
@@ -54,17 +54,13 @@ export const noRedundantImport: Rule.RuleModule = {
 
         for (const spec of node.specifiers) {
           if (spec.type !== 'ImportSpecifier') {
-            specInfos.push({ spec, importedName: '', localName: '', isRedundant: false })
+            specInfos.push({ spec, localName: '', isRedundant: false })
             continue
           }
 
-          const importedName = spec.imported.type === 'Identifier' ? spec.imported.name : (spec.imported.value ?? '')
           const localName = spec.local.name
-
-          const isAliased = importedName !== localName
-          const isRedundant = !isAliased && autoImported.has(importedName)
-
-          specInfos.push({ spec, importedName, localName, isRedundant })
+          const names = isTypeOnlyImport(node, spec) ? autoImported.type : autoImported.value
+          specInfos.push({ spec, localName, isRedundant: names.has(localName) })
         }
 
         const redundant = specInfos.filter(s => s.isRedundant)
@@ -78,36 +74,17 @@ export const noRedundantImport: Rule.RuleModule = {
           context.report({
             node,
             messageId: 'redundant',
-            data: { name: redundant.map(s => s.importedName).join(', ') },
+            data: { name: redundant.map(s => s.localName).join(', ') },
             fix: fixer => fixer.removeRange([node.range![0], nextLineStart(sourceText, node.range![1])]),
           })
           return
         }
 
-        // Partial removal → rebuild the specifiers portion
         context.report({
           node,
           messageId: 'redundant',
-          data: { name: redundant.map(s => s.importedName).join(', ') },
-          fix(fixer) {
-            const keptTexts = kept.map(s => context.sourceCode.getText(s.spec))
-            const importText = context.sourceCode.getText(node)
-            const braceStart = node.range![0] + importText.indexOf('{')
-            const braceEnd = node.range![0] + importText.lastIndexOf('}') + 1
-
-            // If remaining specifiers are all inline `type` → convert to `import type`
-            const isStatementTypeImport = node.importKind === 'type'
-            const allKeptAreTypeSpecifiers = !isStatementTypeImport && kept.every(s => (s.spec as ImportSpecifier).importKind === 'type')
-
-            if (allKeptAreTypeSpecifiers) {
-              const cleanedTexts = keptTexts.map(t => t.replace(/^type\s+/, ''))
-              const newSpecifiers = `{ ${cleanedTexts.join(', ')} }`
-              const importKeywordEnd = node.range![0] + 'import'.length
-              return fixer.replaceTextRange([importKeywordEnd, braceEnd], ` type ${newSpecifiers}`)
-            }
-
-            return fixer.replaceTextRange([braceStart, braceEnd], `{ ${keptTexts.join(', ')} }`)
-          },
+          data: { name: redundant.map(s => s.localName).join(', ') },
+          fix: fixer => fixer.replaceText(node, rebuildImportDeclaration(context, node, kept)),
         })
       },
     }
@@ -117,4 +94,35 @@ export const noRedundantImport: Rule.RuleModule = {
 function nextLineStart(text: string, pos: number): number {
   const nl = text.indexOf('\n', pos)
   return nl === -1 ? pos : nl + 1
+}
+
+function isTypeOnlyImport(node: ImportDeclaration, spec: ImportSpecifier): boolean {
+  return node.importKind === 'type' || spec.importKind === 'type'
+}
+
+function rebuildImportDeclaration(context: Rule.RuleContext, node: ImportDeclaration, kept: SpecInfo[]): string {
+  const defaultSpecifiers = kept.filter(({ spec }) => spec.type === 'ImportDefaultSpecifier')
+  const namespaceSpecifiers = kept.filter(({ spec }) => spec.type === 'ImportNamespaceSpecifier')
+  const namedSpecifiers = kept.filter(({ spec }) => spec.type === 'ImportSpecifier').map(({ spec }) => spec as ImportSpecifier)
+  const useTypeKeyword = node.importKind !== 'type'
+    && !defaultSpecifiers.length
+    && !namespaceSpecifiers.length
+    && namedSpecifiers.length > 0
+    && namedSpecifiers.every(spec => spec.importKind === 'type')
+
+  const specifierTexts = [
+    ...defaultSpecifiers.map(({ spec }) => context.sourceCode.getText(spec)),
+    ...namespaceSpecifiers.map(({ spec }) => context.sourceCode.getText(spec)),
+  ]
+
+  if (namedSpecifiers.length) {
+    const namedTexts = namedSpecifiers.map((spec) => {
+      const text = context.sourceCode.getText(spec)
+      return useTypeKeyword ? text.replace(/^type\s+/, '') : text
+    })
+    specifierTexts.push(`{ ${namedTexts.join(', ')} }`)
+  }
+
+  const suffix = context.sourceCode.text.slice(node.source.range![1], node.range![1])
+  return `import${node.importKind === 'type' || useTypeKeyword ? ' type' : ''} ${specifierTexts.join(', ')} from ${context.sourceCode.getText(node.source)}${suffix}`
 }
