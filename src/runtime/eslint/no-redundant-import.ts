@@ -59,7 +59,7 @@ export const noRedundantImport: Rule.RuleModule = {
         const autoImported = lookup.get(source)
         if (!autoImported) return
 
-        if (context.filename.endsWith('.d.ts')) return
+        if (isDeclarationFile(context.filename)) return
 
         const specInfos: SpecInfo[] = []
 
@@ -86,7 +86,7 @@ export const noRedundantImport: Rule.RuleModule = {
             node: importNode,
             messageId: 'redundant',
             data: { name: redundant.map(s => s.localName).join(', ') },
-            fix: fixer => fixer.removeRange([importNode.range[0], nextLineStart(sourceText, importNode.range[1])]),
+            fix: fixer => fixer.removeRange(importRemovalRange(sourceText, importNode.range)),
           })
           return
         }
@@ -102,9 +102,26 @@ export const noRedundantImport: Rule.RuleModule = {
   },
 }
 
-function nextLineStart(text: string, pos: number): number {
-  const nl = text.indexOf('\n', pos)
-  return nl === -1 ? pos : nl + 1
+function isDeclarationFile(filename: string): boolean {
+  return /\.d\.(?:cts|mts|ts)$/.test(filename)
+}
+
+function importRemovalRange(text: string, range: [number, number]): [number, number] {
+  let end = range[1]
+
+  while (text[end] === ' ' || text[end] === '\t') {
+    end++
+  }
+
+  if (text.startsWith('\r\n', end)) {
+    return [range[0], end + 2]
+  }
+
+  if (text[end] === '\n') {
+    return [range[0], end + 1]
+  }
+
+  return [range[0], end]
 }
 
 function isTypeOnlyImport(node: ImportNode, spec: ImportSpecifierNode): boolean {

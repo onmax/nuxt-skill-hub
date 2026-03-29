@@ -33,7 +33,7 @@ export function createAutoImportAddon(nuxt: Nuxt): void {
         const seen = new Set<string>()
         const entries = imports
           .filter((i) => {
-            const key = `${i.as || i.name}:${i.from}`
+            const key = `${i.as || i.name}:${i.from}:${i.type ? 'type' : 'value'}`
             if (seen.has(key)) return false
             seen.add(key)
             return true

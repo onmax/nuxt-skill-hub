@@ -108,14 +108,23 @@ describe('no-redundant-import', () => {
           errors: [{ messageId: 'redundant' }],
           settings,
         },
+        // Full-removal fix must preserve same-line trailing code
+        {
+          code: `import { ref } from 'vue'; doWork()`,
+          output: `doWork()`,
+          errors: [{ messageId: 'redundant' }],
+          settings,
+        },
       ],
     })
   })
 
-  it('handles .d.ts files gracefully', () => {
+  it('handles declaration files gracefully', () => {
     tester.run('no-redundant-import', noRedundantImport, {
       valid: [
         { code: `import { ref } from 'vue'`, settings, filename: 'types.d.ts' },
+        { code: `import { ref } from 'vue'`, settings, filename: 'types.d.mts' },
+        { code: `import { ref } from 'vue'`, settings, filename: 'types.d.cts' },
       ],
       invalid: [],
     })
