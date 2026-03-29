@@ -11,16 +11,17 @@ interface ESLintConfigGenAddon {
 export function createAutoImportAddon(nuxt: Nuxt): void {
   let unimport: UnimportLike | undefined
   let nitroUnimport: UnimportLike | undefined
+  const hook = nuxt.hook as unknown as <T extends unknown[]>(name: string, callback: (...args: T) => void) => void
 
-  nuxt.hook('imports:context', (context) => {
+  hook('imports:context', (context: UnimportLike) => {
     unimport = context as UnimportLike
   })
 
-  nuxt.hook('nitro:init', (nitro) => {
-    nitroUnimport = (nitro as unknown as { unimport?: UnimportLike }).unimport
+  hook('nitro:init', (nitro: { unimport?: UnimportLike }) => {
+    nitroUnimport = nitro.unimport
   })
 
-  nuxt.hook('eslint:config:addons' as 'app:created', (addons: ESLintConfigGenAddon[]) => {
+  hook('eslint:config:addons', (addons: ESLintConfigGenAddon[]) => {
     addons.push({
       name: 'skill-hub:no-redundant-import',
       async getConfigs() {
