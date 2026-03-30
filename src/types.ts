@@ -15,6 +15,11 @@ export interface ModuleOptions {
   targets?: SkillHubTarget[]
   moduleAuthoring?: boolean
   generationMode?: SkillHubGenerationMode
+  /**
+   * Auto-register ESLint rule to remove redundant imports when @nuxt/eslint is installed.
+   * @default true
+   */
+  eslint?: boolean
 }
 
 export interface AgentSkillDeclaration {

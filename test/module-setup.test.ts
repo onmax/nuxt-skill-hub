@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockEnsureStableSkillWrappers = vi.fn(async () => {})
 const mockGenerateSkillTree = vi.fn(async () => {})
+const mockCreateAutoImportAddon = vi.fn()
 const mockLogger = {
   info: vi.fn(),
   warn: vi.fn(),
@@ -27,6 +28,10 @@ vi.mock('std-env', () => ({
 vi.mock('../src/generator', () => ({
   ensureStableSkillWrappers: mockEnsureStableSkillWrappers,
   generateSkillTree: mockGenerateSkillTree,
+}))
+
+vi.mock('../src/eslint/addon', () => ({
+  createAutoImportAddon: mockCreateAutoImportAddon,
 }))
 
 vi.mock('../src/internal', () => ({
@@ -87,6 +92,42 @@ describe('module setup', () => {
     }))
   })
 
+  it('registers the eslint addon by default and can opt out', async () => {
+    vi.resetModules()
+    const { default: importedModule } = await import('../src/module')
+    const moduleDefinition = importedModule as unknown as {
+      setup: (options: Record<string, unknown>, nuxt: unknown) => Promise<void>
+    }
+
+    const nuxt = {
+      options: {
+        rootDir: '/repo',
+        buildDir: '/repo/.nuxt',
+        _prepare: false,
+      },
+      hook: vi.fn(),
+    }
+
+    await moduleDefinition.setup({
+      skillName: 'nuxt-test',
+      generationMode: 'manual',
+      targets: ['claude'],
+    }, nuxt)
+
+    expect(mockCreateAutoImportAddon).toHaveBeenCalledWith(nuxt)
+
+    mockCreateAutoImportAddon.mockClear()
+
+    await moduleDefinition.setup({
+      skillName: 'nuxt-test',
+      generationMode: 'manual',
+      targets: ['claude'],
+      eslint: false,
+    }, nuxt)
+
+    expect(mockCreateAutoImportAddon).not.toHaveBeenCalled()
+  })
+
   it('skips generation entirely during typecheck', async () => {
     vi.resetModules()
     const originalArgv = [...process.argv]
@@ -119,7 +160,7 @@ describe('module setup', () => {
       expect(mockLogger.info).toHaveBeenCalledWith('Skipping skill generation during typecheck')
       expect(mockEnsureStableSkillWrappers).not.toHaveBeenCalled()
       expect(mockGenerateSkillTree).not.toHaveBeenCalled()
-      expect(prepareHooks.size).toBe(0)
+      expect(prepareHooks.has('prepare:types')).toBe(false)
     }
     finally {
       process.argv.length = 0
