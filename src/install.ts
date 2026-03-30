@@ -3,6 +3,7 @@ import { join } from 'pathe'
 import { useLogger } from '@nuxt/kit'
 import { createConsola } from 'consola'
 import { colorize } from 'consola/utils'
+import { agent, isAgent } from 'std-env'
 import type { Nuxt } from '@nuxt/schema'
 import { detectCurrentTarget, detectInstalledTargets, getSupportedTargets } from './agents'
 import { deriveSkillName, detectConflictingSkills, extractModuleSpecifier, discoverInstalledPackageFromSpecifier, formatConflictWarning, MANAGED_HINT_END, MANAGED_HINT_START, pathExists, resolveExportRoot } from './internal'
@@ -19,8 +20,62 @@ function isCancelled(value: unknown): boolean {
   return value === null || typeof value === 'symbol'
 }
 
+const AI_AGENT_TARGET_MAP: Record<string, string> = {
+  codex: 'codex',
+  claude: 'claude-code',
+  gemini: 'gemini-code-assist',
+  replit: 'replit-agent',
+}
+
+export interface AIGuidance {
+  intro: string
+  snippet: string
+  optionalFlags: string
+}
+
+export function resolveAIGuidanceTarget(currentTarget?: string, detectedAgent?: string): string | undefined {
+  if (currentTarget) {
+    return currentTarget
+  }
+
+  if (!detectedAgent) {
+    return undefined
+  }
+
+  return AI_AGENT_TARGET_MAP[detectedAgent]
+}
+
+export function buildAIGuidance(currentTarget?: string, detectedAgent?: string): AIGuidance {
+  const target = resolveAIGuidanceTarget(currentTarget, detectedAgent)
+  const sourceLabel = detectedAgent ? ` (${detectedAgent})` : ''
+  const snippetLines = [
+    'export default defineNuxtConfig({',
+    '  skillHub: {',
+    ...(target ? [`    targets: ['${target}'],`] : []),
+    `    generationMode: 'prepare',`,
+    '  },',
+    '})',
+  ]
+
+  return {
+    intro: `Install wizard skipped because nuxt-skill-hub was installed by an AI agent${sourceLabel}. Add this to your nuxt.config.ts:`,
+    snippet: snippetLines.join('\n'),
+    optionalFlags: target
+      ? 'Optional flags: set `skillHub.skillName`, enable `skillHub.moduleAuthoring`, or switch to `skillHub.generationMode: \'manual\'` if needed.'
+      : 'Optional flags: add `skillHub.targets` to pin an agent target, set `skillHub.skillName`, enable `skillHub.moduleAuthoring`, or switch to `skillHub.generationMode: \'manual\'` if needed.',
+  }
+}
+
 export async function runInstallWizard(nuxt: Nuxt): Promise<void> {
   const logger = useLogger('nuxt-skill-hub')
+
+  if (isAgent) {
+    const guidance = buildAIGuidance(detectCurrentTarget(), agent)
+    logger.info(guidance.intro)
+    logger.info(`\`\`\`ts\n${guidance.snippet}\n\`\`\``)
+    logger.info(guidance.optionalFlags)
+    return
+  }
 
   // Skip in CI or non-interactive environments
   if (process.env.CI || !process.stdout.isTTY) {
