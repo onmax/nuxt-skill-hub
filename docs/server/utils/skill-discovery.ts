@@ -1,5 +1,5 @@
 import { slugCandidates } from '../../../src/remote-resolver'
-import { GITHUB_OVERRIDES } from '../../../src/github-overrides'
+import { PACKAGE_OVERRIDES } from '../../../src/package-overrides'
 
 const COMMUNITY_REPO = 'onmax/nuxt-skills'
 const COMMUNITY_BRANCH = 'main'
@@ -66,12 +66,12 @@ export function resolveSkillFolder(nameOrPackage: string, skillFolders: Set<stri
 }
 
 /**
- * Fetch skills from official module repos (GITHUB_OVERRIDES).
+ * Fetch skills from official module repos (PACKAGE_OVERRIDES).
  * These take priority over community skills.
  */
 async function fetchOfficialSkills(): Promise<Record<string, ModuleSkillEntry>> {
   const results: Record<string, ModuleSkillEntry> = {}
-  const overridesWithRepo = GITHUB_OVERRIDES.filter(o => o.repo && o.path && o.skillName)
+  const overridesWithRepo = PACKAGE_OVERRIDES.filter(o => o.repo && o.path && o.skillName)
 
   await Promise.all(overridesWithRepo.map(async (override) => {
     try {

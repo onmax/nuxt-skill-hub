@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { promises as fsp } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -7,6 +8,14 @@ function createSkillFiles(destinationDir: string, skillName: string): Promise<vo
   const content = `---\nname: ${skillName}\ndescription: test\n---\n`
   return fsp.mkdir(destinationDir, { recursive: true })
     .then(() => fsp.writeFile(join(destinationDir, 'SKILL.md'), content, 'utf8'))
+}
+
+function skillMarkdown(skillName: string, description = 'test'): string {
+  return `---\nname: ${skillName}\ndescription: ${description}\n---\n`
+}
+
+function sha256(content: string): string {
+  return `sha256:${createHash('sha256').update(content).digest('hex')}`
 }
 
 function mockDownloadTemplate(impl: (input: string, dir: string) => Promise<void>) {
@@ -41,6 +50,8 @@ describe('resolveRemoteContributionsForPackage', () => {
       fetchGitHubDefaultBranch: vi.fn(async () => 'main'),
       fetchGitHubFileText: vi.fn(async () => ({ ok: false, status: 404 })),
       listGitHubDirectory: vi.fn(async () => ['reka-ui']),
+      fetchUrlJson: vi.fn(async () => ({ ok: false, status: 404 })),
+      fetchUrlBytes: vi.fn(async () => ({ ok: false, status: 404 })),
     }))
     vi.doMock('giget', () => ({
       downloadTemplate: downloadMock,
@@ -77,6 +88,8 @@ describe('resolveRemoteContributionsForPackage', () => {
       fetchGitHubDefaultBranch: vi.fn(async () => 'main'),
       fetchGitHubFileText: vi.fn(async () => ({ ok: false, status: 404 })),
       listGitHubDirectory: vi.fn(async () => []),
+      fetchUrlJson: vi.fn(async () => ({ ok: false, status: 404 })),
+      fetchUrlBytes: vi.fn(async () => ({ ok: false, status: 404 })),
     }))
     vi.doMock('giget', () => ({
       downloadTemplate: downloadMock,
@@ -119,6 +132,8 @@ describe('resolveRemoteContributionsForPackage', () => {
       parseGitHubRepo: vi.fn((input: string) => input || null),
       fetchGitHubDefaultBranch: defaultBranchMock,
       listGitHubDirectory: vi.fn(async () => []),
+      fetchUrlJson: vi.fn(async () => ({ ok: false, status: 404 })),
+      fetchUrlBytes: vi.fn(async () => ({ ok: false, status: 404 })),
       fetchGitHubFileText: vi.fn(async () => ({
         ok: true,
         status: 200,
@@ -153,6 +168,500 @@ describe('resolveRemoteContributionsForPackage', () => {
     expect(defaultBranchMock).not.toHaveBeenCalled()
   })
 
+  it('uses remote package agents.skills on fallback refs before heuristics', async () => {
+    const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
+    const downloadMock = mockDownloadTemplate(async (input, destinationDir) => {
+      if (input === 'gh:acme/nuxt-module/.agent/skills/nuxt-module#main') {
+        await createSkillFiles(destinationDir, 'nuxt-module')
+        return
+      }
+
+      throw new Error('not found')
+    })
+    const listGitHubDirectoryMock = vi.fn(async () => ['wrong-heuristic'])
+
+    vi.resetModules()
+    vi.doMock('../src/remote-fetch', () => ({
+      parseGitHubRepo: vi.fn((input: string) => input || null),
+      fetchGitHubDefaultBranch: vi.fn(async () => 'main'),
+      listGitHubDirectory: listGitHubDirectoryMock,
+      fetchUrlJson: vi.fn(async () => ({ ok: false, status: 404 })),
+      fetchUrlBytes: vi.fn(async () => ({ ok: false, status: 404 })),
+      fetchGitHubFileText: vi.fn(async (_repo: string, ref: string) => {
+        if (ref === 'v0.3.0' || ref === '0.3.0') {
+          return { ok: false, status: 404 }
+        }
+
+        if (ref === 'main') {
+          return {
+            ok: true,
+            status: 200,
+            data: JSON.stringify({
+              agents: {
+                skills: [
+                  { name: 'nuxt-module', path: '.agent/skills/nuxt-module' },
+                ],
+              },
+            }),
+          }
+        }
+
+        return { ok: false, status: 404 }
+      }),
+    }))
+    vi.doMock('giget', () => ({
+      downloadTemplate: downloadMock,
+    }))
+
+    const { resolveRemoteContributionsForPackage } = await import('../src/remote-resolver')
+    const result = await resolveRemoteContributionsForPackage({
+      packageName: '@acme/nuxt-module',
+      version: '0.3.0',
+      repository: 'acme/nuxt-module',
+    }, {
+      cacheRoot,
+      githubLookupTimeoutMs: 200,
+      enableGithubLookup: true,
+    })
+
+    expect(result.contributions).toHaveLength(1)
+    expect(result.contributions[0]?.resolver).toBe('agentsField')
+    expect(result.contributions[0]?.sourceRef).toBe('main')
+    expect(result.contributions[0]?.sourcePath).toBe('.agent/skills/nuxt-module')
+    expect(listGitHubDirectoryMock).not.toHaveBeenCalled()
+  })
+
+  it('does not probe well-known indexes on localhost homepages', async () => {
+    const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
+    const fetchUrlJsonMock = vi.fn(async () => ({ ok: false, status: 404 }))
+
+    vi.resetModules()
+    vi.doMock('../src/remote-fetch', () => ({
+      parseGitHubRepo: vi.fn(() => null),
+      fetchGitHubDefaultBranch: vi.fn(async () => 'main'),
+      fetchGitHubFileText: vi.fn(async () => ({ ok: false, status: 404 })),
+      listGitHubDirectory: vi.fn(async () => []),
+      fetchUrlJson: fetchUrlJsonMock,
+      fetchUrlBytes: vi.fn(async () => ({ ok: false, status: 404 })),
+    }))
+    vi.doMock('giget', () => ({
+      downloadTemplate: mockDownloadTemplate(async () => {
+        throw new Error('not found')
+      }),
+    }))
+
+    const { resolveRemoteContributionsForPackage } = await import('../src/remote-resolver')
+    const result = await resolveRemoteContributionsForPackage({
+      packageName: 'local-docs',
+      version: '1.0.0',
+      description: 'Local docs.',
+      homepage: 'http://localhost:3000/',
+    }, {
+      cacheRoot,
+      githubLookupTimeoutMs: 200,
+      enableGithubLookup: true,
+    })
+
+    expect(result.contributions).toHaveLength(1)
+    expect(result.contributions[0]?.sourceKind).toBe('generated')
+    expect(fetchUrlJsonMock).not.toHaveBeenCalled()
+  })
+
+  it('does not probe well-known indexes on private IPv4 homepages', async () => {
+    const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
+    const fetchUrlJsonMock = vi.fn(async () => ({ ok: false, status: 404 }))
+
+    vi.resetModules()
+    vi.doMock('../src/remote-fetch', () => ({
+      parseGitHubRepo: vi.fn(() => null),
+      fetchGitHubDefaultBranch: vi.fn(async () => 'main'),
+      fetchGitHubFileText: vi.fn(async () => ({ ok: false, status: 404 })),
+      listGitHubDirectory: vi.fn(async () => []),
+      fetchUrlJson: fetchUrlJsonMock,
+      fetchUrlBytes: vi.fn(async () => ({ ok: false, status: 404 })),
+    }))
+    vi.doMock('giget', () => ({
+      downloadTemplate: mockDownloadTemplate(async () => {
+        throw new Error('not found')
+      }),
+    }))
+
+    const { resolveRemoteContributionsForPackage } = await import('../src/remote-resolver')
+    const result = await resolveRemoteContributionsForPackage({
+      packageName: 'private-docs',
+      version: '1.0.0',
+      description: 'Private docs.',
+      homepage: 'http://192.168.1.10/docs',
+    }, {
+      cacheRoot,
+      githubLookupTimeoutMs: 200,
+      enableGithubLookup: true,
+    })
+
+    expect(result.contributions).toHaveLength(1)
+    expect(result.contributions[0]?.sourceKind).toBe('generated')
+    expect(result.contributions[0]?.docsUrl).toBe('http://192.168.1.10/docs')
+    expect(fetchUrlJsonMock).not.toHaveBeenCalled()
+  })
+
+  it('skips well-known v2 skill-md entries whose artifact URL leaves the discovery origin', async () => {
+    const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
+    const fetchUrlBytesMock = vi.fn(async () => ({ ok: true, data: Buffer.from(skillMarkdown('docs-sdk')) }))
+
+    vi.resetModules()
+    vi.doMock('../src/remote-fetch', () => ({
+      parseGitHubRepo: vi.fn(() => null),
+      fetchGitHubDefaultBranch: vi.fn(async () => 'main'),
+      fetchGitHubFileText: vi.fn(async () => ({ ok: false, status: 404 })),
+      listGitHubDirectory: vi.fn(async () => []),
+      fetchUrlJson: vi.fn(async (url: string) => url === 'https://docs.example.com/.well-known/agent-skills/index.json'
+        ? {
+            ok: true,
+            data: {
+              $schema: 'https://schemas.agentskills.io/discovery/0.2.0/schema.json',
+              skills: [
+                {
+                  name: 'docs-sdk',
+                  type: 'skill-md',
+                  description: 'Use the SDK docs.',
+                  url: 'https://evil.example.com/SKILL.md',
+                  digest: sha256(skillMarkdown('docs-sdk')),
+                },
+              ],
+            },
+          }
+        : { ok: false, status: 404 }),
+      fetchUrlBytes: fetchUrlBytesMock,
+    }))
+    vi.doMock('giget', () => ({
+      downloadTemplate: mockDownloadTemplate(async () => {
+        throw new Error('not found')
+      }),
+    }))
+
+    const { resolveRemoteContributionsForPackage } = await import('../src/remote-resolver')
+    const result = await resolveRemoteContributionsForPackage({
+      packageName: 'docs-sdk',
+      version: '1.0.0',
+      description: 'Docs SDK.',
+      homepage: 'https://docs.example.com/',
+    }, {
+      cacheRoot,
+      githubLookupTimeoutMs: 200,
+      enableGithubLookup: true,
+    })
+
+    expect(result.contributions).toHaveLength(1)
+    expect(result.contributions[0]?.sourceKind).toBe('generated')
+    expect(result.skipped.some(entry => entry.reason === 'well-known v2 skill URL must stay on the discovery origin')).toBe(true)
+    expect(fetchUrlBytesMock).not.toHaveBeenCalled()
+  })
+
+  it('only probes well-known v2 discovery indexes', async () => {
+    const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
+    const v1IndexUrl = `https://docs.example.com/.well-known/${'skills'}/index.json`
+    const fetchUrlJsonMock = vi.fn(async (url: string) => {
+      if (url === v1IndexUrl) {
+        throw new Error('legacy endpoint should not be fetched')
+      }
+
+      return { ok: false, status: 404 }
+    })
+
+    vi.resetModules()
+    vi.doMock('../src/remote-fetch', () => ({
+      parseGitHubRepo: vi.fn(() => null),
+      fetchGitHubDefaultBranch: vi.fn(async () => 'main'),
+      fetchGitHubFileText: vi.fn(async () => ({ ok: false, status: 404 })),
+      listGitHubDirectory: vi.fn(async () => []),
+      fetchUrlJson: fetchUrlJsonMock,
+      fetchUrlBytes: vi.fn(async () => ({ ok: false, status: 404 })),
+    }))
+    vi.doMock('giget', () => ({
+      downloadTemplate: mockDownloadTemplate(async () => {
+        throw new Error('not found')
+      }),
+    }))
+
+    const { resolveRemoteContributionsForPackage } = await import('../src/remote-resolver')
+    const result = await resolveRemoteContributionsForPackage({
+      packageName: 'docs-sdk',
+      version: '1.0.0',
+      description: 'Docs SDK.',
+      homepage: 'https://docs.example.com/',
+    }, {
+      cacheRoot,
+      githubLookupTimeoutMs: 200,
+      enableGithubLookup: true,
+    })
+
+    expect(result.contributions).toHaveLength(1)
+    expect(result.contributions[0]?.sourceKind).toBe('generated')
+    expect(fetchUrlJsonMock).toHaveBeenCalledTimes(1)
+    expect(fetchUrlJsonMock).toHaveBeenCalledWith('https://docs.example.com/.well-known/agent-skills/index.json', 200)
+  })
+
+  it('skips schema-less well-known indexes instead of treating them as legacy discovery', async () => {
+    const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
+    const fetchUrlBytesMock = vi.fn(async () => ({ ok: true, data: Buffer.from(skillMarkdown('docs-sdk')) }))
+
+    vi.resetModules()
+    vi.doMock('../src/remote-fetch', () => ({
+      parseGitHubRepo: vi.fn(() => null),
+      fetchGitHubDefaultBranch: vi.fn(async () => 'main'),
+      fetchGitHubFileText: vi.fn(async () => ({ ok: false, status: 404 })),
+      listGitHubDirectory: vi.fn(async () => []),
+      fetchUrlJson: vi.fn(async (url: string) => url === 'https://docs.example.com/.well-known/agent-skills/index.json'
+        ? {
+            ok: true,
+            data: {
+              skills: [
+                {
+                  name: 'docs-sdk',
+                  description: 'Use the SDK docs.',
+                  files: ['SKILL.md'],
+                },
+              ],
+            },
+          }
+        : { ok: false, status: 404 }),
+      fetchUrlBytes: fetchUrlBytesMock,
+    }))
+    vi.doMock('giget', () => ({
+      downloadTemplate: mockDownloadTemplate(async () => {
+        throw new Error('not found')
+      }),
+    }))
+
+    const { resolveRemoteContributionsForPackage } = await import('../src/remote-resolver')
+    const result = await resolveRemoteContributionsForPackage({
+      packageName: 'docs-sdk',
+      version: '1.0.0',
+      description: 'Docs SDK.',
+      homepage: 'https://docs.example.com/',
+    }, {
+      cacheRoot,
+      githubLookupTimeoutMs: 200,
+      enableGithubLookup: true,
+    })
+
+    expect(result.contributions).toHaveLength(1)
+    expect(result.contributions[0]?.sourceKind).toBe('generated')
+    expect(result.skipped.some(entry => entry.reason === 'well-known index is missing the v2 schema')).toBe(true)
+    expect(fetchUrlBytesMock).not.toHaveBeenCalled()
+  })
+
+  it('resolves well-known v2 skill-md entries and verifies digests', async () => {
+    const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
+    const skill = skillMarkdown('docs-sdk', 'Use the SDK docs.')
+
+    vi.resetModules()
+    vi.doMock('../src/remote-fetch', () => ({
+      parseGitHubRepo: vi.fn(() => null),
+      fetchGitHubDefaultBranch: vi.fn(async () => 'main'),
+      fetchGitHubFileText: vi.fn(async () => ({ ok: false, status: 404 })),
+      listGitHubDirectory: vi.fn(async () => []),
+      fetchUrlJson: vi.fn(async (url: string) => url === 'https://docs.example.com/.well-known/agent-skills/index.json'
+        ? {
+            ok: true,
+            data: {
+              $schema: 'https://schemas.agentskills.io/discovery/0.2.0/schema.json',
+              skills: [
+                {
+                  name: 'docs-sdk',
+                  type: 'skill-md',
+                  description: 'Use the SDK docs.',
+                  url: '/.well-known/agent-skills/docs-sdk/SKILL.md',
+                  digest: sha256(skill),
+                },
+              ],
+            },
+          }
+        : { ok: false, status: 404 }),
+      fetchUrlBytes: vi.fn(async (url: string) => url === 'https://docs.example.com/.well-known/agent-skills/docs-sdk/SKILL.md'
+        ? { ok: true, data: Buffer.from(skill) }
+        : { ok: false, status: 404 }),
+    }))
+    vi.doMock('giget', () => ({
+      downloadTemplate: mockDownloadTemplate(async () => {
+        throw new Error('not found')
+      }),
+    }))
+
+    const { resolveRemoteContributionsForPackage } = await import('../src/remote-resolver')
+    const result = await resolveRemoteContributionsForPackage({
+      packageName: 'docs-sdk',
+      version: '1.0.0',
+      homepage: 'https://docs.example.com/',
+    }, {
+      cacheRoot,
+      githubLookupTimeoutMs: 200,
+      enableGithubLookup: true,
+    })
+
+    expect(result.contributions).toHaveLength(1)
+    expect(result.contributions[0]?.sourceKind).toBe('wellKnown')
+    expect(result.contributions[0]?.resolver).toBe('wellKnownV2')
+    await expect(fsp.readFile(join(result.contributions[0]!.sourceDir, 'SKILL.md'), 'utf8')).resolves.toBe(skill)
+  })
+
+  it('skips well-known v2 skill-md entries with invalid digest formats and falls back', async () => {
+    const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
+    const fetchUrlBytesMock = vi.fn(async () => ({ ok: true, data: Buffer.from(skillMarkdown('docs-sdk')) }))
+
+    vi.resetModules()
+    vi.doMock('../src/remote-fetch', () => ({
+      parseGitHubRepo: vi.fn(() => null),
+      fetchGitHubDefaultBranch: vi.fn(async () => 'main'),
+      fetchGitHubFileText: vi.fn(async () => ({ ok: false, status: 404 })),
+      listGitHubDirectory: vi.fn(async () => []),
+      fetchUrlJson: vi.fn(async (url: string) => url === 'https://docs.example.com/.well-known/agent-skills/index.json'
+        ? {
+            ok: true,
+            data: {
+              $schema: 'https://schemas.agentskills.io/discovery/0.2.0/schema.json',
+              skills: [
+                {
+                  name: 'docs-sdk',
+                  type: 'skill-md',
+                  description: 'Use the SDK docs.',
+                  url: '/.well-known/agent-skills/docs-sdk/SKILL.md',
+                  digest: 'sha256:not-valid',
+                },
+              ],
+            },
+          }
+        : { ok: false, status: 404 }),
+      fetchUrlBytes: fetchUrlBytesMock,
+    }))
+    vi.doMock('giget', () => ({
+      downloadTemplate: mockDownloadTemplate(async () => {
+        throw new Error('not found')
+      }),
+    }))
+
+    const { resolveRemoteContributionsForPackage } = await import('../src/remote-resolver')
+    const result = await resolveRemoteContributionsForPackage({
+      packageName: 'docs-sdk',
+      version: '1.0.0',
+      homepage: 'https://docs.example.com/',
+    }, {
+      cacheRoot,
+      githubLookupTimeoutMs: 200,
+      enableGithubLookup: true,
+    })
+
+    expect(result.contributions).toHaveLength(1)
+    expect(result.contributions[0]?.sourceKind).toBe('generated')
+    expect(result.skipped.some(entry => entry.reason === 'well-known v2 skill is missing a valid sha256 digest')).toBe(true)
+    expect(fetchUrlBytesMock).not.toHaveBeenCalled()
+  })
+
+  it('skips well-known v2 skill-md entries with digest mismatches and falls back', async () => {
+    const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
+    const skill = skillMarkdown('docs-sdk', 'Use the SDK docs.')
+
+    vi.resetModules()
+    vi.doMock('../src/remote-fetch', () => ({
+      parseGitHubRepo: vi.fn(() => null),
+      fetchGitHubDefaultBranch: vi.fn(async () => 'main'),
+      fetchGitHubFileText: vi.fn(async () => ({ ok: false, status: 404 })),
+      listGitHubDirectory: vi.fn(async () => []),
+      fetchUrlJson: vi.fn(async (url: string) => {
+        if (url === 'https://docs.example.com/.well-known/agent-skills/index.json') {
+          return {
+            ok: true,
+            data: {
+              $schema: 'https://schemas.agentskills.io/discovery/0.2.0/schema.json',
+              skills: [
+                {
+                  name: 'docs-sdk',
+                  type: 'skill-md',
+                  description: 'Use the SDK docs.',
+                  url: '/.well-known/agent-skills/docs-sdk/SKILL.md',
+                  digest: `sha256:${'0'.repeat(64)}`,
+                },
+              ],
+            },
+          }
+        }
+
+        return { ok: false, status: 404 }
+      }),
+      fetchUrlBytes: vi.fn(async () => ({ ok: true, data: Buffer.from(skill) })),
+    }))
+    vi.doMock('giget', () => ({
+      downloadTemplate: mockDownloadTemplate(async () => {
+        throw new Error('not found')
+      }),
+    }))
+
+    const { resolveRemoteContributionsForPackage } = await import('../src/remote-resolver')
+    const result = await resolveRemoteContributionsForPackage({
+      packageName: 'docs-sdk',
+      version: '1.0.0',
+      homepage: 'https://docs.example.com/',
+    }, {
+      cacheRoot,
+      githubLookupTimeoutMs: 200,
+      enableGithubLookup: true,
+    })
+
+    expect(result.contributions).toHaveLength(1)
+    expect(result.contributions[0]?.sourceKind).toBe('generated')
+    expect(result.skipped.some(entry => entry.sourceKind === 'wellKnown' && entry.reason.includes('digest mismatch'))).toBe(true)
+  })
+
+  it('skips well-known v2 archive entries until archive extraction is supported', async () => {
+    const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
+
+    vi.resetModules()
+    vi.doMock('../src/remote-fetch', () => ({
+      parseGitHubRepo: vi.fn(() => null),
+      fetchGitHubDefaultBranch: vi.fn(async () => 'main'),
+      fetchGitHubFileText: vi.fn(async () => ({ ok: false, status: 404 })),
+      listGitHubDirectory: vi.fn(async () => []),
+      fetchUrlJson: vi.fn(async (url: string) => url === 'https://docs.example.com/.well-known/agent-skills/index.json'
+        ? {
+            ok: true,
+            data: {
+              $schema: 'https://schemas.agentskills.io/discovery/0.2.0/schema.json',
+              skills: [
+                {
+                  name: 'docs-sdk',
+                  type: 'archive',
+                  description: 'Use the SDK docs.',
+                  url: '/.well-known/agent-skills/docs-sdk.tar.gz',
+                  digest: `sha256:${'1'.repeat(64)}`,
+                },
+              ],
+            },
+          }
+        : { ok: false, status: 404 }),
+      fetchUrlBytes: vi.fn(async () => ({ ok: false, status: 404 })),
+    }))
+    vi.doMock('giget', () => ({
+      downloadTemplate: mockDownloadTemplate(async () => {
+        throw new Error('not found')
+      }),
+    }))
+
+    const { resolveRemoteContributionsForPackage } = await import('../src/remote-resolver')
+    const result = await resolveRemoteContributionsForPackage({
+      packageName: 'docs-sdk',
+      version: '1.0.0',
+      homepage: 'https://docs.example.com/',
+    }, {
+      cacheRoot,
+      githubLookupTimeoutMs: 200,
+      enableGithubLookup: true,
+    })
+
+    expect(result.contributions).toHaveLength(1)
+    expect(result.contributions[0]?.sourceKind).toBe('generated')
+    expect(result.skipped.some(entry => entry.reason === 'archive artifacts are not supported yet')).toBe(true)
+  })
+
   it('discovers all root github skills for docus', async () => {
     const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
     const downloadMock = mockDownloadTemplate(async (input, destinationDir) => {
@@ -174,6 +683,8 @@ describe('resolveRemoteContributionsForPackage', () => {
       fetchGitHubDefaultBranch: vi.fn(async () => 'main'),
       fetchGitHubFileText: vi.fn(async () => ({ ok: false, status: 404 })),
       listGitHubDirectory: vi.fn(async () => ['docus', 'create-docs', 'review-docs']),
+      fetchUrlJson: vi.fn(async () => ({ ok: false, status: 404 })),
+      fetchUrlBytes: vi.fn(async () => ({ ok: false, status: 404 })),
     }))
     vi.doMock('giget', () => ({
       downloadTemplate: downloadMock,
@@ -209,6 +720,8 @@ describe('resolveRemoteContributionsForPackage', () => {
       fetchGitHubDefaultBranch: vi.fn(async () => 'main'),
       fetchGitHubFileText: vi.fn(async () => ({ ok: false, status: 404 })),
       listGitHubDirectory: vi.fn(async () => []),
+      fetchUrlJson: vi.fn(async () => ({ ok: false, status: 404 })),
+      fetchUrlBytes: vi.fn(async () => ({ ok: false, status: 404 })),
     }))
     vi.doMock('giget', () => ({
       downloadTemplate: downloadMock,
@@ -254,6 +767,8 @@ describe('resolveRemoteContributionsForPackage', () => {
       parseGitHubRepo: vi.fn((input: string) => input || null),
       fetchGitHubDefaultBranch: vi.fn(async () => 'main'),
       listGitHubDirectory: vi.fn(async () => []),
+      fetchUrlJson: vi.fn(async () => ({ ok: false, status: 404 })),
+      fetchUrlBytes: vi.fn(async () => ({ ok: false, status: 404 })),
       fetchGitHubFileText: vi.fn(async () => ({
         ok: true,
         status: 200,
@@ -313,6 +828,8 @@ describe('resolveRemoteContributionsForPackage', () => {
       fetchGitHubDefaultBranch: vi.fn(async () => 'main'),
       fetchGitHubFileText: vi.fn(async () => ({ ok: false, status: 404 })),
       listGitHubDirectory: vi.fn(async () => ['reka-ui']),
+      fetchUrlJson: vi.fn(async () => ({ ok: false, status: 404 })),
+      fetchUrlBytes: vi.fn(async () => ({ ok: false, status: 404 })),
     }))
     vi.doMock('giget', () => ({
       downloadTemplate: downloadMock,
@@ -354,6 +871,8 @@ describe('resolveRemoteContributionsForPackage', () => {
       fetchGitHubDefaultBranch: vi.fn(async () => 'main'),
       fetchGitHubFileText: vi.fn(async () => ({ ok: false, status: 404 })),
       listGitHubDirectory: vi.fn(async () => []),
+      fetchUrlJson: vi.fn(async () => ({ ok: false, status: 404 })),
+      fetchUrlBytes: vi.fn(async () => ({ ok: false, status: 404 })),
     }))
     vi.doMock('giget', () => ({
       downloadTemplate: downloadMock,
@@ -403,6 +922,8 @@ describe('resolveRemoteContributionsForPackage', () => {
       fetchGitHubDefaultBranch: vi.fn(async () => 'main'),
       fetchGitHubFileText: vi.fn(async () => ({ ok: false, status: 404 })),
       listGitHubDirectory: vi.fn(async () => []),
+      fetchUrlJson: vi.fn(async () => ({ ok: false, status: 404 })),
+      fetchUrlBytes: vi.fn(async () => ({ ok: false, status: 404 })),
     }))
     vi.doMock('giget', () => ({
       downloadTemplate: downloadMock,

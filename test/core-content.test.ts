@@ -137,6 +137,28 @@ Source code: [https://github.com/nuxt-modules/i18n](https://github.com/nuxt-modu
     expect(entry).not.toContain('GitHub-resolved')
     expect(entry).not.toContain('`unknown`')
   })
+
+  it('renders docs-discovered module skills in their own group', () => {
+    const entry = createSkillEntrypoint('nuxt', DEFAULT_NUXT_CONTENT_METADATA, undefined, false, [
+      {
+        packageName: 'docus',
+        version: '5.9.0',
+        skillName: 'create-docs',
+        description: 'Create Docus documentation.',
+        scriptsIncluded: true,
+        sourceKind: 'wellKnown' as const,
+        sourceLabel: 'Docs-discovered skill',
+        docsUrl: 'https://docus.dev/',
+        official: true,
+        trustLevel: 'official' as const,
+        resolver: 'wellKnownV2' as const,
+        wrapperPath: 'references/modules/docus/create-docs.md',
+      },
+    ])
+
+    expect(entry).toContain('### Docs-discovered skills')
+    expect(entry).toContain('[docus](./references/modules/docus/create-docs.md) `v5.9.0` - Docs-discovered skill. Trust: `official`.')
+  })
 })
 
 describe('createStableSkillWrapper', () => {

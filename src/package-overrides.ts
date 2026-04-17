@@ -1,12 +1,13 @@
-export interface GitHubOverride {
+export interface PackageOverride {
   packageName: string
   repo?: string
   ref?: string
   path?: string
   skillName?: string
+  docsUrls?: string[]
 }
 
-export const GITHUB_OVERRIDES: GitHubOverride[] = [
+export const PACKAGE_OVERRIDES: PackageOverride[] = [
   {
     packageName: '@nuxt/ui',
     repo: 'nuxt/ui',
@@ -21,8 +22,13 @@ export const GITHUB_OVERRIDES: GitHubOverride[] = [
     path: 'skills/vueuse-functions',
     skillName: 'vueuse-functions',
   },
+  {
+    packageName: 'docus',
+    repo: 'nuxt-content/docus',
+    docsUrls: ['https://docus.dev/'],
+  },
 ]
 
-export function findGitHubOverride(packageName: string): GitHubOverride | undefined {
-  return GITHUB_OVERRIDES.find(entry => entry.packageName === packageName)
+export function findPackageOverride(packageName: string): PackageOverride | undefined {
+  return PACKAGE_OVERRIDES.find(entry => entry.packageName === packageName)
 }

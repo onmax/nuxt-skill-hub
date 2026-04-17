@@ -61,4 +61,52 @@ describe('remote fetch memoization', () => {
     expect(await listGitHubDirectory('onmax/nuxt-skills', 'main', 'skills', 200)).toEqual(['nuxt-seo', 'nuxt-ui'])
     expect(ofetchMock).toHaveBeenCalledTimes(2)
   })
+
+  it('memoizes generic URL text, JSON, and byte fetches per URL', async () => {
+    const ofetchMock = vi.fn(async (url: string, options?: { responseType?: string }) => {
+      if (options?.responseType === 'arrayBuffer') {
+        return new Uint8Array([1, 2, 3]).buffer
+      }
+
+      if (url.endsWith('.json')) {
+        return '{"ok":true}'
+      }
+
+      return 'hello'
+    })
+
+    vi.resetModules()
+    vi.doMock('ofetch', () => ({
+      ofetch: ofetchMock,
+    }))
+
+    const { fetchUrlBytes, fetchUrlJson, fetchUrlText } = await import('../src/remote-fetch')
+
+    await fetchUrlText('https://example.com/skill.md', 200)
+    await fetchUrlText('https://example.com/skill.md', 400)
+    await fetchUrlJson<{ ok: boolean }>('https://example.com/index.json', 200)
+    await fetchUrlJson<{ ok: boolean }>('https://example.com/index.json', 400)
+    await fetchUrlBytes('https://example.com/skill.tar.gz', 200)
+    await fetchUrlBytes('https://example.com/skill.tar.gz', 400)
+
+    expect(ofetchMock).toHaveBeenCalledTimes(3)
+  })
+
+  it('returns non-throwing status details for generic URL 404s', async () => {
+    const ofetchMock = vi.fn(async () => {
+      throw Object.assign(new Error('Not Found'), { status: 404 })
+    })
+
+    vi.resetModules()
+    vi.doMock('ofetch', () => ({
+      ofetch: ofetchMock,
+    }))
+
+    const { fetchUrlText } = await import('../src/remote-fetch')
+
+    await expect(fetchUrlText('https://example.com/missing', 200)).resolves.toMatchObject({
+      ok: false,
+      status: 404,
+    })
+  })
 })
