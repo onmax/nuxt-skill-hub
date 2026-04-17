@@ -20,8 +20,3 @@ export async function loadNuxtIndexTemplate(): Promise<string> {
 export async function loadNuxtMetadata(): Promise<NuxtContentMetadata> {
   return await loadSharedNuxtMetadata()
 }
-
-export const CORE_CONTENT_SOURCE_DIR = NUXT_CONTENT_SOURCE_DIR
-export const loadCoreRuleFiles = loadNuxtRuleFiles
-export const loadCoreIndexTemplate = loadNuxtIndexTemplate
-export const loadCoreMetadata = loadNuxtMetadata

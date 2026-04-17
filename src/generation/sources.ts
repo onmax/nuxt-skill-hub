@@ -3,6 +3,7 @@ import { promises as fsp } from 'node:fs'
 import { glob } from 'tinyglobby'
 import { isAbsolute, join, relative, resolve } from 'pathe'
 import {
+  mapWithConcurrency,
   normalizeContribution,
   sortAndDedupeContributions,
   type PackageSkillDiscovery,
@@ -11,6 +12,8 @@ import type {
   ResolvedContribution,
   SkillHubContribution,
 } from '../types'
+
+const HASH_READ_CONCURRENCY = 16
 
 export interface LocalSourceFingerprint {
   packageName: string
@@ -88,9 +91,6 @@ async function hashDirectoryTreeIfExists(rootPath: string): Promise<string | nul
     return null
   }
 
-  const hash = createHash('sha256')
-  hash.update('dir:.\n')
-
   const entries = await glob('**/*', {
     cwd: rootPath,
     dot: true,
@@ -101,32 +101,18 @@ async function hashDirectoryTreeIfExists(rootPath: string): Promise<string | nul
 
   entries.sort((a, b) => a.localeCompare(b))
 
-  for (const entry of entries) {
+  const chunkGroups = await mapWithConcurrency(entries, HASH_READ_CONCURRENCY, async (entry): Promise<Array<string | Buffer>> => {
     const currentPath = join(rootPath, entry)
     const stat = await fsp.lstat(currentPath)
-    const relativePath = relative(rootPath, currentPath).replaceAll('\\', '/')
+    const rel = relative(rootPath, currentPath).replaceAll('\\', '/')
+    if (stat.isSymbolicLink()) return [`symlink:${rel}:`, await fsp.readlink(currentPath), '\n']
+    if (stat.isDirectory()) return [`dir:${rel}\n`]
+    if (stat.isFile()) return [`file:${rel}:`, await fsp.readFile(currentPath), '\n']
+    return [`other:${rel}:${stat.mode}\n`]
+  })
 
-    if (stat.isSymbolicLink()) {
-      hash.update(`symlink:${relativePath}:`)
-      hash.update(await fsp.readlink(currentPath))
-      hash.update('\n')
-      continue
-    }
-
-    if (stat.isDirectory()) {
-      hash.update(`dir:${relativePath}\n`)
-      continue
-    }
-
-    if (stat.isFile()) {
-      hash.update(`file:${relativePath}:`)
-      hash.update(await fsp.readFile(currentPath))
-      hash.update('\n')
-      continue
-    }
-
-    hash.update(`other:${relativePath}:${stat.mode}\n`)
-  }
-
+  const hash = createHash('sha256')
+  hash.update('dir:.\n')
+  for (const chunks of chunkGroups) for (const chunk of chunks) hash.update(chunk)
   return hash.digest('hex')
 }

@@ -14,7 +14,3 @@ export async function loadNuxtIndexTemplateFromDir(nuxtContentDir: string): Prom
 export async function loadNuxtMetadata(): Promise<NuxtContentMetadata> {
   return DEFAULT_NUXT_CONTENT_METADATA
 }
-
-export const loadCoreRuleFilesFromDir = loadNuxtRuleFilesFromDir
-export const loadCoreIndexTemplateFromDir = loadNuxtIndexTemplateFromDir
-export const loadCoreMetadata = loadNuxtMetadata

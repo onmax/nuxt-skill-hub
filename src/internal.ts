@@ -23,6 +23,32 @@ export const MANAGED_HINT_END = '<!-- nuxt-skill-hub:end -->'
 const SKILL_NAME_MAX_LENGTH = 64
 const SKILL_NAME_PATTERN = /^[a-z0-9-]+$/
 
+export async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  mapper: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  if (!items.length) {
+    return []
+  }
+
+  const results: R[] = []
+  let nextIndex = 0
+  const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    while (true) {
+      const index = nextIndex++
+      if (index >= items.length) {
+        return
+      }
+
+      results[index] = await mapper(items[index]!, index)
+    }
+  })
+
+  await Promise.all(workers)
+  return results
+}
+
 export interface PackageSkillDiscovery {
   packageName: string
   version?: string
@@ -238,7 +264,7 @@ function packageNameFromSpecifier(specifier: string): string {
   return specifier.split('/')[0] || specifier
 }
 
-export function extractModuleSpecifier(moduleEntry: unknown): string | null {
+function extractModuleSpecifier(moduleEntry: unknown): string | null {
   if (typeof moduleEntry === 'string') {
     return moduleEntry
   }
@@ -273,7 +299,7 @@ function readRepositoryUrl(repository: string | { url?: string } | undefined): s
   return undefined
 }
 
-export async function discoverInstalledPackageFromSpecifier(specifier: string, rootDir: string): Promise<InstalledPackageMetadata | null> {
+async function discoverInstalledPackageFromSpecifier(specifier: string, rootDir: string): Promise<InstalledPackageMetadata | null> {
   if (!isPackageSpecifier(specifier)) {
     return null
   }
@@ -298,6 +324,31 @@ export async function discoverInstalledPackageFromDirectory(directory: string): 
   }
 
   return readInstalledPackageMetadata(packageJsonPath)
+}
+
+export async function collectInstalledModulePackages(
+  modules: unknown[] | undefined,
+  rootDir: string,
+): Promise<InstalledPackageMetadata[]> {
+  const specifiers = Array.from(new Set(
+    (modules || [])
+      .map(entry => extractModuleSpecifier(entry))
+      .filter((entry): entry is string => Boolean(entry)),
+  ))
+
+  const resolved = await Promise.all(
+    specifiers.map(specifier => discoverInstalledPackageFromSpecifier(specifier, rootDir)),
+  )
+
+  const seenPackageRoots = new Set<string>()
+  const packages: InstalledPackageMetadata[] = []
+  for (const pkg of resolved) {
+    if (!pkg || seenPackageRoots.has(pkg.packageRoot)) continue
+    seenPackageRoots.add(pkg.packageRoot)
+    packages.push(pkg)
+  }
+
+  return packages
 }
 
 async function readInstalledPackageMetadata(packageJsonPath: string, fallbackSpecifier?: string): Promise<InstalledPackageMetadata> {
@@ -446,17 +497,16 @@ export interface ResolveContributionsResult {
 }
 
 export async function validateResolvedContributions(contributions: ResolvedContribution[]): Promise<ResolveContributionsResult> {
+  const validations = await Promise.all(contributions.map(validateContribution))
   const valid: ResolvedContribution[] = []
   const issues: ValidationIssue[] = []
 
-  for (const contribution of contributions) {
-    const validation = await validateContribution(contribution)
-    if (!validation.issues.length) {
-      valid.push(validation.contribution)
+  for (const validation of validations) {
+    if (validation.issues.length) {
+      issues.push(...validation.issues)
       continue
     }
-
-    issues.push(...validation.issues)
+    valid.push(validation.contribution)
   }
 
   return {

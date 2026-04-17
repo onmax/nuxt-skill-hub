@@ -1,26 +1,26 @@
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { loadCoreMetadata } from '../src/core-content'
+import { loadNuxtMetadata } from '../src/nuxt-content'
 import { PACKAGE_VERSION } from '../src/package-info'
 import { loadVueSkillFiles } from '../src/vue-content'
 import {
   createModuleWrapperContent,
   createSkillEntrypoint,
   createStableSkillWrapper,
-  DEFAULT_CORE_CONTENT_METADATA,
+  DEFAULT_NUXT_CONTENT_METADATA,
 } from '../src/render-content'
 
 const testCacheRoot = join(tmpdir(), 'skill-hub-test-vue')
 
 describe('createSkillEntrypoint', () => {
   it('loads core metadata from the in-code default source', async () => {
-    await expect(loadCoreMetadata()).resolves.toEqual(DEFAULT_CORE_CONTENT_METADATA)
-    expect(DEFAULT_CORE_CONTENT_METADATA.version).toBe(PACKAGE_VERSION)
+    await expect(loadNuxtMetadata()).resolves.toEqual(DEFAULT_NUXT_CONTENT_METADATA)
+    expect(DEFAULT_NUXT_CONTENT_METADATA.version).toBe(PACKAGE_VERSION)
   })
 
   it('omits the monorepo scope section for standalone apps', () => {
-    const entry = createSkillEntrypoint('nuxt', DEFAULT_CORE_CONTENT_METADATA)
+    const entry = createSkillEntrypoint('nuxt', DEFAULT_NUXT_CONTENT_METADATA)
 
     expect(entry).toContain('# Nuxt Skill Router')
     expect(entry).toContain('## Loading rules')
@@ -55,7 +55,7 @@ describe('createSkillEntrypoint', () => {
   })
 
   it('renders a hard monorepo scope warning when a scope path is provided', () => {
-    const entry = createSkillEntrypoint('nuxt-web', DEFAULT_CORE_CONTENT_METADATA, 'apps/web')
+    const entry = createSkillEntrypoint('nuxt-web', DEFAULT_NUXT_CONTENT_METADATA, 'apps/web')
 
     expect(entry).toContain('## Monorepo scope')
     expect(entry).toContain('`apps/web`')
@@ -64,7 +64,7 @@ describe('createSkillEntrypoint', () => {
   })
 
   it('prioritizes the eval-derived disambiguation packs', () => {
-    expect(DEFAULT_CORE_CONTENT_METADATA.packIds.slice(0, 4)).toEqual([
+    expect(DEFAULT_NUXT_CONTENT_METADATA.packIds.slice(0, 4)).toEqual([
       'abstraction-disambiguation',
       'page-meta-head-layout',
       'error-surfaces-recovery',
@@ -73,14 +73,14 @@ describe('createSkillEntrypoint', () => {
   })
 
   it('keeps the default skill app-oriented when module authoring is disabled', () => {
-    const entry = createSkillEntrypoint('nuxt', DEFAULT_CORE_CONTENT_METADATA)
+    const entry = createSkillEntrypoint('nuxt', DEFAULT_NUXT_CONTENT_METADATA)
 
     expect(entry).not.toContain('"Add a Nuxt module option, hook, or runtime extension"')
     expect(entry).not.toContain('Writing or refactoring a Nuxt module')
   })
 
   it('layers module-author guidance on top of the default skill', () => {
-    const entry = createSkillEntrypoint('nuxt', DEFAULT_CORE_CONTENT_METADATA, undefined, true)
+    const entry = createSkillEntrypoint('nuxt', DEFAULT_NUXT_CONTENT_METADATA, undefined, true)
 
     expect(entry).toContain('Module Authoring Conventions')
     expect(entry).toContain('Writing or refactoring a Nuxt module (`defineNuxtModule`, hooks, public APIs)')
@@ -114,7 +114,7 @@ Source code: [https://github.com/nuxt-modules/i18n](https://github.com/nuxt-modu
   })
 
   it('uses neutral labels for resolved module skills and omits missing versions in module lists', () => {
-    const entry = createSkillEntrypoint('nuxt', DEFAULT_CORE_CONTENT_METADATA, undefined, false, [
+    const entry = createSkillEntrypoint('nuxt', DEFAULT_NUXT_CONTENT_METADATA, undefined, false, [
       {
         packageName: '@nuxthub/core',
         version: undefined,

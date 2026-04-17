@@ -6,7 +6,7 @@ import { colorize } from 'consola/utils'
 import { agent, isAgent } from 'std-env'
 import type { Nuxt } from '@nuxt/schema'
 import { detectCurrentTarget, detectInstalledTargets, getSupportedTargets } from './agents'
-import { deriveSkillName, detectConflictingSkills, extractModuleSpecifier, discoverInstalledPackageFromSpecifier, formatConflictWarning, MANAGED_HINT_END, MANAGED_HINT_START, pathExists, resolveExportRoot } from './internal'
+import { collectInstalledModulePackages, deriveSkillName, detectConflictingSkills, formatConflictWarning, MANAGED_HINT_END, MANAGED_HINT_START, pathExists, resolveExportRoot } from './internal'
 
 interface PendingWrite {
   file: string
@@ -20,33 +20,20 @@ function isCancelled(value: unknown): boolean {
   return value === null || typeof value === 'symbol'
 }
 
-const AI_AGENT_TARGET_MAP: Record<string, string> = {
-  codex: 'codex',
-  claude: 'claude-code',
-  gemini: 'gemini-code-assist',
-  replit: 'replit-agent',
-}
-
 export interface AIGuidance {
   intro: string
   snippet: string
   optionalFlags: string
 }
 
-export function resolveAIGuidanceTarget(currentTarget?: string, detectedAgent?: string): string | undefined {
-  if (currentTarget) {
-    return currentTarget
-  }
-
-  if (!detectedAgent) {
-    return undefined
-  }
-
-  return AI_AGENT_TARGET_MAP[detectedAgent]
-}
-
 export function buildAIGuidance(currentTarget?: string, detectedAgent?: string): AIGuidance {
-  const target = resolveAIGuidanceTarget(currentTarget, detectedAgent)
+  const agentTargetMap: Record<string, string> = {
+    codex: 'codex',
+    claude: 'claude-code',
+    gemini: 'gemini-code-assist',
+    replit: 'replit-agent',
+  }
+  const target = currentTarget || (detectedAgent ? agentTargetMap[detectedAgent] : undefined)
   const sourceLabel = detectedAgent ? ` (${detectedAgent})` : ''
   const snippetLines = [
     'export default defineNuxtConfig({',
@@ -147,20 +134,9 @@ export async function runInstallWizard(nuxt: Nuxt): Promise<void> {
   }
 
   // ── Step 2: Module skills ──
-  const moduleSpecifiers = (nuxt.options.modules || [])
-    .map(entry => extractModuleSpecifier(entry))
-    .filter((entry): entry is string => Boolean(entry))
-
-  const uniqueSpecifiers = Array.from(new Set(moduleSpecifiers))
-  const installedModulePackages: string[] = []
-
-  for (const specifier of uniqueSpecifiers) {
-    const pkg = await discoverInstalledPackageFromSpecifier(specifier, rootDir)
-    if (!pkg || pkg.packageName === 'nuxt-skill-hub')
-      continue
-
-    installedModulePackages.push(pkg.packageName)
-  }
+  const installedModulePackages = (await collectInstalledModulePackages(nuxt.options.modules, rootDir))
+    .map(pkg => pkg.packageName)
+    .filter(name => name !== 'nuxt-skill-hub')
 
   if (installedModulePackages.length) {
     consola.info(`Detected ${installedModulePackages.length} installed module package(s):`)
