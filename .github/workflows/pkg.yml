@@ -17,10 +17,12 @@ jobs:
       - uses: pnpm/action-setup@v5
       - uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version: 24
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
-      - run: pnpm run dev:prepare
+      - run: pnpm run lint
+      - run: pnpm run typecheck
+      - run: pnpm run test
       - run: pnpm run prepack
       - run: pnpm dlx pkg-pr-new publish

@@ -43,6 +43,7 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
 
       - run: pnpm install
+      - run: pnpm run release:check-version
       - run: pnpm prepack
 
       - name: Determine npm tag
