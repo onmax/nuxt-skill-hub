@@ -15,13 +15,6 @@ import type {
 
 const HASH_READ_CONCURRENCY = 16
 
-interface HashEntry {
-  kind: 'symlink' | 'dir' | 'file' | 'other'
-  relativePath: string
-  payload?: Buffer | string
-  mode?: number
-}
-
 export interface LocalSourceFingerprint {
   packageName: string
   skillName: string
@@ -108,45 +101,18 @@ async function hashDirectoryTreeIfExists(rootPath: string): Promise<string | nul
 
   entries.sort((a, b) => a.localeCompare(b))
 
-  const hashEntries = await mapWithConcurrency(entries, HASH_READ_CONCURRENCY, async (entry): Promise<HashEntry> => {
+  const chunkGroups = await mapWithConcurrency(entries, HASH_READ_CONCURRENCY, async (entry): Promise<Array<string | Buffer>> => {
     const currentPath = join(rootPath, entry)
     const stat = await fsp.lstat(currentPath)
-    const relativePath = relative(rootPath, currentPath).replaceAll('\\', '/')
-
-    if (stat.isSymbolicLink()) {
-      return { kind: 'symlink', relativePath, payload: await fsp.readlink(currentPath) }
-    }
-    if (stat.isDirectory()) {
-      return { kind: 'dir', relativePath }
-    }
-    if (stat.isFile()) {
-      return { kind: 'file', relativePath, payload: await fsp.readFile(currentPath) }
-    }
-    return { kind: 'other', relativePath, mode: stat.mode }
+    const rel = relative(rootPath, currentPath).replaceAll('\\', '/')
+    if (stat.isSymbolicLink()) return [`symlink:${rel}:`, await fsp.readlink(currentPath), '\n']
+    if (stat.isDirectory()) return [`dir:${rel}\n`]
+    if (stat.isFile()) return [`file:${rel}:`, await fsp.readFile(currentPath), '\n']
+    return [`other:${rel}:${stat.mode}\n`]
   })
 
   const hash = createHash('sha256')
   hash.update('dir:.\n')
-
-  for (const entry of hashEntries) {
-    switch (entry.kind) {
-      case 'symlink':
-        hash.update(`symlink:${entry.relativePath}:`)
-        hash.update(entry.payload!)
-        hash.update('\n')
-        break
-      case 'dir':
-        hash.update(`dir:${entry.relativePath}\n`)
-        break
-      case 'file':
-        hash.update(`file:${entry.relativePath}:`)
-        hash.update(entry.payload!)
-        hash.update('\n')
-        break
-      default:
-        hash.update(`other:${entry.relativePath}:${entry.mode}\n`)
-    }
-  }
-
+  for (const chunks of chunkGroups) for (const chunk of chunks) hash.update(chunk)
   return hash.digest('hex')
 }

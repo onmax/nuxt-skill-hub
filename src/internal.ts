@@ -264,7 +264,7 @@ function packageNameFromSpecifier(specifier: string): string {
   return specifier.split('/')[0] || specifier
 }
 
-export function extractModuleSpecifier(moduleEntry: unknown): string | null {
+function extractModuleSpecifier(moduleEntry: unknown): string | null {
   if (typeof moduleEntry === 'string') {
     return moduleEntry
   }
@@ -299,7 +299,7 @@ function readRepositoryUrl(repository: string | { url?: string } | undefined): s
   return undefined
 }
 
-export async function discoverInstalledPackageFromSpecifier(specifier: string, rootDir: string): Promise<InstalledPackageMetadata | null> {
+async function discoverInstalledPackageFromSpecifier(specifier: string, rootDir: string): Promise<InstalledPackageMetadata | null> {
   if (!isPackageSpecifier(specifier)) {
     return null
   }
