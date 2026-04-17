@@ -44,10 +44,9 @@ vi.mock('../src/agents', () => ({
 }))
 
 vi.mock('../src/internal', () => ({
+  collectInstalledModulePackages: vi.fn(async () => []),
   deriveSkillName: vi.fn(async () => 'nuxt-test'),
   detectConflictingSkills: vi.fn(() => []),
-  extractModuleSpecifier: vi.fn(() => undefined),
-  discoverInstalledPackageFromSpecifier: vi.fn(async () => null),
   formatConflictWarning: vi.fn((value: string) => value),
   MANAGED_HINT_END: '<!-- skill-hub:end -->',
   MANAGED_HINT_START: '<!-- skill-hub:start -->',

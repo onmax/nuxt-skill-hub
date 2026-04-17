@@ -3,6 +3,7 @@ import { promises as fsp } from 'node:fs'
 import { glob } from 'tinyglobby'
 import { isAbsolute, join, relative, resolve } from 'pathe'
 import {
+  mapWithConcurrency,
   normalizeContribution,
   sortAndDedupeContributions,
   type PackageSkillDiscovery,
@@ -11,6 +12,15 @@ import type {
   ResolvedContribution,
   SkillHubContribution,
 } from '../types'
+
+const HASH_READ_CONCURRENCY = 16
+
+interface HashEntry {
+  kind: 'symlink' | 'dir' | 'file' | 'other'
+  relativePath: string
+  payload?: Buffer | string
+  mode?: number
+}
 
 export interface LocalSourceFingerprint {
   packageName: string
@@ -88,9 +98,6 @@ async function hashDirectoryTreeIfExists(rootPath: string): Promise<string | nul
     return null
   }
 
-  const hash = createHash('sha256')
-  hash.update('dir:.\n')
-
   const entries = await glob('**/*', {
     cwd: rootPath,
     dot: true,
@@ -101,31 +108,44 @@ async function hashDirectoryTreeIfExists(rootPath: string): Promise<string | nul
 
   entries.sort((a, b) => a.localeCompare(b))
 
-  for (const entry of entries) {
+  const hashEntries = await mapWithConcurrency(entries, HASH_READ_CONCURRENCY, async (entry): Promise<HashEntry> => {
     const currentPath = join(rootPath, entry)
     const stat = await fsp.lstat(currentPath)
     const relativePath = relative(rootPath, currentPath).replaceAll('\\', '/')
 
     if (stat.isSymbolicLink()) {
-      hash.update(`symlink:${relativePath}:`)
-      hash.update(await fsp.readlink(currentPath))
-      hash.update('\n')
-      continue
+      return { kind: 'symlink', relativePath, payload: await fsp.readlink(currentPath) }
     }
-
     if (stat.isDirectory()) {
-      hash.update(`dir:${relativePath}\n`)
-      continue
+      return { kind: 'dir', relativePath }
     }
-
     if (stat.isFile()) {
-      hash.update(`file:${relativePath}:`)
-      hash.update(await fsp.readFile(currentPath))
-      hash.update('\n')
-      continue
+      return { kind: 'file', relativePath, payload: await fsp.readFile(currentPath) }
     }
+    return { kind: 'other', relativePath, mode: stat.mode }
+  })
 
-    hash.update(`other:${relativePath}:${stat.mode}\n`)
+  const hash = createHash('sha256')
+  hash.update('dir:.\n')
+
+  for (const entry of hashEntries) {
+    switch (entry.kind) {
+      case 'symlink':
+        hash.update(`symlink:${entry.relativePath}:`)
+        hash.update(entry.payload!)
+        hash.update('\n')
+        break
+      case 'dir':
+        hash.update(`dir:${entry.relativePath}\n`)
+        break
+      case 'file':
+        hash.update(`file:${entry.relativePath}:`)
+        hash.update(entry.payload!)
+        hash.update('\n')
+        break
+      default:
+        hash.update(`other:${entry.relativePath}:${entry.mode}\n`)
+    }
   }
 
   return hash.digest('hex')

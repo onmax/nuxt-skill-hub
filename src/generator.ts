@@ -4,18 +4,18 @@ import type { Nuxt } from '@nuxt/schema'
 import { PACKAGE_VERSION } from './package-info'
 import { loadNuxtMetadata } from './nuxt-content'
 import {
+  collectInstalledModulePackages,
   copySkillTree,
   createModuleDestination,
   buildNuxtTemplateFiles,
   buildVueTemplateFiles,
   discoverPackageSkillsFromInstalledPackage,
   discoverInstalledPackageFromDirectory,
-  discoverInstalledPackageFromSpecifier,
   discoverLocalPackageSkills,
   emptyDir,
   ensureDir,
-  extractModuleSpecifier,
   getTargetSkillRoot,
+  mapWithConcurrency,
   pathExists,
   renderAutomdTemplate,
   resolveContributions,
@@ -91,32 +91,6 @@ function getCachedGeneratedSkillRoot(cacheRoot: string, skillName: string): stri
   return join(cacheRoot, 'generated', skillName)
 }
 
-async function mapWithConcurrency<T, R>(
-  items: T[],
-  concurrency: number,
-  mapper: (item: T, index: number) => Promise<R>,
-): Promise<R[]> {
-  if (!items.length) {
-    return []
-  }
-
-  const results: R[] = []
-  let nextIndex = 0
-  const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
-    while (true) {
-      const index = nextIndex++
-      if (index >= items.length) {
-        return
-      }
-
-      results[index] = await mapper(items[index]!, index)
-    }
-  })
-
-  await Promise.all(workers)
-  return results
-}
-
 function mergeSkipped(entries: SkillManifestSkipped[], keyFn: (entry: SkillManifestSkipped) => string): SkillManifestSkipped[] {
   const byKey = new Map<string, SkillManifestSkipped>()
 
@@ -163,14 +137,8 @@ async function collectInstalledPackages(nuxt: Nuxt) {
     }
   }
 
-  const moduleSpecifiers = (nuxt.options.modules || [])
-    .map(entry => extractModuleSpecifier(entry))
-    .filter((entry): entry is string => Boolean(entry))
-
-  const seenSpecifiers = Array.from(new Set(moduleSpecifiers))
-  for (const specifier of seenSpecifiers) {
-    addInstalledPackage(await discoverInstalledPackageFromSpecifier(specifier, nuxt.options.rootDir))
-  }
+  const modulePackages = await collectInstalledModulePackages(nuxt.options.modules, nuxt.options.rootDir)
+  for (const pkg of modulePackages) addInstalledPackage(pkg)
 
   const layerDirectories = Array.from(new Set(
     nuxt.options._layers
@@ -178,9 +146,8 @@ async function collectInstalledPackages(nuxt: Nuxt) {
       .filter(layerDir => layerDir && layerDir !== resolve(nuxt.options.rootDir)),
   ))
 
-  for (const layerDirectory of layerDirectories) {
-    addInstalledPackage(await discoverInstalledPackageFromDirectory(layerDirectory))
-  }
+  const layerPackages = await Promise.all(layerDirectories.map(dir => discoverInstalledPackageFromDirectory(dir)))
+  for (const pkg of layerPackages) addInstalledPackage(pkg)
 
   const localPackageSkills = await discoverLocalPackageSkills(nuxt.options.rootDir)
   if (localPackageSkills) {

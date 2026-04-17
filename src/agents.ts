@@ -2,7 +2,7 @@ import {
   detectCurrentAgent as detectUnagentCurrentAgent,
   detectInstalledAgents as detectUnagentInstalledAgents,
   expandPath,
-  getAgentConfig as getUnagentAgentConfig,
+  getAgentConfig,
   getAgentIds,
   type AgentConfig,
 } from 'unagent/env'
@@ -34,30 +34,19 @@ function resolveSkillsDir(target: SkillHubTarget, config: AgentConfig | undefine
   return undefined
 }
 
-function normalizeTarget(target: string): string {
-  return target.trim()
-}
-
-function getRawTargetConfig(target: SkillHubTarget): AgentConfig | undefined {
-  return getUnagentAgentConfig(target)
-}
-
 export function getSupportedTargets(): SkillHubTarget[] {
   return getAgentIds()
-    .filter((target) => {
-      const config = getRawTargetConfig(target)
-      return Boolean(resolveSkillsDir(target, config))
-    })
+    .filter(target => Boolean(resolveSkillsDir(target, getAgentConfig(target))))
     .sort((a, b) => a.localeCompare(b))
 }
 
 export function resolveAgentTargetConfig(target: SkillHubTarget): ResolvedAgentTargetConfig | undefined {
-  const normalized = normalizeTarget(target)
+  const normalized = target.trim()
   if (!normalized) {
     return undefined
   }
 
-  const config = getRawTargetConfig(normalized)
+  const config = getAgentConfig(normalized)
   const skillsDir = resolveSkillsDir(normalized, config)
   if (!config || !skillsDir) {
     return undefined
@@ -71,12 +60,12 @@ export function resolveAgentTargetConfig(target: SkillHubTarget): ResolvedAgentT
 }
 
 export function validateTargets(targets: SkillHubTarget[]): { valid: SkillHubTarget[], invalid: InvalidTarget[] } {
-  const uniqueTargets = Array.from(new Set(targets.map(normalizeTarget).filter(Boolean)))
+  const uniqueTargets = Array.from(new Set(targets.map(target => target.trim()).filter(Boolean)))
   const valid: SkillHubTarget[] = []
   const invalid: InvalidTarget[] = []
 
   for (const target of uniqueTargets) {
-    const config = getRawTargetConfig(target)
+    const config = getAgentConfig(target)
     if (!config) {
       invalid.push({
         target,
