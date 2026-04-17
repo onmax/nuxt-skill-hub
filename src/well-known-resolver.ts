@@ -8,9 +8,10 @@ import { emptyDir, ensureDir, isValidSkillName, normalizeContribution, sanitizeS
 import type { InstalledPackageInfo, RemoteResolveResult } from './remote-resolver'
 import type { ResolvedContribution, SkillManifestSkipped, ValidationIssue } from './types'
 
-const RFC_SCHEMA = 'https://schemas.agentskills.io/discovery/0.2.0/schema.json'
+const WELL_KNOWN_DISCOVERY_V2_SCHEMA = 'https://schemas.agentskills.io/discovery/0.2.0/schema.json'
+const WELL_KNOWN_DISCOVERY_V2_INDEX_PATH = '/.well-known/agent-skills/index.json'
 
-interface RfcSkillEntry {
+interface WellKnownV2SkillEntry {
   name?: unknown
   type?: unknown
   description?: unknown
@@ -18,7 +19,7 @@ interface RfcSkillEntry {
   digest?: unknown
 }
 
-interface RfcIndex {
+interface WellKnownV2Index {
   $schema?: unknown
   skills?: unknown
 }
@@ -204,7 +205,7 @@ function contributionFor(input: {
   skillName: string
   description?: string
   docsUrl: string
-  resolver: 'wellKnownRfc'
+  resolver: 'wellKnownV2'
   indexUrl: string
 }): ResolvedContribution {
   const sourceRepo = parseGitHubRepo(input.packageInfo.repository)
@@ -226,9 +227,9 @@ function contributionFor(input: {
   }, input.targetDir, join(input.targetDir, '..'))
 }
 
-async function materializeRfcSkill(input: {
+async function materializeV2Skill(input: {
   packageInfo: InstalledPackageInfo
-  entry: RfcSkillEntry
+  entry: WellKnownV2SkillEntry
   indexUrl: string
   docsUrl: string
   cacheRoot: string
@@ -236,12 +237,12 @@ async function materializeRfcSkill(input: {
 }): Promise<MaterializedSkill | null> {
   const skillName = typeof input.entry.name === 'string' ? input.entry.name.trim() : ''
   if (!isValidSkillName(skillName)) {
-    return { skipped: makeSkip(input.packageInfo.packageName, skillName || 'entry', 'RFC well-known skill name is invalid') }
+    return { skipped: makeSkip(input.packageInfo.packageName, skillName || 'entry', 'well-known v2 skill name is invalid') }
   }
 
   const description = typeof input.entry.description === 'string' ? input.entry.description.trim() : ''
   if (!description) {
-    return { skipped: makeSkip(input.packageInfo.packageName, skillName, 'RFC well-known skill is missing a description') }
+    return { skipped: makeSkip(input.packageInfo.packageName, skillName, 'well-known v2 skill is missing a description') }
   }
 
   const type = typeof input.entry.type === 'string' ? input.entry.type.trim() : ''
@@ -249,30 +250,30 @@ async function materializeRfcSkill(input: {
     return { skipped: makeSkip(input.packageInfo.packageName, skillName, 'archive artifacts are not supported yet') }
   }
   if (type !== 'skill-md') {
-    return { skipped: makeSkip(input.packageInfo.packageName, skillName, `unsupported RFC well-known skill type "${type || 'unknown'}"`) }
+    return { skipped: makeSkip(input.packageInfo.packageName, skillName, `unsupported well-known v2 skill type "${type || 'unknown'}"`) }
   }
 
   if (typeof input.entry.url !== 'string' || !input.entry.url.trim()) {
-    return { skipped: makeSkip(input.packageInfo.packageName, skillName, 'RFC well-known skill is missing a URL') }
+    return { skipped: makeSkip(input.packageInfo.packageName, skillName, 'well-known v2 skill is missing a URL') }
   }
 
   const digest = normalizeDigest(input.entry.digest)
   if (!digest) {
-    return { skipped: makeSkip(input.packageInfo.packageName, skillName, 'RFC well-known skill is missing a valid sha256 digest') }
+    return { skipped: makeSkip(input.packageInfo.packageName, skillName, 'well-known v2 skill is missing a valid sha256 digest') }
   }
 
   const skillUrl = resolveSameOriginUrl(input.entry.url, input.indexUrl)
   if (!skillUrl) {
-    return { skipped: makeSkip(input.packageInfo.packageName, skillName, 'RFC well-known skill URL must stay on the discovery origin') }
+    return { skipped: makeSkip(input.packageInfo.packageName, skillName, 'well-known v2 skill URL must stay on the discovery origin') }
   }
 
   const response = await fetchUrlBytes(skillUrl, input.timeoutMs)
   if (!response.ok || !response.data) {
-    return { skipped: makeSkip(input.packageInfo.packageName, skillName, 'failed to fetch RFC well-known skill artifact') }
+    return { skipped: makeSkip(input.packageInfo.packageName, skillName, 'failed to fetch well-known v2 skill artifact') }
   }
 
   if (sha256(response.data) !== digest) {
-    return { skipped: makeSkip(input.packageInfo.packageName, skillName, 'RFC well-known skill digest mismatch') }
+    return { skipped: makeSkip(input.packageInfo.packageName, skillName, 'well-known v2 skill digest mismatch') }
   }
 
   const origin = new URL(input.docsUrl).origin
@@ -296,15 +297,15 @@ async function materializeRfcSkill(input: {
       skillName,
       description,
       docsUrl: input.docsUrl,
-      resolver: 'wellKnownRfc',
+      resolver: 'wellKnownV2',
       indexUrl: input.indexUrl,
     }),
   }
 }
 
-async function resolveRfcIndex(input: {
+async function resolveV2Index(input: {
   packageInfo: InstalledPackageInfo
-  index: RfcIndex
+  index: WellKnownV2Index
   indexUrl: string
   docsUrl: string
   cacheRoot: string
@@ -317,19 +318,19 @@ async function resolveRfcIndex(input: {
     return {
       contributions: [],
       issues: [],
-      skipped: [makeSkip(input.packageInfo.packageName, input.packageInfo.packageName, 'RFC well-known index is missing a skills array')],
+      skipped: [makeSkip(input.packageInfo.packageName, input.packageInfo.packageName, 'well-known v2 index is missing a skills array')],
     }
   }
 
   for (const rawEntry of input.index.skills) {
     if (!rawEntry || typeof rawEntry !== 'object') {
-      skipped.push(makeSkip(input.packageInfo.packageName, 'entry', 'RFC well-known skill entry must be an object'))
+      skipped.push(makeSkip(input.packageInfo.packageName, 'entry', 'well-known v2 skill entry must be an object'))
       continue
     }
 
-    const materialized = await materializeRfcSkill({
+    const materialized = await materializeV2Skill({
       packageInfo: input.packageInfo,
-      entry: rawEntry as RfcSkillEntry,
+      entry: rawEntry as WellKnownV2SkillEntry,
       indexUrl: input.indexUrl,
       docsUrl: input.docsUrl,
       cacheRoot: input.cacheRoot,
@@ -354,7 +355,7 @@ async function resolveIndex(input: {
   cacheRoot: string
   timeoutMs: number
 }): Promise<RemoteResolveResult | null> {
-  const response = await fetchUrlJson<RfcIndex>(input.indexUrl, input.timeoutMs)
+  const response = await fetchUrlJson<WellKnownV2Index>(input.indexUrl, input.timeoutMs)
   if (!response.ok) {
     if (response.status === 404) {
       return null
@@ -376,8 +377,8 @@ async function resolveIndex(input: {
     }
   }
 
-  if (index.$schema === RFC_SCHEMA) {
-    return await resolveRfcIndex({
+  if (index.$schema === WELL_KNOWN_DISCOVERY_V2_SCHEMA) {
+    return await resolveV2Index({
       ...input,
       index,
     })
@@ -394,7 +395,7 @@ async function resolveIndex(input: {
   return {
     contributions: [],
     issues: [],
-    skipped: [makeSkip(input.packageInfo.packageName, input.packageInfo.packageName, 'well-known index is missing a supported schema')],
+    skipped: [makeSkip(input.packageInfo.packageName, input.packageInfo.packageName, 'well-known index is missing the v2 schema')],
   }
 }
 
@@ -408,7 +409,7 @@ export async function resolveViaWellKnown(
   const issues: ValidationIssue[] = []
 
   for (const docsUrl of bases) {
-    const indexUrl = new URL('/.well-known/agent-skills/index.json', docsUrl).toString()
+    const indexUrl = new URL(WELL_KNOWN_DISCOVERY_V2_INDEX_PATH, docsUrl).toString()
     const result = await resolveIndex({
       packageInfo,
       indexUrl,

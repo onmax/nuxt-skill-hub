@@ -304,7 +304,7 @@ describe('resolveRemoteContributionsForPackage', () => {
     expect(fetchUrlJsonMock).not.toHaveBeenCalled()
   })
 
-  it('skips RFC well-known skill-md entries whose artifact URL leaves the discovery origin', async () => {
+  it('skips well-known v2 skill-md entries whose artifact URL leaves the discovery origin', async () => {
     const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
     const fetchUrlBytesMock = vi.fn(async () => ({ ok: true, data: Buffer.from(skillMarkdown('docs-sdk')) }))
 
@@ -353,16 +353,16 @@ describe('resolveRemoteContributionsForPackage', () => {
 
     expect(result.contributions).toHaveLength(1)
     expect(result.contributions[0]?.sourceKind).toBe('generated')
-    expect(result.skipped.some(entry => entry.reason === 'RFC well-known skill URL must stay on the discovery origin')).toBe(true)
+    expect(result.skipped.some(entry => entry.reason === 'well-known v2 skill URL must stay on the discovery origin')).toBe(true)
     expect(fetchUrlBytesMock).not.toHaveBeenCalled()
   })
 
-  it('does not probe v0.1 discovery indexes', async () => {
+  it('only probes well-known v2 discovery indexes', async () => {
     const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
     const v1IndexUrl = `https://docs.example.com/.well-known/${'skills'}/index.json`
     const fetchUrlJsonMock = vi.fn(async (url: string) => {
       if (url === v1IndexUrl) {
-        throw new Error('v0.1 endpoint should not be fetched')
+        throw new Error('legacy endpoint should not be fetched')
       }
 
       return { ok: false, status: 404 }
@@ -401,7 +401,7 @@ describe('resolveRemoteContributionsForPackage', () => {
     expect(fetchUrlJsonMock).toHaveBeenCalledWith('https://docs.example.com/.well-known/agent-skills/index.json', 200)
   })
 
-  it('skips schema-less well-known indexes and falls back', async () => {
+  it('skips schema-less well-known indexes instead of treating them as legacy discovery', async () => {
     const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
     const fetchUrlBytesMock = vi.fn(async () => ({ ok: true, data: Buffer.from(skillMarkdown('docs-sdk')) }))
 
@@ -447,11 +447,11 @@ describe('resolveRemoteContributionsForPackage', () => {
 
     expect(result.contributions).toHaveLength(1)
     expect(result.contributions[0]?.sourceKind).toBe('generated')
-    expect(result.skipped.some(entry => entry.reason === 'well-known index is missing a supported schema')).toBe(true)
+    expect(result.skipped.some(entry => entry.reason === 'well-known index is missing the v2 schema')).toBe(true)
     expect(fetchUrlBytesMock).not.toHaveBeenCalled()
   })
 
-  it('resolves RFC well-known skill-md entries and verifies digests', async () => {
+  it('resolves well-known v2 skill-md entries and verifies digests', async () => {
     const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
     const skill = skillMarkdown('docs-sdk', 'Use the SDK docs.')
 
@@ -501,11 +501,11 @@ describe('resolveRemoteContributionsForPackage', () => {
 
     expect(result.contributions).toHaveLength(1)
     expect(result.contributions[0]?.sourceKind).toBe('wellKnown')
-    expect(result.contributions[0]?.resolver).toBe('wellKnownRfc')
+    expect(result.contributions[0]?.resolver).toBe('wellKnownV2')
     await expect(fsp.readFile(join(result.contributions[0]!.sourceDir, 'SKILL.md'), 'utf8')).resolves.toBe(skill)
   })
 
-  it('skips RFC well-known skill-md entries with invalid digest formats and falls back', async () => {
+  it('skips well-known v2 skill-md entries with invalid digest formats and falls back', async () => {
     const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
     const fetchUrlBytesMock = vi.fn(async () => ({ ok: true, data: Buffer.from(skillMarkdown('docs-sdk')) }))
 
@@ -553,11 +553,11 @@ describe('resolveRemoteContributionsForPackage', () => {
 
     expect(result.contributions).toHaveLength(1)
     expect(result.contributions[0]?.sourceKind).toBe('generated')
-    expect(result.skipped.some(entry => entry.reason === 'RFC well-known skill is missing a valid sha256 digest')).toBe(true)
+    expect(result.skipped.some(entry => entry.reason === 'well-known v2 skill is missing a valid sha256 digest')).toBe(true)
     expect(fetchUrlBytesMock).not.toHaveBeenCalled()
   })
 
-  it('skips RFC well-known skill-md entries with digest mismatches and falls back', async () => {
+  it('skips well-known v2 skill-md entries with digest mismatches and falls back', async () => {
     const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
     const skill = skillMarkdown('docs-sdk', 'Use the SDK docs.')
 
@@ -612,7 +612,7 @@ describe('resolveRemoteContributionsForPackage', () => {
     expect(result.skipped.some(entry => entry.sourceKind === 'wellKnown' && entry.reason.includes('digest mismatch'))).toBe(true)
   })
 
-  it('skips RFC archive entries until archive extraction is supported', async () => {
+  it('skips well-known v2 archive entries until archive extraction is supported', async () => {
     const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
 
     vi.resetModules()

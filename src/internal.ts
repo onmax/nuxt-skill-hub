@@ -59,7 +59,7 @@ export interface GeneratedModuleEntry {
   docsUrl?: string
   official: boolean
   trustLevel: 'official' | 'community'
-  resolver: 'agentsField' | 'githubHeuristic' | 'wellKnownRfc' | 'metadataRouter'
+  resolver: 'agentsField' | 'githubHeuristic' | 'wellKnownV2' | 'metadataRouter'
   wrapperPath?: string
 }
 
