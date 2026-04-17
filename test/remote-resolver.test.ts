@@ -357,89 +357,98 @@ describe('resolveRemoteContributionsForPackage', () => {
     expect(fetchUrlBytesMock).not.toHaveBeenCalled()
   })
 
-  it('resolves Docus legacy well-known skills via docs URL override', async () => {
+  it('does not probe v0.1 discovery indexes', async () => {
     const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
-    const downloadMock = mockDownloadTemplate(async () => {
-      throw new Error('not found')
+    const v1IndexUrl = `https://docs.example.com/.well-known/${'skills'}/index.json`
+    const fetchUrlJsonMock = vi.fn(async (url: string) => {
+      if (url === v1IndexUrl) {
+        throw new Error('v0.1 endpoint should not be fetched')
+      }
+
+      return { ok: false, status: 404 }
     })
-    const defaultBranchMock = vi.fn(async () => 'main')
-    const listGitHubDirectoryMock = vi.fn(async () => [])
 
     vi.resetModules()
     vi.doMock('../src/remote-fetch', () => ({
-      parseGitHubRepo: vi.fn((input: string | undefined) => {
-        if (!input) return null
-        if (input === 'nuxt-content/docus') return input
-        if (input.includes('github.com/nuxt-content/docus')) return 'nuxt-content/docus'
-        return null
-      }),
-      fetchGitHubDefaultBranch: defaultBranchMock,
+      parseGitHubRepo: vi.fn(() => null),
+      fetchGitHubDefaultBranch: vi.fn(async () => 'main'),
       fetchGitHubFileText: vi.fn(async () => ({ ok: false, status: 404 })),
-      listGitHubDirectory: listGitHubDirectoryMock,
-      fetchUrlJson: vi.fn(async (url: string) => {
-        if (url === 'https://docus.dev/.well-known/agent-skills/index.json') {
-          return { ok: false, status: 404 }
-        }
-
-        if (url === 'https://docus.dev/.well-known/skills/index.json') {
-          return {
-            ok: true,
-            data: {
-              skills: [
-                {
-                  name: 'create-docs',
-                  description: 'Create docs.',
-                  files: ['SKILL.md', 'references/templates.md'],
-                },
-                {
-                  name: 'review-docs',
-                  description: 'Review docs.',
-                  files: ['SKILL.md'],
-                },
-              ],
-            },
-          }
-        }
-
-        return { ok: false, status: 404 }
-      }),
-      fetchUrlBytes: vi.fn(async (url: string) => {
-        const files: Record<string, string> = {
-          'https://docus.dev/.well-known/skills/create-docs/SKILL.md': skillMarkdown('create-docs', 'Create docs.'),
-          'https://docus.dev/.well-known/skills/create-docs/references/templates.md': '# Templates\n',
-          'https://docus.dev/.well-known/skills/review-docs/SKILL.md': skillMarkdown('review-docs', 'Review docs.'),
-        }
-
-        const content = files[url]
-        return content
-          ? { ok: true, data: Buffer.from(content) }
-          : { ok: false, status: 404 }
-      }),
+      listGitHubDirectory: vi.fn(async () => []),
+      fetchUrlJson: fetchUrlJsonMock,
+      fetchUrlBytes: vi.fn(async () => ({ ok: false, status: 404 })),
     }))
     vi.doMock('giget', () => ({
-      downloadTemplate: downloadMock,
+      downloadTemplate: mockDownloadTemplate(async () => {
+        throw new Error('not found')
+      }),
     }))
 
     const { resolveRemoteContributionsForPackage } = await import('../src/remote-resolver')
     const result = await resolveRemoteContributionsForPackage({
-      packageName: 'docus',
-      version: '5.9.0',
-      repository: 'git+https://github.com/nuxt-content/docus.git',
-      homepage: 'https://github.com/nuxt-content/docus#readme',
+      packageName: 'docs-sdk',
+      version: '1.0.0',
+      description: 'Docs SDK.',
+      homepage: 'https://docs.example.com/',
     }, {
       cacheRoot,
       githubLookupTimeoutMs: 200,
       enableGithubLookup: true,
     })
 
-    expect(result.contributions).toHaveLength(2)
-    expect(result.contributions.map(item => item.skillName)).toEqual(['create-docs', 'review-docs'])
-    expect(result.contributions.every(item => item.sourceKind === 'wellKnown')).toBe(true)
-    expect(result.contributions.every(item => item.resolver === 'wellKnownLegacy')).toBe(true)
-    expect(result.contributions[0]?.docsUrl).toBe('https://docus.dev/')
-    await expect(fsp.readFile(join(result.contributions[0]!.sourceDir, 'references/templates.md'), 'utf8')).resolves.toBe('# Templates\n')
-    expect(defaultBranchMock).toHaveBeenCalledWith('nuxt-content/docus', 200)
-    expect(listGitHubDirectoryMock).not.toHaveBeenCalled()
+    expect(result.contributions).toHaveLength(1)
+    expect(result.contributions[0]?.sourceKind).toBe('generated')
+    expect(fetchUrlJsonMock).toHaveBeenCalledTimes(1)
+    expect(fetchUrlJsonMock).toHaveBeenCalledWith('https://docs.example.com/.well-known/agent-skills/index.json', 200)
+  })
+
+  it('skips schema-less well-known indexes and falls back', async () => {
+    const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
+    const fetchUrlBytesMock = vi.fn(async () => ({ ok: true, data: Buffer.from(skillMarkdown('docs-sdk')) }))
+
+    vi.resetModules()
+    vi.doMock('../src/remote-fetch', () => ({
+      parseGitHubRepo: vi.fn(() => null),
+      fetchGitHubDefaultBranch: vi.fn(async () => 'main'),
+      fetchGitHubFileText: vi.fn(async () => ({ ok: false, status: 404 })),
+      listGitHubDirectory: vi.fn(async () => []),
+      fetchUrlJson: vi.fn(async (url: string) => url === 'https://docs.example.com/.well-known/agent-skills/index.json'
+        ? {
+            ok: true,
+            data: {
+              skills: [
+                {
+                  name: 'docs-sdk',
+                  description: 'Use the SDK docs.',
+                  files: ['SKILL.md'],
+                },
+              ],
+            },
+          }
+        : { ok: false, status: 404 }),
+      fetchUrlBytes: fetchUrlBytesMock,
+    }))
+    vi.doMock('giget', () => ({
+      downloadTemplate: mockDownloadTemplate(async () => {
+        throw new Error('not found')
+      }),
+    }))
+
+    const { resolveRemoteContributionsForPackage } = await import('../src/remote-resolver')
+    const result = await resolveRemoteContributionsForPackage({
+      packageName: 'docs-sdk',
+      version: '1.0.0',
+      description: 'Docs SDK.',
+      homepage: 'https://docs.example.com/',
+    }, {
+      cacheRoot,
+      githubLookupTimeoutMs: 200,
+      enableGithubLookup: true,
+    })
+
+    expect(result.contributions).toHaveLength(1)
+    expect(result.contributions[0]?.sourceKind).toBe('generated')
+    expect(result.skipped.some(entry => entry.reason === 'well-known index is missing a supported schema')).toBe(true)
+    expect(fetchUrlBytesMock).not.toHaveBeenCalled()
   })
 
   it('resolves RFC well-known skill-md entries and verifies digests', async () => {
@@ -494,6 +503,58 @@ describe('resolveRemoteContributionsForPackage', () => {
     expect(result.contributions[0]?.sourceKind).toBe('wellKnown')
     expect(result.contributions[0]?.resolver).toBe('wellKnownRfc')
     await expect(fsp.readFile(join(result.contributions[0]!.sourceDir, 'SKILL.md'), 'utf8')).resolves.toBe(skill)
+  })
+
+  it('skips RFC well-known skill-md entries with invalid digest formats and falls back', async () => {
+    const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
+    const fetchUrlBytesMock = vi.fn(async () => ({ ok: true, data: Buffer.from(skillMarkdown('docs-sdk')) }))
+
+    vi.resetModules()
+    vi.doMock('../src/remote-fetch', () => ({
+      parseGitHubRepo: vi.fn(() => null),
+      fetchGitHubDefaultBranch: vi.fn(async () => 'main'),
+      fetchGitHubFileText: vi.fn(async () => ({ ok: false, status: 404 })),
+      listGitHubDirectory: vi.fn(async () => []),
+      fetchUrlJson: vi.fn(async (url: string) => url === 'https://docs.example.com/.well-known/agent-skills/index.json'
+        ? {
+            ok: true,
+            data: {
+              $schema: 'https://schemas.agentskills.io/discovery/0.2.0/schema.json',
+              skills: [
+                {
+                  name: 'docs-sdk',
+                  type: 'skill-md',
+                  description: 'Use the SDK docs.',
+                  url: '/.well-known/agent-skills/docs-sdk/SKILL.md',
+                  digest: 'sha256:not-valid',
+                },
+              ],
+            },
+          }
+        : { ok: false, status: 404 }),
+      fetchUrlBytes: fetchUrlBytesMock,
+    }))
+    vi.doMock('giget', () => ({
+      downloadTemplate: mockDownloadTemplate(async () => {
+        throw new Error('not found')
+      }),
+    }))
+
+    const { resolveRemoteContributionsForPackage } = await import('../src/remote-resolver')
+    const result = await resolveRemoteContributionsForPackage({
+      packageName: 'docs-sdk',
+      version: '1.0.0',
+      homepage: 'https://docs.example.com/',
+    }, {
+      cacheRoot,
+      githubLookupTimeoutMs: 200,
+      enableGithubLookup: true,
+    })
+
+    expect(result.contributions).toHaveLength(1)
+    expect(result.contributions[0]?.sourceKind).toBe('generated')
+    expect(result.skipped.some(entry => entry.reason === 'RFC well-known skill is missing a valid sha256 digest')).toBe(true)
+    expect(fetchUrlBytesMock).not.toHaveBeenCalled()
   })
 
   it('skips RFC well-known skill-md entries with digest mismatches and falls back', async () => {
@@ -599,63 +660,6 @@ describe('resolveRemoteContributionsForPackage', () => {
     expect(result.contributions).toHaveLength(1)
     expect(result.contributions[0]?.sourceKind).toBe('generated')
     expect(result.skipped.some(entry => entry.reason === 'archive artifacts are not supported yet')).toBe(true)
-  })
-
-  it('rejects unsafe legacy well-known file paths and falls back', async () => {
-    const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
-    const fetchUrlBytesMock = vi.fn(async () => ({ ok: true, data: Buffer.from(skillMarkdown('docs-sdk')) }))
-
-    vi.resetModules()
-    vi.doMock('../src/remote-fetch', () => ({
-      parseGitHubRepo: vi.fn(() => null),
-      fetchGitHubDefaultBranch: vi.fn(async () => 'main'),
-      fetchGitHubFileText: vi.fn(async () => ({ ok: false, status: 404 })),
-      listGitHubDirectory: vi.fn(async () => []),
-      fetchUrlJson: vi.fn(async (url: string) => {
-        if (url === 'https://docs.example.com/.well-known/agent-skills/index.json') {
-          return { ok: false, status: 404 }
-        }
-
-        if (url === 'https://docs.example.com/.well-known/skills/index.json') {
-          return {
-            ok: true,
-            data: {
-              skills: [
-                {
-                  name: 'docs-sdk',
-                  description: 'Use the SDK docs.',
-                  files: ['SKILL.md', '../secret.md'],
-                },
-              ],
-            },
-          }
-        }
-
-        return { ok: false, status: 404 }
-      }),
-      fetchUrlBytes: fetchUrlBytesMock,
-    }))
-    vi.doMock('giget', () => ({
-      downloadTemplate: mockDownloadTemplate(async () => {
-        throw new Error('not found')
-      }),
-    }))
-
-    const { resolveRemoteContributionsForPackage } = await import('../src/remote-resolver')
-    const result = await resolveRemoteContributionsForPackage({
-      packageName: 'docs-sdk',
-      version: '1.0.0',
-      homepage: 'https://docs.example.com/',
-    }, {
-      cacheRoot,
-      githubLookupTimeoutMs: 200,
-      enableGithubLookup: true,
-    })
-
-    expect(result.contributions).toHaveLength(1)
-    expect(result.contributions[0]?.sourceKind).toBe('generated')
-    expect(result.skipped.some(entry => entry.reason.includes('unsafe file path'))).toBe(true)
-    expect(fetchUrlBytesMock).not.toHaveBeenCalled()
   })
 
   it('discovers all root github skills for docus', async () => {

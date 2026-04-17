@@ -10,17 +10,6 @@ import type { ResolvedContribution, SkillManifestSkipped, ValidationIssue } from
 
 const RFC_SCHEMA = 'https://schemas.agentskills.io/discovery/0.2.0/schema.json'
 
-interface LegacySkillEntry {
-  name?: unknown
-  description?: unknown
-  files?: unknown
-}
-
-interface LegacyIndex {
-  $schema?: unknown
-  skills?: unknown
-}
-
 interface RfcSkillEntry {
   name?: unknown
   type?: unknown
@@ -190,19 +179,6 @@ function docsBaseCandidates(packageInfo: InstalledPackageInfo): string[] {
     .filter(isPublicDiscoveryBase))]
 }
 
-function isSafeRelativeFilePath(path: string): boolean {
-  if (!path || path.includes('\0') || path.includes('\\') || path.startsWith('/')) {
-    return false
-  }
-
-  const parts = path.split('/')
-  return parts.every(part => part && part !== '.' && part !== '..')
-}
-
-function encodeRelativePath(path: string): string {
-  return path.split('/').map(part => encodeURIComponent(part)).join('/')
-}
-
 function normalizeDigest(value: unknown): string | null {
   if (typeof value !== 'string') {
     return null
@@ -228,7 +204,7 @@ function contributionFor(input: {
   skillName: string
   description?: string
   docsUrl: string
-  resolver: 'wellKnownRfc' | 'wellKnownLegacy'
+  resolver: 'wellKnownRfc'
   indexUrl: string
 }): ResolvedContribution {
   const sourceRepo = parseGitHubRepo(input.packageInfo.repository)
@@ -248,118 +224,6 @@ function contributionFor(input: {
     resolver: input.resolver,
     forceIncludeScripts: true,
   }, input.targetDir, join(input.targetDir, '..'))
-}
-
-async function materializeLegacySkill(input: {
-  packageInfo: InstalledPackageInfo
-  entry: LegacySkillEntry
-  indexUrl: string
-  docsUrl: string
-  cacheRoot: string
-  timeoutMs: number
-}): Promise<MaterializedSkill | null> {
-  const skillName = typeof input.entry.name === 'string' ? input.entry.name.trim() : ''
-  if (!isValidSkillName(skillName)) {
-    return { skipped: makeSkip(input.packageInfo.packageName, skillName || 'entry', 'legacy well-known skill name is invalid') }
-  }
-
-  const description = typeof input.entry.description === 'string' ? input.entry.description.trim() : ''
-  if (!description) {
-    return { skipped: makeSkip(input.packageInfo.packageName, skillName, 'legacy well-known skill is missing a description') }
-  }
-
-  if (!Array.isArray(input.entry.files) || !input.entry.files.every(file => typeof file === 'string')) {
-    return { skipped: makeSkip(input.packageInfo.packageName, skillName, 'legacy well-known skill files must be a string array') }
-  }
-
-  const files = input.entry.files.map(file => file.trim())
-  if (!files.includes('SKILL.md')) {
-    return { skipped: makeSkip(input.packageInfo.packageName, skillName, 'legacy well-known skill must include SKILL.md') }
-  }
-
-  const unsafePath = files.find(file => !isSafeRelativeFilePath(file))
-  if (unsafePath) {
-    return { skipped: makeSkip(input.packageInfo.packageName, skillName, `legacy well-known skill contains unsafe file path "${unsafePath}"`) }
-  }
-
-  const origin = new URL(input.docsUrl).origin
-  const targetDir = join(
-    input.cacheRoot,
-    'well-known',
-    'legacy',
-    sanitizeSegment(origin),
-    sanitizeSegment(input.packageInfo.packageName),
-    sanitizeSegment(input.packageInfo.version || 'unknown'),
-    sanitizeSegment(skillName),
-  )
-
-  await emptyDir(targetDir)
-
-  for (const file of files) {
-    const fileUrl = new URL(`${encodeURIComponent(skillName)}/${encodeRelativePath(file)}`, input.indexUrl).toString()
-    const response = await fetchUrlBytes(fileUrl, input.timeoutMs)
-    if (!response.ok || !response.data) {
-      return { skipped: makeSkip(input.packageInfo.packageName, skillName, `failed to fetch legacy well-known skill file "${file}"`) }
-    }
-    await writeSkillFile(targetDir, file, response.data)
-  }
-
-  return {
-    contribution: contributionFor({
-      packageInfo: input.packageInfo,
-      targetDir,
-      skillName,
-      description,
-      docsUrl: input.docsUrl,
-      resolver: 'wellKnownLegacy',
-      indexUrl: input.indexUrl,
-    }),
-  }
-}
-
-async function resolveLegacyIndex(input: {
-  packageInfo: InstalledPackageInfo
-  index: LegacyIndex
-  indexUrl: string
-  docsUrl: string
-  cacheRoot: string
-  timeoutMs: number
-}): Promise<RemoteResolveResult> {
-  const skipped: SkillManifestSkipped[] = []
-  const contributions: ResolvedContribution[] = []
-
-  if (!Array.isArray(input.index.skills)) {
-    return {
-      contributions: [],
-      issues: [],
-      skipped: [makeSkip(input.packageInfo.packageName, input.packageInfo.packageName, 'legacy well-known index is missing a skills array')],
-    }
-  }
-
-  for (const rawEntry of input.index.skills) {
-    if (!rawEntry || typeof rawEntry !== 'object') {
-      skipped.push(makeSkip(input.packageInfo.packageName, 'entry', 'legacy well-known skill entry must be an object'))
-      continue
-    }
-
-    const materialized = await materializeLegacySkill({
-      packageInfo: input.packageInfo,
-      entry: rawEntry as LegacySkillEntry,
-      indexUrl: input.indexUrl,
-      docsUrl: input.docsUrl,
-      cacheRoot: input.cacheRoot,
-      timeoutMs: input.timeoutMs,
-    })
-
-    if (materialized?.contribution) {
-      contributions.push(materialized.contribution)
-    }
-    if (materialized?.skipped) {
-      skipped.push(materialized.skipped)
-    }
-  }
-
-  return { contributions, issues: [], skipped }
 }
 
 async function materializeRfcSkill(input: {
@@ -490,7 +354,7 @@ async function resolveIndex(input: {
   cacheRoot: string
   timeoutMs: number
 }): Promise<RemoteResolveResult | null> {
-  const response = await fetchUrlJson<LegacyIndex | RfcIndex>(input.indexUrl, input.timeoutMs)
+  const response = await fetchUrlJson<RfcIndex>(input.indexUrl, input.timeoutMs)
   if (!response.ok) {
     if (response.status === 404) {
       return null
@@ -527,10 +391,11 @@ async function resolveIndex(input: {
     }
   }
 
-  return await resolveLegacyIndex({
-    ...input,
-    index,
-  })
+  return {
+    contributions: [],
+    issues: [],
+    skipped: [makeSkip(input.packageInfo.packageName, input.packageInfo.packageName, 'well-known index is missing a supported schema')],
+  }
 }
 
 export async function resolveViaWellKnown(
@@ -543,29 +408,27 @@ export async function resolveViaWellKnown(
   const issues: ValidationIssue[] = []
 
   for (const docsUrl of bases) {
-    for (const path of ['/.well-known/agent-skills/index.json', '/.well-known/skills/index.json']) {
-      const indexUrl = new URL(path, docsUrl).toString()
-      const result = await resolveIndex({
-        packageInfo,
-        indexUrl,
-        docsUrl,
-        cacheRoot,
-        timeoutMs,
-      })
+    const indexUrl = new URL('/.well-known/agent-skills/index.json', docsUrl).toString()
+    const result = await resolveIndex({
+      packageInfo,
+      indexUrl,
+      docsUrl,
+      cacheRoot,
+      timeoutMs,
+    })
 
-      if (!result) {
-        continue
-      }
+    if (!result) {
+      continue
+    }
 
-      issues.push(...result.issues)
-      skipped.push(...result.skipped)
+    issues.push(...result.issues)
+    skipped.push(...result.skipped)
 
-      if (result.contributions.length) {
-        return {
-          contributions: result.contributions,
-          issues,
-          skipped,
-        }
+    if (result.contributions.length) {
+      return {
+        contributions: result.contributions,
+        issues,
+        skipped,
       }
     }
   }

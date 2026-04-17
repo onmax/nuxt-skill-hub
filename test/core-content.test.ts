@@ -151,7 +151,7 @@ Source code: [https://github.com/nuxt-modules/i18n](https://github.com/nuxt-modu
         docsUrl: 'https://docus.dev/',
         official: true,
         trustLevel: 'official' as const,
-        resolver: 'wellKnownLegacy' as const,
+        resolver: 'wellKnownRfc' as const,
         wrapperPath: 'references/modules/docus/create-docs.md',
       },
     ])
