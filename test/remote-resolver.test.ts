@@ -168,6 +168,195 @@ describe('resolveRemoteContributionsForPackage', () => {
     expect(defaultBranchMock).not.toHaveBeenCalled()
   })
 
+  it('uses remote package agents.skills on fallback refs before heuristics', async () => {
+    const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
+    const downloadMock = mockDownloadTemplate(async (input, destinationDir) => {
+      if (input === 'gh:acme/nuxt-module/.agent/skills/nuxt-module#main') {
+        await createSkillFiles(destinationDir, 'nuxt-module')
+        return
+      }
+
+      throw new Error('not found')
+    })
+    const listGitHubDirectoryMock = vi.fn(async () => ['wrong-heuristic'])
+
+    vi.resetModules()
+    vi.doMock('../src/remote-fetch', () => ({
+      parseGitHubRepo: vi.fn((input: string) => input || null),
+      fetchGitHubDefaultBranch: vi.fn(async () => 'main'),
+      listGitHubDirectory: listGitHubDirectoryMock,
+      fetchUrlJson: vi.fn(async () => ({ ok: false, status: 404 })),
+      fetchUrlBytes: vi.fn(async () => ({ ok: false, status: 404 })),
+      fetchGitHubFileText: vi.fn(async (_repo: string, ref: string) => {
+        if (ref === 'v0.3.0' || ref === '0.3.0') {
+          return { ok: false, status: 404 }
+        }
+
+        if (ref === 'main') {
+          return {
+            ok: true,
+            status: 200,
+            data: JSON.stringify({
+              agents: {
+                skills: [
+                  { name: 'nuxt-module', path: '.agent/skills/nuxt-module' },
+                ],
+              },
+            }),
+          }
+        }
+
+        return { ok: false, status: 404 }
+      }),
+    }))
+    vi.doMock('giget', () => ({
+      downloadTemplate: downloadMock,
+    }))
+
+    const { resolveRemoteContributionsForPackage } = await import('../src/remote-resolver')
+    const result = await resolveRemoteContributionsForPackage({
+      packageName: '@acme/nuxt-module',
+      version: '0.3.0',
+      repository: 'acme/nuxt-module',
+    }, {
+      cacheRoot,
+      githubLookupTimeoutMs: 200,
+      enableGithubLookup: true,
+    })
+
+    expect(result.contributions).toHaveLength(1)
+    expect(result.contributions[0]?.resolver).toBe('agentsField')
+    expect(result.contributions[0]?.sourceRef).toBe('main')
+    expect(result.contributions[0]?.sourcePath).toBe('.agent/skills/nuxt-module')
+    expect(listGitHubDirectoryMock).not.toHaveBeenCalled()
+  })
+
+  it('does not probe well-known indexes on localhost homepages', async () => {
+    const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
+    const fetchUrlJsonMock = vi.fn(async () => ({ ok: false, status: 404 }))
+
+    vi.resetModules()
+    vi.doMock('../src/remote-fetch', () => ({
+      parseGitHubRepo: vi.fn(() => null),
+      fetchGitHubDefaultBranch: vi.fn(async () => 'main'),
+      fetchGitHubFileText: vi.fn(async () => ({ ok: false, status: 404 })),
+      listGitHubDirectory: vi.fn(async () => []),
+      fetchUrlJson: fetchUrlJsonMock,
+      fetchUrlBytes: vi.fn(async () => ({ ok: false, status: 404 })),
+    }))
+    vi.doMock('giget', () => ({
+      downloadTemplate: mockDownloadTemplate(async () => {
+        throw new Error('not found')
+      }),
+    }))
+
+    const { resolveRemoteContributionsForPackage } = await import('../src/remote-resolver')
+    const result = await resolveRemoteContributionsForPackage({
+      packageName: 'local-docs',
+      version: '1.0.0',
+      description: 'Local docs.',
+      homepage: 'http://localhost:3000/',
+    }, {
+      cacheRoot,
+      githubLookupTimeoutMs: 200,
+      enableGithubLookup: true,
+    })
+
+    expect(result.contributions).toHaveLength(1)
+    expect(result.contributions[0]?.sourceKind).toBe('generated')
+    expect(fetchUrlJsonMock).not.toHaveBeenCalled()
+  })
+
+  it('does not probe well-known indexes on private IPv4 homepages', async () => {
+    const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
+    const fetchUrlJsonMock = vi.fn(async () => ({ ok: false, status: 404 }))
+
+    vi.resetModules()
+    vi.doMock('../src/remote-fetch', () => ({
+      parseGitHubRepo: vi.fn(() => null),
+      fetchGitHubDefaultBranch: vi.fn(async () => 'main'),
+      fetchGitHubFileText: vi.fn(async () => ({ ok: false, status: 404 })),
+      listGitHubDirectory: vi.fn(async () => []),
+      fetchUrlJson: fetchUrlJsonMock,
+      fetchUrlBytes: vi.fn(async () => ({ ok: false, status: 404 })),
+    }))
+    vi.doMock('giget', () => ({
+      downloadTemplate: mockDownloadTemplate(async () => {
+        throw new Error('not found')
+      }),
+    }))
+
+    const { resolveRemoteContributionsForPackage } = await import('../src/remote-resolver')
+    const result = await resolveRemoteContributionsForPackage({
+      packageName: 'private-docs',
+      version: '1.0.0',
+      description: 'Private docs.',
+      homepage: 'http://192.168.1.10/docs',
+    }, {
+      cacheRoot,
+      githubLookupTimeoutMs: 200,
+      enableGithubLookup: true,
+    })
+
+    expect(result.contributions).toHaveLength(1)
+    expect(result.contributions[0]?.sourceKind).toBe('generated')
+    expect(result.contributions[0]?.docsUrl).toBe('http://192.168.1.10/docs')
+    expect(fetchUrlJsonMock).not.toHaveBeenCalled()
+  })
+
+  it('skips RFC well-known skill-md entries whose artifact URL leaves the discovery origin', async () => {
+    const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
+    const fetchUrlBytesMock = vi.fn(async () => ({ ok: true, data: Buffer.from(skillMarkdown('docs-sdk')) }))
+
+    vi.resetModules()
+    vi.doMock('../src/remote-fetch', () => ({
+      parseGitHubRepo: vi.fn(() => null),
+      fetchGitHubDefaultBranch: vi.fn(async () => 'main'),
+      fetchGitHubFileText: vi.fn(async () => ({ ok: false, status: 404 })),
+      listGitHubDirectory: vi.fn(async () => []),
+      fetchUrlJson: vi.fn(async (url: string) => url === 'https://docs.example.com/.well-known/agent-skills/index.json'
+        ? {
+            ok: true,
+            data: {
+              $schema: 'https://schemas.agentskills.io/discovery/0.2.0/schema.json',
+              skills: [
+                {
+                  name: 'docs-sdk',
+                  type: 'skill-md',
+                  description: 'Use the SDK docs.',
+                  url: 'https://evil.example.com/SKILL.md',
+                  digest: sha256(skillMarkdown('docs-sdk')),
+                },
+              ],
+            },
+          }
+        : { ok: false, status: 404 }),
+      fetchUrlBytes: fetchUrlBytesMock,
+    }))
+    vi.doMock('giget', () => ({
+      downloadTemplate: mockDownloadTemplate(async () => {
+        throw new Error('not found')
+      }),
+    }))
+
+    const { resolveRemoteContributionsForPackage } = await import('../src/remote-resolver')
+    const result = await resolveRemoteContributionsForPackage({
+      packageName: 'docs-sdk',
+      version: '1.0.0',
+      description: 'Docs SDK.',
+      homepage: 'https://docs.example.com/',
+    }, {
+      cacheRoot,
+      githubLookupTimeoutMs: 200,
+      enableGithubLookup: true,
+    })
+
+    expect(result.contributions).toHaveLength(1)
+    expect(result.contributions[0]?.sourceKind).toBe('generated')
+    expect(result.skipped.some(entry => entry.reason === 'RFC well-known skill URL must stay on the discovery origin')).toBe(true)
+    expect(fetchUrlBytesMock).not.toHaveBeenCalled()
+  })
+
   it('resolves Docus legacy well-known skills via docs URL override', async () => {
     const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
     const downloadMock = mockDownloadTemplate(async () => {
@@ -249,7 +438,7 @@ describe('resolveRemoteContributionsForPackage', () => {
     expect(result.contributions.every(item => item.resolver === 'wellKnownLegacy')).toBe(true)
     expect(result.contributions[0]?.docsUrl).toBe('https://docus.dev/')
     await expect(fsp.readFile(join(result.contributions[0]!.sourceDir, 'references/templates.md'), 'utf8')).resolves.toBe('# Templates\n')
-    expect(defaultBranchMock).not.toHaveBeenCalled()
+    expect(defaultBranchMock).toHaveBeenCalledWith('nuxt-content/docus', 200)
     expect(listGitHubDirectoryMock).not.toHaveBeenCalled()
   })
 

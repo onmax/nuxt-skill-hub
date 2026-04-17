@@ -235,6 +235,49 @@ function createGitHubResolveContext(packageInfo: InstalledPackageInfo): GitHubRe
   }
 }
 
+async function resolveAgentSkillsForRef(
+  packageInfo: InstalledPackageInfo,
+  context: GitHubResolveContext,
+  ref: string,
+  cacheRoot: string,
+  timeoutMs: number,
+): Promise<ResolvedContribution[] | null> {
+  if (!context.repo) {
+    return null
+  }
+
+  const packageJson = await fetchGitHubFileText(context.repo, ref, 'package.json', timeoutMs)
+  if (!packageJson.ok || !packageJson.data) {
+    return null
+  }
+
+  try {
+    const parsed = JSON.parse(packageJson.data) as unknown
+    const remoteSkills = parseAgentSkillDeclarations(parsed, packageInfo.packageName, 'github')
+    context.issues.push(...remoteSkills.issues)
+
+    for (const skill of remoteSkills.skills) {
+      const resolved = await materializeCandidate(packageInfo, {
+        skillName: skill.name,
+        sourcePath: skill.path,
+        sourceKind: 'github',
+        sourceRepo: context.repo,
+        sourceRef: ref,
+        official: true,
+        resolver: 'agentsField',
+      }, cacheRoot)
+      if (resolved) {
+        return [resolved]
+      }
+    }
+  }
+  catch {
+    context.issues.push(createValidationIssue(packageInfo.packageName, packageInfo.packageName, 'Failed to parse remote package.json', 'github'))
+  }
+
+  return null
+}
+
 async function resolveViaGitHubAgents(
   packageInfo: InstalledPackageInfo,
   cacheRoot: string,
@@ -250,39 +293,21 @@ async function resolveViaGitHubAgents(
     }
   }
 
-  const tryResolveForRef = async (ref: string): Promise<ResolvedContribution[] | null> => {
-    const packageJson = await fetchGitHubFileText(context.repo!, ref, 'package.json', timeoutMs)
-    if (packageJson.ok && packageJson.data) {
-      try {
-        const parsed = JSON.parse(packageJson.data) as unknown
-        const remoteSkills = parseAgentSkillDeclarations(parsed, packageInfo.packageName, 'github')
-        context.issues.push(...remoteSkills.issues)
-
-        for (const skill of remoteSkills.skills) {
-          const resolved = await materializeCandidate(packageInfo, {
-            skillName: skill.name,
-            sourcePath: skill.path,
-            sourceKind: 'github',
-            sourceRepo: context.repo!,
-            sourceRef: ref,
-            official: true,
-            resolver: 'agentsField',
-          }, cacheRoot)
-          if (resolved) {
-            return [resolved]
-          }
-        }
-      }
-      catch {
-        context.issues.push(createValidationIssue(packageInfo.packageName, packageInfo.packageName, 'Failed to parse remote package.json', 'github'))
-      }
+  for (const ref of context.refs) {
+    const resolved = await resolveAgentSkillsForRef(packageInfo, context, ref, cacheRoot, timeoutMs)
+    if (resolved?.length) {
+      return { contributions: resolved, issues: context.issues, skipped: context.skipped }
     }
-
-    return null
   }
 
-  for (const ref of context.refs) {
-    const resolved = await tryResolveForRef(ref)
+  const fallbackRefs = dedupe([
+    await fetchGitHubDefaultBranch(context.repo, timeoutMs) || '',
+    'main',
+    'master',
+  ])
+
+  for (const ref of fallbackRefs) {
+    const resolved = await resolveAgentSkillsForRef(packageInfo, context, ref, cacheRoot, timeoutMs)
     if (resolved?.length) {
       return { contributions: resolved, issues: context.issues, skipped: context.skipped }
     }
@@ -311,20 +336,6 @@ async function resolveViaGitHubHeuristics(
   }
 
   const tryResolveForRef = async (ref: string, allowTreeLookup: boolean): Promise<ResolvedContribution[] | null> => {
-    if (allowTreeLookup) {
-      const packageJson = await fetchGitHubFileText(context.repo!, ref, 'package.json', timeoutMs)
-      if (packageJson.ok && packageJson.data) {
-        try {
-          const parsed = JSON.parse(packageJson.data) as unknown
-          const remoteSkills = parseAgentSkillDeclarations(parsed, packageInfo.packageName, 'github')
-          context.issues.push(...remoteSkills.issues)
-        }
-        catch {
-          context.issues.push(createValidationIssue(packageInfo.packageName, packageInfo.packageName, 'Failed to parse remote package.json', 'github'))
-        }
-      }
-    }
-
     const skillsDirs = allowTreeLookup ? await listGitHubDirectory(context.repo!, ref, 'skills', timeoutMs) : []
     if (skillsDirs.length) {
       const contributions: ResolvedContribution[] = []

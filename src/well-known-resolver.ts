@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import { promises as fsp } from 'node:fs'
+import { isIP } from 'node:net'
 import { dirname, join } from 'pathe'
 import { findPackageOverride } from './package-overrides'
 import { fetchUrlBytes, fetchUrlJson, parseGitHubRepo } from './remote-fetch'
@@ -64,13 +65,116 @@ function normalizeHttpUrl(url: string | undefined): string | undefined {
   }
 }
 
-function isDocsDiscoveryBase(url: string): boolean {
-  const parsed = new URL(url)
-  if (parsed.hostname === 'github.com' || parseGitHubRepo(url)) {
+function normalizeHostname(hostname: string): string {
+  return hostname.trim().toLowerCase().replace(/^\[|\]$/g, '')
+}
+
+function parseIpv4(hostname: string): [number, number, number, number] | null {
+  const parts = hostname.split('.')
+  if (parts.length !== 4) {
+    return null
+  }
+
+  const octets = parts.map((part) => {
+    if (!/^\d+$/.test(part)) {
+      return Number.NaN
+    }
+
+    return Number(part)
+  })
+
+  if (octets.some(octet => !Number.isInteger(octet) || octet < 0 || octet > 255)) {
+    return null
+  }
+
+  return octets as [number, number, number, number]
+}
+
+function isPrivateIpv4(hostname: string): boolean {
+  const octets = parseIpv4(normalizeHostname(hostname))
+  if (!octets) {
     return false
   }
 
-  return true
+  const [a, b] = octets
+  return a === 0
+    || a === 10
+    || a === 127
+    || (a === 169 && b === 254)
+    || (a === 172 && b >= 16 && b <= 31)
+    || (a === 192 && b === 168)
+    || (a >= 224 && a <= 239)
+    || a >= 240
+}
+
+function isPrivateIpv6(hostname: string): boolean {
+  const normalized = normalizeHostname(hostname)
+  return normalized === '::'
+    || normalized === '::1'
+    || normalized.startsWith('fc')
+    || normalized.startsWith('fd')
+    || normalized.startsWith('fe8')
+    || normalized.startsWith('fe9')
+    || normalized.startsWith('fea')
+    || normalized.startsWith('feb')
+}
+
+function isUnsafeHostname(hostname: string): boolean {
+  const normalized = normalizeHostname(hostname)
+
+  if (normalized === 'localhost' || normalized.endsWith('.localhost')) {
+    return true
+  }
+
+  const ipVersion = isIP(normalized)
+  if (ipVersion === 4) {
+    return isPrivateIpv4(normalized)
+  }
+  if (ipVersion === 6) {
+    return isPrivateIpv6(normalized)
+  }
+
+  return false
+}
+
+function isPublicDiscoveryBase(url: string): boolean {
+  try {
+    const parsed = new URL(url)
+    if ((parsed.protocol !== 'http:' && parsed.protocol !== 'https:')
+      || parsed.hostname === 'github.com'
+      || parseGitHubRepo(url)
+      || isUnsafeHostname(parsed.hostname)) {
+      return false
+    }
+
+    return true
+  }
+  catch {
+    return false
+  }
+}
+
+function isSameOriginUrl(url: string, baseUrl: string): boolean {
+  return new URL(url).origin === new URL(baseUrl).origin
+}
+
+function resolveSameOriginUrl(rawUrl: string, baseUrl: string): string | null {
+  const trimmed = rawUrl.trim()
+  if (!trimmed) {
+    return null
+  }
+
+  try {
+    const resolved = new URL(trimmed, baseUrl)
+    if (!isSameOriginUrl(resolved.toString(), baseUrl) || isUnsafeHostname(resolved.hostname)) {
+      return null
+    }
+
+    return resolved.toString()
+  }
+  catch {
+    return null
+  }
 }
 
 function docsBaseCandidates(packageInfo: InstalledPackageInfo): string[] {
@@ -83,7 +187,7 @@ function docsBaseCandidates(packageInfo: InstalledPackageInfo): string[] {
   return [...new Set(candidates
     .map(normalizeHttpUrl)
     .filter((url): url is string => Boolean(url))
-    .filter(isDocsDiscoveryBase))]
+    .filter(isPublicDiscoveryBase))]
 }
 
 function isSafeRelativeFilePath(path: string): boolean {
@@ -293,7 +397,11 @@ async function materializeRfcSkill(input: {
     return { skipped: makeSkip(input.packageInfo.packageName, skillName, 'RFC well-known skill is missing a valid sha256 digest') }
   }
 
-  const skillUrl = new URL(input.entry.url, input.indexUrl).toString()
+  const skillUrl = resolveSameOriginUrl(input.entry.url, input.indexUrl)
+  if (!skillUrl) {
+    return { skipped: makeSkip(input.packageInfo.packageName, skillName, 'RFC well-known skill URL must stay on the discovery origin') }
+  }
+
   const response = await fetchUrlBytes(skillUrl, input.timeoutMs)
   if (!response.ok || !response.data) {
     return { skipped: makeSkip(input.packageInfo.packageName, skillName, 'failed to fetch RFC well-known skill artifact') }
