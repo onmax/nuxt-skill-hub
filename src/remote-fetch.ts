@@ -11,6 +11,8 @@ interface GitHubTreeEntry {
 const githubDirectoryCache = new Map<string, Promise<string[]>>()
 const githubDefaultBranchCache = new Map<string, Promise<string | null>>()
 const githubFileTextCache = new Map<string, Promise<{ ok: boolean, data?: string, status?: number, error?: string }>>()
+const urlTextCache = new Map<string, Promise<{ ok: boolean, data?: string, status?: number, error?: string }>>()
+const urlBytesCache = new Map<string, Promise<{ ok: boolean, data?: Uint8Array, status?: number, error?: string }>>()
 
 function githubFetchOptions(timeoutMs: number) {
   return {
@@ -20,6 +22,12 @@ function githubFetchOptions(timeoutMs: number) {
       'User-Agent': 'nuxt-skill-hub',
     },
   }
+}
+
+function fetchStatus(error: unknown): number | undefined {
+  return typeof error === 'object' && error && 'status' in error
+    ? Number((error as { status?: number }).status)
+    : undefined
 }
 
 function encodeGitHubPath(path: string): string {
@@ -169,13 +177,74 @@ export async function fetchGitHubFileText(
       return { ok: true, data }
     }
     catch (error) {
-      const status = typeof error === 'object' && error && 'status' in error
-        ? Number((error as { status?: number }).status)
-        : undefined
-
       return {
         ok: false,
-        status,
+        status: fetchStatus(error),
+        error: (error as Error).message,
+      }
+    }
+  })
+}
+
+export async function fetchUrlText(url: string, timeoutMs: number): Promise<{ ok: boolean, data?: string, status?: number, error?: string }> {
+  return await memoize(urlTextCache, url, async () => {
+    try {
+      const data = await ofetch(url, {
+        ...githubFetchOptions(timeoutMs),
+        responseType: 'text' as const,
+      })
+      return { ok: true, data }
+    }
+    catch (error) {
+      return {
+        ok: false,
+        status: fetchStatus(error),
+        error: (error as Error).message,
+      }
+    }
+  })
+}
+
+export async function fetchUrlJson<T>(url: string, timeoutMs: number): Promise<{ ok: boolean, data?: T, status?: number, error?: string }> {
+  const text = await fetchUrlText(url, timeoutMs)
+  if (!text.ok) {
+    return {
+      ok: false,
+      status: text.status,
+      error: text.error,
+    }
+  }
+
+  try {
+    return {
+      ok: true,
+      data: JSON.parse(text.data || '') as T,
+    }
+  }
+  catch (error) {
+    return {
+      ok: false,
+      error: (error as Error).message,
+    }
+  }
+}
+
+export async function fetchUrlBytes(url: string, timeoutMs: number): Promise<{ ok: boolean, data?: Uint8Array, status?: number, error?: string }> {
+  return await memoize(urlBytesCache, url, async () => {
+    try {
+      const data = await ofetch<ArrayBuffer, 'arrayBuffer'>(url, {
+        ...githubFetchOptions(timeoutMs),
+        responseType: 'arrayBuffer' as const,
+      })
+      return {
+        ok: true,
+        data: new Uint8Array(data),
+      }
+    }
+    catch (error) {
+      return {
+        ok: false,
+        status: fetchStatus(error),
         error: (error as Error).message,
       }
     }

@@ -1,7 +1,7 @@
 import { PACKAGE_VERSION } from './package-info'
 
-export type SkillSourceKind = 'dist' | 'github' | 'generated'
-export type SkillResolverKind = 'agentsField' | 'githubHeuristic' | 'metadataRouter'
+export type SkillSourceKind = 'dist' | 'github' | 'wellKnown' | 'generated'
+export type SkillResolverKind = 'agentsField' | 'githubHeuristic' | 'wellKnownRfc' | 'wellKnownLegacy' | 'metadataRouter'
 export type SkillTrustLevel = 'official' | 'community'
 
 export interface NuxtPackMetadata {
@@ -290,6 +290,8 @@ export function getSourceLabel(sourceKind: SkillSourceKind): string {
       return 'Installed package skill'
     case 'github':
       return 'Resolved module skill'
+    case 'wellKnown':
+      return 'Docs-discovered skill'
     case 'generated':
       return 'Metadata-routed skill'
   }
@@ -400,9 +402,10 @@ function relativeModuleLink(entry: SkillModuleRenderEntry, prefix: string): stri
 function groupModuleEntries(entries: SkillModuleRenderEntry[]) {
   const officialUpstream = entries.filter(entry => entry.sourceKind === 'dist')
   const githubResolved = entries.filter(entry => entry.sourceKind === 'github')
+  const wellKnownResolved = entries.filter(entry => entry.sourceKind === 'wellKnown')
   const metadataRouted = entries.filter(entry => entry.sourceKind === 'generated')
 
-  return { officialUpstream, githubResolved, metadataRouted }
+  return { officialUpstream, githubResolved, wellKnownResolved, metadataRouted }
 }
 
 function hasModuleGuidance(entries: SkillModuleRenderEntry[], skipped: SkillSkippedRenderEntry[] = []): boolean {
@@ -544,6 +547,7 @@ function createSkillMapSections(
   const moduleSections = [
     renderModuleGroup('Official upstream skills', grouped.officialUpstream, './references/modules/'),
     renderModuleGroup('Resolved module skills', grouped.githubResolved, './references/modules/'),
+    renderModuleGroup('Docs-discovered skills', grouped.wellKnownResolved, './references/modules/'),
     renderModuleGroup('Metadata-routed skills', grouped.metadataRouted, './references/modules/'),
     renderSkippedEntries(skipped),
   ].filter(Boolean)
@@ -661,6 +665,10 @@ function createResolverNote(entry: SkillModuleRenderEntry): string {
 
   if (entry.sourceKind === 'github') {
     return 'This module skill was resolved from GitHub heuristics. Verify important behavior against the installed module docs or source before relying on edge cases.'
+  }
+
+  if (entry.sourceKind === 'wellKnown') {
+    return 'This module skill was resolved from a docs .well-known endpoint. Treat it as product-published guidance, and verify version-sensitive details against the installed module docs or source.'
   }
 
   return 'This module router was generated from package metadata. Use the linked docs and repository as the source of truth for module-specific behavior.'

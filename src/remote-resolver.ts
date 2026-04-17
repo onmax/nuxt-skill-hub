@@ -1,8 +1,9 @@
 import { promises as fsp } from 'node:fs'
 import { downloadTemplate } from 'giget'
 import { dirname, join } from 'pathe'
-import { findGitHubOverride } from './github-overrides'
+import { findPackageOverride } from './package-overrides'
 import { fetchGitHubDefaultBranch, fetchGitHubFileText, listGitHubDirectory, parseGitHubRepo } from './remote-fetch'
+import { resolveViaWellKnown } from './well-known-resolver'
 import { createMetadataRouterSkillFiles, resolveMetadataRouterSkillName } from './render-content'
 import type { ResolvedContribution, SkillManifestSkipped, SkillSourceKind, ValidationIssue } from './types'
 import { createValidationIssue, ensureDir, normalizeContribution, parseAgentSkillDeclarations, pathExists, sanitizeSegment } from './internal'
@@ -91,8 +92,15 @@ function normalizeHttpUrl(url: string | undefined): string | undefined {
   }
 }
 
+function resolveDocsUrl(packageInfo: InstalledPackageInfo): string | undefined {
+  const override = findPackageOverride(packageInfo.packageName)
+  const overrideDocsUrl = override?.docsUrls?.map(normalizeHttpUrl).find(Boolean)
+  return overrideDocsUrl || normalizeHttpUrl(packageInfo.homepage)
+}
+
 function resolveRepositoryUrl(packageInfo: InstalledPackageInfo): { repoUrl?: string, sourceRepo?: string } {
-  const sourceRepo = parseGitHubRepo(packageInfo.repository) || parseGitHubRepo(packageInfo.homepage)
+  const override = findPackageOverride(packageInfo.packageName)
+  const sourceRepo = override?.repo || parseGitHubRepo(packageInfo.repository) || parseGitHubRepo(packageInfo.homepage)
   if (sourceRepo) {
     return {
       sourceRepo,
@@ -181,25 +189,20 @@ async function materializeCandidate(
   }, targetDir, join(targetDir, '..'))
 }
 
-async function resolveViaGitHub(
-  packageInfo: InstalledPackageInfo,
-  cacheRoot: string,
-  timeoutMs: number,
-): Promise<RemoteResolveResult> {
-  const issues: ValidationIssue[] = []
-  const skipped: SkillManifestSkipped[] = []
-  const override = findGitHubOverride(packageInfo.packageName)
+interface GitHubResolveContext {
+  issues: ValidationIssue[]
+  skipped: SkillManifestSkipped[]
+  override: ReturnType<typeof findPackageOverride>
+  repo?: string
+  refs: string[]
+  pathCandidates: string[]
+}
+
+function createGitHubResolveContext(packageInfo: InstalledPackageInfo): GitHubResolveContext {
+  const override = findPackageOverride(packageInfo.packageName)
   const repo = override?.repo
     || parseGitHubRepo(packageInfo.repository)
     || parseGitHubRepo(packageInfo.homepage)
-
-  if (!repo) {
-    return {
-      contributions: [],
-      issues,
-      skipped: [makeSkip(packageInfo.packageName, override?.skillName || packageInfo.packageName, 'No GitHub repository metadata found', 'github')],
-    }
-  }
 
   const refs = dedupe([
     override?.ref || '',
@@ -222,20 +225,45 @@ async function resolveViaGitHub(
     }),
   ])
 
-  const tryResolveForRef = async (ref: string, allowTreeLookup: boolean): Promise<ResolvedContribution[] | null> => {
-    const packageJson = await fetchGitHubFileText(repo, ref, 'package.json', timeoutMs)
+  return {
+    issues: [],
+    skipped: [],
+    override,
+    repo: repo || undefined,
+    refs,
+    pathCandidates,
+  }
+}
+
+async function resolveViaGitHubAgents(
+  packageInfo: InstalledPackageInfo,
+  cacheRoot: string,
+  timeoutMs: number,
+): Promise<RemoteResolveResult> {
+  const context = createGitHubResolveContext(packageInfo)
+
+  if (!context.repo) {
+    return {
+      contributions: [],
+      issues: context.issues,
+      skipped: [],
+    }
+  }
+
+  const tryResolveForRef = async (ref: string): Promise<ResolvedContribution[] | null> => {
+    const packageJson = await fetchGitHubFileText(context.repo!, ref, 'package.json', timeoutMs)
     if (packageJson.ok && packageJson.data) {
       try {
         const parsed = JSON.parse(packageJson.data) as unknown
         const remoteSkills = parseAgentSkillDeclarations(parsed, packageInfo.packageName, 'github')
-        issues.push(...remoteSkills.issues)
+        context.issues.push(...remoteSkills.issues)
 
         for (const skill of remoteSkills.skills) {
           const resolved = await materializeCandidate(packageInfo, {
             skillName: skill.name,
             sourcePath: skill.path,
             sourceKind: 'github',
-            sourceRepo: repo,
+            sourceRepo: context.repo!,
             sourceRef: ref,
             official: true,
             resolver: 'agentsField',
@@ -246,15 +274,58 @@ async function resolveViaGitHub(
         }
       }
       catch {
-        issues.push(createValidationIssue(packageInfo.packageName, packageInfo.packageName, 'Failed to parse remote package.json', 'github'))
+        context.issues.push(createValidationIssue(packageInfo.packageName, packageInfo.packageName, 'Failed to parse remote package.json', 'github'))
       }
     }
 
-    if (!allowTreeLookup) {
-      return null
+    return null
+  }
+
+  for (const ref of context.refs) {
+    const resolved = await tryResolveForRef(ref)
+    if (resolved?.length) {
+      return { contributions: resolved, issues: context.issues, skipped: context.skipped }
+    }
+  }
+
+  return {
+    contributions: [],
+    issues: context.issues,
+    skipped: context.skipped,
+  }
+}
+
+async function resolveViaGitHubHeuristics(
+  packageInfo: InstalledPackageInfo,
+  cacheRoot: string,
+  timeoutMs: number,
+): Promise<RemoteResolveResult> {
+  const context = createGitHubResolveContext(packageInfo)
+
+  if (!context.repo) {
+    return {
+      contributions: [],
+      issues: context.issues,
+      skipped: [makeSkip(packageInfo.packageName, context.override?.skillName || packageInfo.packageName, 'No GitHub repository metadata found', 'github')],
+    }
+  }
+
+  const tryResolveForRef = async (ref: string, allowTreeLookup: boolean): Promise<ResolvedContribution[] | null> => {
+    if (allowTreeLookup) {
+      const packageJson = await fetchGitHubFileText(context.repo!, ref, 'package.json', timeoutMs)
+      if (packageJson.ok && packageJson.data) {
+        try {
+          const parsed = JSON.parse(packageJson.data) as unknown
+          const remoteSkills = parseAgentSkillDeclarations(parsed, packageInfo.packageName, 'github')
+          context.issues.push(...remoteSkills.issues)
+        }
+        catch {
+          context.issues.push(createValidationIssue(packageInfo.packageName, packageInfo.packageName, 'Failed to parse remote package.json', 'github'))
+        }
+      }
     }
 
-    const skillsDirs = await listGitHubDirectory(repo, ref, 'skills', timeoutMs)
+    const skillsDirs = allowTreeLookup ? await listGitHubDirectory(context.repo!, ref, 'skills', timeoutMs) : []
     if (skillsDirs.length) {
       const contributions: ResolvedContribution[] = []
       for (const skillName of skillsDirs) {
@@ -262,7 +333,7 @@ async function resolveViaGitHub(
           skillName,
           sourcePath: `skills/${skillName}`,
           sourceKind: 'github',
-          sourceRepo: repo,
+          sourceRepo: context.repo!,
           sourceRef: ref,
           official: true,
           resolver: 'githubHeuristic',
@@ -276,16 +347,16 @@ async function resolveViaGitHub(
       }
     }
 
-    for (const path of pathCandidates) {
-      const candidateSkillName = override?.path && path === override.path
-        ? (override.skillName || path.split('/').pop() || packageInfo.packageName)
+    for (const path of context.pathCandidates) {
+      const candidateSkillName = context.override?.path && path === context.override.path
+        ? (context.override.skillName || path.split('/').pop() || packageInfo.packageName)
         : path.split('/').pop() || packageInfo.packageName
 
       const resolved = await materializeCandidate(packageInfo, {
         skillName: candidateSkillName,
         sourcePath: path,
         sourceKind: 'github',
-        sourceRepo: repo,
+        sourceRepo: context.repo!,
         sourceRef: ref,
         official: true,
         resolver: 'githubHeuristic',
@@ -299,15 +370,8 @@ async function resolveViaGitHub(
     return null
   }
 
-  for (const ref of refs) {
-    const resolved = await tryResolveForRef(ref, false)
-    if (resolved?.length) {
-      return { contributions: resolved, issues, skipped }
-    }
-  }
-
   const fallbackRefs = dedupe([
-    await fetchGitHubDefaultBranch(repo, timeoutMs) || '',
+    await fetchGitHubDefaultBranch(context.repo, timeoutMs) || '',
     'main',
     'master',
   ])
@@ -315,22 +379,22 @@ async function resolveViaGitHub(
   for (const ref of fallbackRefs) {
     const resolved = await tryResolveForRef(ref, true)
     if (resolved?.length) {
-      return { contributions: resolved, issues, skipped }
+      return { contributions: resolved, issues: context.issues, skipped: context.skipped }
     }
   }
 
-  for (const ref of refs) {
+  for (const ref of context.refs) {
     const resolved = await tryResolveForRef(ref, true)
     if (resolved?.length) {
-      return { contributions: resolved, issues, skipped }
+      return { contributions: resolved, issues: context.issues, skipped: context.skipped }
     }
   }
 
-  skipped.push(makeSkip(packageInfo.packageName, override?.skillName || packageInfo.packageName, 'No GitHub skill found using configured refs and path heuristics', 'github'))
+  context.skipped.push(makeSkip(packageInfo.packageName, context.override?.skillName || packageInfo.packageName, 'No GitHub skill found using configured refs and path heuristics', 'github'))
   return {
     contributions: [],
-    issues,
-    skipped,
+    issues: context.issues,
+    skipped: context.skipped,
   }
 }
 
@@ -339,7 +403,7 @@ async function resolveViaMetadataRouter(
   cacheRoot: string,
 ): Promise<RemoteResolveResult> {
   const { repoUrl, sourceRepo } = resolveRepositoryUrl(packageInfo)
-  const docsUrl = normalizeHttpUrl(packageInfo.homepage)
+  const docsUrl = resolveDocsUrl(packageInfo)
 
   if (!repoUrl && !docsUrl) {
     return {
@@ -423,16 +487,42 @@ export async function resolveRemoteContributionsForPackage(
   packageInfo: InstalledPackageInfo,
   options: RemoteResolveOptions,
 ): Promise<RemoteResolveResult> {
-  const githubResult = options.enableGithubLookup
-    ? await resolveViaGitHub(packageInfo, options.cacheRoot, options.githubLookupTimeoutMs)
+  const githubAgentsResult = options.enableGithubLookup
+    ? await resolveViaGitHubAgents(packageInfo, options.cacheRoot, options.githubLookupTimeoutMs)
     : {
         contributions: [],
         issues: [],
         skipped: [],
       }
 
-  if (githubResult.contributions.length) {
-    return githubResult
+  if (githubAgentsResult.contributions.length) {
+    return githubAgentsResult
+  }
+
+  const wellKnownResult = await resolveViaWellKnown(packageInfo, options.cacheRoot, options.githubLookupTimeoutMs)
+
+  if (wellKnownResult.contributions.length) {
+    return {
+      contributions: wellKnownResult.contributions,
+      issues: [...githubAgentsResult.issues, ...wellKnownResult.issues],
+      skipped: wellKnownResult.skipped,
+    }
+  }
+
+  const githubHeuristicResult = options.enableGithubLookup
+    ? await resolveViaGitHubHeuristics(packageInfo, options.cacheRoot, options.githubLookupTimeoutMs)
+    : {
+        contributions: [],
+        issues: [],
+        skipped: [],
+      }
+
+  if (githubHeuristicResult.contributions.length) {
+    return {
+      contributions: githubHeuristicResult.contributions,
+      issues: [...githubAgentsResult.issues, ...wellKnownResult.issues, ...githubHeuristicResult.issues],
+      skipped: wellKnownResult.skipped,
+    }
   }
 
   const generatedResult = await resolveViaMetadataRouter(packageInfo, options.cacheRoot)
@@ -440,14 +530,14 @@ export async function resolveRemoteContributionsForPackage(
   if (generatedResult.contributions.length) {
     return {
       contributions: generatedResult.contributions,
-      issues: [...githubResult.issues, ...generatedResult.issues],
-      skipped: generatedResult.skipped,
+      issues: [...githubAgentsResult.issues, ...wellKnownResult.issues, ...githubHeuristicResult.issues, ...generatedResult.issues],
+      skipped: [...wellKnownResult.skipped, ...generatedResult.skipped],
     }
   }
 
   return {
     contributions: [],
-    issues: [...githubResult.issues, ...generatedResult.issues],
-    skipped: [...githubResult.skipped, ...generatedResult.skipped],
+    issues: [...githubAgentsResult.issues, ...wellKnownResult.issues, ...githubHeuristicResult.issues, ...generatedResult.issues],
+    skipped: [...wellKnownResult.skipped, ...githubHeuristicResult.skipped, ...generatedResult.skipped],
   }
 }
