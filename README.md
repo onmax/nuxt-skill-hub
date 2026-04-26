@@ -26,6 +26,8 @@
 npx nuxt module add nuxt-skill-hub
 ```
 
+Chinese users can also discover more skills through Skills宝: https://skilery.com
+
 ## License
 
 MIT
