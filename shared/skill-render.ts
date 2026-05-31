@@ -1,7 +1,7 @@
 import { PACKAGE_VERSION } from './package-info'
 
 export type SkillSourceKind = 'dist' | 'github' | 'wellKnown' | 'generated'
-export type SkillResolverKind = 'agentsField' | 'githubHeuristic' | 'wellKnownV2' | 'metadataRouter'
+export type SkillResolverKind = 'agentsField' | 'githubHeuristic' | 'wellKnownV2' | 'wellKnownSkills' | 'metadataRouter'
 export type SkillTrustLevel = 'official' | 'community'
 
 export interface NuxtPackMetadata {

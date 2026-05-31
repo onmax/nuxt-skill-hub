@@ -35,9 +35,39 @@ export interface SelectedModule {
 }
 
 const baseModules: Array<Omit<SkillModule, 'skillAvailability'>> = [
-  { id: 'nuxt-ui', packageName: '@nuxt/ui', label: 'Nuxt UI', icon: 'i-skill-logos-nuxt-ui', color: 'text-green-400', defaultEnabled: true, moduleType: 'official' },
-  { id: 'nuxt-content', packageName: '@nuxt/content', label: 'Nuxt Content', icon: 'i-skill-logos-nuxt-content', color: 'text-green-400', defaultEnabled: true, moduleType: 'official' },
-  { id: 'nuxthub', packageName: '@nuxthub/core', label: 'NuxtHub', icon: 'i-skill-logos-nuxthub', color: 'text-yellow-400', defaultEnabled: false, moduleType: 'official' },
+  {
+    id: 'nuxt-ui',
+    packageName: '@nuxt/ui',
+    label: 'Nuxt UI',
+    icon: 'i-skill-logos-nuxt-ui',
+    color: 'text-green-400',
+    defaultEnabled: true,
+    moduleType: 'official',
+    repoUrl: 'https://github.com/nuxt/ui',
+    docsUrl: 'https://ui.nuxt.com',
+  },
+  {
+    id: 'nuxt-content',
+    packageName: '@nuxt/content',
+    label: 'Nuxt Content',
+    icon: 'i-skill-logos-nuxt-content',
+    color: 'text-green-400',
+    defaultEnabled: true,
+    moduleType: 'official',
+    repoUrl: 'https://github.com/nuxt/content',
+    docsUrl: 'https://content.nuxt.com',
+  },
+  {
+    id: 'nuxthub',
+    packageName: '@nuxthub/core',
+    label: 'NuxtHub',
+    icon: 'i-skill-logos-nuxthub',
+    color: 'text-yellow-400',
+    defaultEnabled: false,
+    moduleType: 'official',
+    repoUrl: 'https://github.com/nuxt-hub/core',
+    docsUrl: 'https://hub.nuxt.com',
+  },
 ]
 
 export const modules: SkillModule[] = baseModules.map(m => ({

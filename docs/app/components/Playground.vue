@@ -16,14 +16,14 @@ watch(moduleAuthorMode, () => selectFile('SKILL.md'))
     class="relative scroll-mt-16 py-24 sm:py-32"
   >
     <UContainer>
-      <div class="mb-12 text-center">
+      <div class="mb-12 text-left sm:text-center">
         <p class="mb-3 font-mono text-xs font-medium uppercase tracking-widest text-primary">
           Playground
         </p>
         <h2 class="text-3xl font-bold text-highlighted sm:text-4xl">
           Inspect the generated skill
         </h2>
-        <p class="mx-auto mt-4 max-w-2xl text-lg text-muted">
+        <p class="mt-4 max-w-2xl text-lg text-muted sm:mx-auto">
           Toggle modules to see how the skill changes as your stack changes.
         </p>
       </div>

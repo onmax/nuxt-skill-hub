@@ -357,16 +357,9 @@ describe('resolveRemoteContributionsForPackage', () => {
     expect(fetchUrlBytesMock).not.toHaveBeenCalled()
   })
 
-  it('only probes well-known v2 discovery indexes', async () => {
+  it('probes v2 and Docus well-known discovery indexes', async () => {
     const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
-    const v1IndexUrl = `https://docs.example.com/.well-known/${'skills'}/index.json`
-    const fetchUrlJsonMock = vi.fn(async (url: string) => {
-      if (url === v1IndexUrl) {
-        throw new Error('legacy endpoint should not be fetched')
-      }
-
-      return { ok: false, status: 404 }
-    })
+    const fetchUrlJsonMock = vi.fn(async () => ({ ok: false, status: 404 }))
 
     vi.resetModules()
     vi.doMock('../src/remote-fetch', () => ({
@@ -397,8 +390,9 @@ describe('resolveRemoteContributionsForPackage', () => {
 
     expect(result.contributions).toHaveLength(1)
     expect(result.contributions[0]?.sourceKind).toBe('generated')
-    expect(fetchUrlJsonMock).toHaveBeenCalledTimes(1)
+    expect(fetchUrlJsonMock).toHaveBeenCalledTimes(2)
     expect(fetchUrlJsonMock).toHaveBeenCalledWith('https://docs.example.com/.well-known/agent-skills/index.json', 200)
+    expect(fetchUrlJsonMock).toHaveBeenCalledWith('https://docs.example.com/.well-known/skills/index.json', 200)
   })
 
   it('skips schema-less well-known indexes instead of treating them as legacy discovery', async () => {
@@ -449,6 +443,76 @@ describe('resolveRemoteContributionsForPackage', () => {
     expect(result.contributions[0]?.sourceKind).toBe('generated')
     expect(result.skipped.some(entry => entry.reason === 'well-known index is missing the v2 schema')).toBe(true)
     expect(fetchUrlBytesMock).not.toHaveBeenCalled()
+  })
+
+  it('resolves Docus well-known skills indexes', async () => {
+    const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
+    const skill = skillMarkdown('docs-sdk', 'Use the SDK docs.')
+    const apiRef = '# API\n'
+
+    vi.resetModules()
+    vi.doMock('../src/remote-fetch', () => ({
+      parseGitHubRepo: vi.fn(() => null),
+      fetchGitHubDefaultBranch: vi.fn(async () => 'main'),
+      fetchGitHubFileText: vi.fn(async () => ({ ok: false, status: 404 })),
+      listGitHubDirectory: vi.fn(async () => []),
+      fetchUrlJson: vi.fn(async (url: string) => {
+        if (url === 'https://docs.example.com/.well-known/agent-skills/index.json') {
+          return { ok: false, status: 404 }
+        }
+
+        if (url === 'https://docs.example.com/.well-known/skills/index.json') {
+          return {
+            ok: true,
+            data: {
+              skills: [
+                {
+                  name: 'docs-sdk',
+                  description: 'Use the SDK docs.',
+                  files: ['SKILL.md', 'references/api.md'],
+                },
+              ],
+            },
+          }
+        }
+
+        return { ok: false, status: 404 }
+      }),
+      fetchUrlBytes: vi.fn(async (url: string) => {
+        if (url === 'https://docs.example.com/.well-known/skills/docs-sdk/SKILL.md') {
+          return { ok: true, data: Buffer.from(skill) }
+        }
+
+        if (url === 'https://docs.example.com/.well-known/skills/docs-sdk/references/api.md') {
+          return { ok: true, data: Buffer.from(apiRef) }
+        }
+
+        return { ok: false, status: 404 }
+      }),
+    }))
+    vi.doMock('giget', () => ({
+      downloadTemplate: mockDownloadTemplate(async () => {
+        throw new Error('not found')
+      }),
+    }))
+
+    const { resolveRemoteContributionsForPackage } = await import('../src/remote-resolver')
+    const result = await resolveRemoteContributionsForPackage({
+      packageName: 'docs-sdk',
+      version: '1.0.0',
+      description: 'Docs SDK.',
+      homepage: 'https://docs.example.com/',
+    }, {
+      cacheRoot,
+      githubLookupTimeoutMs: 200,
+      enableGithubLookup: true,
+    })
+
+    expect(result.contributions).toHaveLength(1)
+    expect(result.contributions[0]?.sourceKind).toBe('wellKnown')
+    expect(result.contributions[0]?.resolver).toBe('wellKnownSkills')
+    await expect(fsp.readFile(join(result.contributions[0]!.sourceDir, 'SKILL.md'), 'utf8')).resolves.toBe(skill)
+    await expect(fsp.readFile(join(result.contributions[0]!.sourceDir, 'references/api.md'), 'utf8')).resolves.toBe(apiRef)
   })
 
   it('resolves well-known v2 skill-md entries and verifies digests', async () => {

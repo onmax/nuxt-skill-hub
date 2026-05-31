@@ -22,9 +22,19 @@
 
 ## Install
 
+For agents:
+
 ```bash
-npx nuxt module add nuxt-skill-hub
+npx skills add https://nuxt-skill.onmax.me/
 ```
+
+For Nuxt projects:
+
+```bash
+npx nuxi module add nuxt-skill-hub
+```
+
+Use [Doctor](https://vite-doctor.onmax.me/) to check AI-written Nuxt changes for Nuxt, Vue, Nitro, and Vite issues before review.
 
 ## License
 
