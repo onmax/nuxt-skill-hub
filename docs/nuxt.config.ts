@@ -1,12 +1,14 @@
+import { fileURLToPath } from 'node:url'
+
 export default defineNuxtConfig({
   modules: ['@nuxt/ui', '@vueuse/nuxt', 'motion-v/nuxt', '@nuxtjs/mdc'],
   app: {
     head: {
       title: 'nuxt-skill-hub — Teach your AI agent the Nuxt way.',
       meta: [
-        { name: 'description', content: 'Install one module. Your agent gets Nuxt best practices, module APIs, and project-specific guidance before it changes your code.' },
+        { name: 'description', content: 'Install one skill or module. Your agent gets Nuxt best practices, module APIs, and project-specific guidance before it changes your code.' },
         { property: 'og:title', content: 'nuxt-skill-hub — Teach your AI agent the Nuxt way.' },
-        { property: 'og:description', content: 'Install one module. Your agent gets Nuxt best practices, module APIs, and project-specific guidance before it changes your code.' },
+        { property: 'og:description', content: 'Install one skill or module. Your agent gets Nuxt best practices, module APIs, and project-specific guidance before it changes your code.' },
         { property: 'og:image', content: 'https://nuxt-skill.onmax.me/og-image.png' },
         { property: 'og:type', content: 'website' },
         { name: 'twitter:card', content: 'summary_large_image' },
@@ -20,6 +22,11 @@ export default defineNuxtConfig({
         { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap' },
       ],
     },
+  },
+  nitro: {
+    publicAssets: [
+      { dir: fileURLToPath(new URL('./skills', import.meta.url)), baseURL: '/.well-known/skills' },
+    ],
   },
   css: ['~/assets/css/main.css'],
   colorMode: { preference: 'system' },

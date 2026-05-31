@@ -1,0 +1,9 @@
+{
+  "skills": [
+    {
+      "name": "nuxt",
+      "description": "Use Nuxt Skill Hub guidance for Nuxt, Vue, Nitro, runtime config, hydration, data fetching, Nuxt UI, Nuxt Content, and installed Nuxt module work.",
+      "files": ["SKILL.md"]
+    }
+  ]
+}

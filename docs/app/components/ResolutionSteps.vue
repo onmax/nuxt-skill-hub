@@ -14,6 +14,7 @@ const stages: PipelineStage[] = [
     steps: [
       { title: 'Find agent folders', detail: 'Claude, Cursor, Gemini, and Codex targets', icon: 'i-lucide-scan-search' },
       { title: 'Read your stack', detail: 'Nuxt modules, layers, and extra packages', icon: 'i-lucide-package-search' },
+      { title: 'Check .well-known paths', detail: 'Standard discovery for docs-published skills', icon: 'i-lucide-radar' },
     ],
   },
   {
@@ -45,10 +46,10 @@ const stages: PipelineStage[] = [
         :transition="{ duration: 0.5 }"
         class="mx-auto max-w-3xl"
       >
-        <div class="mb-12 text-center">
+        <div class="mb-12 text-left sm:text-center">
           <p class="mb-3 font-mono text-xs font-medium uppercase tracking-widest text-primary">Pipeline</p>
           <h2 class="text-3xl font-bold text-highlighted sm:text-4xl">How the skill gets built</h2>
-          <p class="mx-auto mt-4 max-w-xl text-base leading-relaxed text-muted sm:text-lg">
+          <p class="mt-4 max-w-xl text-base leading-relaxed text-muted sm:mx-auto sm:text-lg">
             On every <code class="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-sm text-primary">nuxi prepare</code>, nuxt-skill-hub scans your project, resolves the best available sources, and writes agent-ready files.
           </p>
         </div>

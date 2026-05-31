@@ -37,7 +37,7 @@ const centerPulse = ref(false)
 const connectedIcons = ref<{ iconUrl: string }[]>([])
 const containerOpacity = ref(1)
 
-const centerCommand = 'npx nuxt module add nuxt-skill-hub'
+const centerCommand = 'npx skills add https://nuxt-skill.onmax.me/'
 
 const center = { x: 50, y: 50 }
 

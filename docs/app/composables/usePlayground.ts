@@ -39,7 +39,7 @@ export function usePlayground() {
     enabled: module.skillAvailability !== 'unavailable' ? module.enabled : false,
   }))
 
-  const selectedModulesState = useLocalStorage<SelectedModule[]>('playground-modules-v2', defaults)
+  const selectedModulesState = useLocalStorage<SelectedModule[]>('playground-modules-v3', defaults)
   const moduleAuthorMode = useLocalStorage<boolean>('playground-module-author-mode', false)
 
   const { data: moduleCatalogData } = useFetch<{ modules: NuxtModuleResult[] }>('/api/nuxt-modules', {
@@ -77,26 +77,32 @@ export function usePlayground() {
 
   const { data: apiData } = useFetch('/api/skill-files')
 
-  // Module skill file cache — seeded from prerendered data, individual content fetched on demand
   const moduleFileCache = ref<Record<string, ModuleSkillCacheEntry>>({})
   const moduleFileContentLoading = ref<Set<string>>(new Set())
 
-  // Seed cache from prerendered moduleSkills in apiData
-  watch(apiData, (data) => {
-    const prerendered = (data as any)?.moduleSkills as Record<string, ModuleSkillCacheEntry> | undefined
-    if (!prerendered) return
-    const updated = { ...moduleFileCache.value }
-    for (const [moduleId, entry] of Object.entries(prerendered)) {
-      if (!updated[moduleId]) {
-        updated[moduleId] = { skillName: entry.skillName, rawBase: entry.rawBase, paths: entry.paths || [], files: entry.files || {} }
+  const moduleSkillCache = computed<Record<string, ModuleSkillCacheEntry>>(() => {
+    const prerendered = ((apiData.value as any)?.moduleSkills || {}) as Record<string, ModuleSkillCacheEntry>
+    const merged: Record<string, ModuleSkillCacheEntry> = { ...prerendered }
+
+    for (const [moduleId, entry] of Object.entries(moduleFileCache.value)) {
+      const base = merged[moduleId]
+      merged[moduleId] = {
+        skillName: entry.skillName || base?.skillName,
+        rawBase: entry.rawBase || base?.rawBase,
+        paths: entry.paths.length ? entry.paths : base?.paths || [],
+        files: {
+          ...(base?.files || {}),
+          ...entry.files,
+        },
       }
     }
-    moduleFileCache.value = updated
-  }, { immediate: true })
+
+    return merged
+  })
 
   async function fetchModuleFileContent(moduleId: string, filePath: string) {
     const cacheKey = `${moduleId}:${filePath}`
-    const moduleEntry = moduleFileCache.value[moduleId]
+    const moduleEntry = moduleSkillCache.value[moduleId]
     if (!moduleEntry || moduleEntry.files[filePath] || moduleFileContentLoading.value.has(cacheKey)) return
 
     moduleFileContentLoading.value = new Set([...moduleFileContentLoading.value, cacheKey])
@@ -104,12 +110,15 @@ export function usePlayground() {
       // Fetch directly from GitHub raw content (works in static deployments)
       const base = moduleEntry.rawBase || `${skillsRawBase}/${moduleEntry.skillName || moduleId}`
       const content = await $fetch<string>(`${base}/${filePath}`, { responseType: 'text' })
+      const cachedEntry = moduleFileCache.value[moduleId]
       if (typeof content === 'string') {
         moduleFileCache.value = {
           ...moduleFileCache.value,
           [moduleId]: {
-            ...moduleEntry,
-            files: { ...moduleEntry.files, [filePath]: content },
+            skillName: cachedEntry?.skillName || moduleEntry.skillName,
+            rawBase: cachedEntry?.rawBase || moduleEntry.rawBase,
+            paths: cachedEntry?.paths.length ? cachedEntry.paths : moduleEntry.paths,
+            files: { ...(cachedEntry?.files || {}), [filePath]: content },
           },
         }
       }
@@ -181,7 +190,7 @@ export function usePlayground() {
 
     const files: Record<string, SkillFile> = {}
     for (const module of selectedModules.value.filter(item => item.enabled && item.skillAvailability !== 'unavailable')) {
-      const { preview, moduleFiles, sourceHref } = getModulePreviewFiles(module, moduleFileCache.value[module.id])
+      const { preview, moduleFiles, sourceHref } = getModulePreviewFiles(module, moduleSkillCache.value[module.id])
       if (!preview || !moduleFiles) {
         continue
       }
@@ -208,7 +217,7 @@ export function usePlayground() {
 
     const lists: Record<string, string[]> = {}
     for (const module of selectedModules.value.filter(item => item.enabled && item.skillAvailability !== 'unavailable')) {
-      const { moduleFiles } = getModulePreviewFiles(module, moduleFileCache.value[module.id])
+      const { moduleFiles } = getModulePreviewFiles(module, moduleSkillCache.value[module.id])
       if (!moduleFiles) {
         continue
       }
@@ -223,7 +232,7 @@ export function usePlayground() {
       ? selectedModules.value
           .filter(module => module.enabled && module.skillAvailability !== 'unavailable')
           .map((module) => {
-            const { preview } = getModulePreviewFiles(module, moduleFileCache.value[module.id])
+            const { preview } = getModulePreviewFiles(module, moduleSkillCache.value[module.id])
             return preview
           })
           .filter((entry): entry is SkillModuleRenderEntry => Boolean(entry))
@@ -276,7 +285,7 @@ export function usePlayground() {
     if (mod.skillAvailability === 'unavailable') return
     if (selectedModulesState.value.some(m => m.packageName === mod.npm)) return
     selectedModulesState.value.push({
-      id: mod.name,
+      id: mod.skillName,
       packageName: mod.npm,
       label: mod.name,
       description: mod.description,

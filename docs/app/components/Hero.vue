@@ -28,18 +28,18 @@ defineOptions({
       :ui="{
         root: 'min-h-screen',
         container: 'flex min-h-screen flex-col gap-14 pt-32 pb-20 sm:gap-y-20 sm:pt-40 sm:pb-24 lg:pt-48 lg:pb-32',
-        wrapper: 'mx-auto w-full max-w-5xl text-center',
+        wrapper: 'mx-auto w-full max-w-5xl text-left sm:text-center',
         header: 'mx-auto max-w-4xl',
-        footer: 'mt-10 flex flex-col items-center gap-8',
+        footer: 'mt-10 flex flex-col items-start gap-8 sm:items-center',
       }"
     >
       <template #header>
-        <div class="flex flex-col items-center">
+        <div class="flex flex-col items-start sm:items-center">
           <motion.div
             :initial="{ opacity: 0, y: 20 }"
             :animate="{ opacity: 1, y: 0 }"
             :transition="{ duration: 0.5 }"
-            class="mb-6 flex flex-col items-center gap-3"
+            class="mb-6 flex flex-col items-start gap-3 sm:items-center"
           >
             <UBadge
               color="neutral"
@@ -62,7 +62,7 @@ defineOptions({
             :initial="{ opacity: 0, y: 20 }"
             :animate="{ opacity: 1, y: 0 }"
             :transition="{ duration: 0.5, delay: 0.1 }"
-            class="max-w-4xl text-center text-5xl font-bold leading-[0.92] tracking-tight text-highlighted text-balance sm:text-7xl"
+            class="max-w-4xl text-left text-5xl font-bold leading-[0.92] tracking-tight text-highlighted text-balance sm:text-center sm:text-7xl"
           >
             Teach your AI agent<br>
             <span class="text-primary">The Nuxt way.</span>
@@ -72,9 +72,9 @@ defineOptions({
             :initial="{ opacity: 0, y: 20 }"
             :animate="{ opacity: 1, y: 0 }"
             :transition="{ duration: 0.5, delay: 0.2 }"
-            class="mt-6 max-w-2xl text-center text-lg leading-relaxed text-muted sm:text-xl"
+            class="mt-6 max-w-2xl text-left text-lg leading-relaxed text-muted sm:text-center sm:text-xl"
           >
-            Install one module. Your agent gets Nuxt best practices, module APIs, and project-specific guidance before it changes your code.
+            Install one skill or module. Your agent gets Nuxt best practices, module APIs, and project-specific guidance before it changes your code.
           </motion.p>
         </div>
       </template>
@@ -84,8 +84,20 @@ defineOptions({
           :initial="{ opacity: 0, y: 20 }"
           :animate="{ opacity: 1, y: 0 }"
           :transition="{ duration: 0.5, delay: 0.3 }"
+          class="flex w-full flex-col items-start gap-3 sm:items-center"
         >
           <InstallCommand />
+          <UButton
+            to="https://vite-doctor.onmax.me/"
+            target="_blank"
+            color="neutral"
+            variant="link"
+            size="sm"
+            trailing-icon="i-lucide-arrow-up-right"
+            :ui="{ trailingIcon: 'size-3' }"
+          >
+            Check AI-written Nuxt changes with Doctor.
+          </UButton>
         </motion.div>
 
         <AgentLogos />

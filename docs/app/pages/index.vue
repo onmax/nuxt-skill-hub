@@ -2,6 +2,7 @@
   <div class="bg-default">
     <Hero />
     <SingleEntryPoint />
+    <DoctorSection />
     <CoreGrid />
     <Playground />
     <DocsSection />

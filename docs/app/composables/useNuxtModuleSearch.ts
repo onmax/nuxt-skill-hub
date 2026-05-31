@@ -9,6 +9,7 @@ export interface NuxtModuleResult {
   github?: string
   website?: string
   skillAvailability: SkillAvailability
+  skillName: string
   type: string
 }
 

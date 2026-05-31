@@ -36,7 +36,7 @@ const { copy, copied } = useClipboard({ copiedDuring: 2000 })
 <template>
   <section id="docs" class="relative scroll-mt-16 py-24 sm:py-32">
     <UContainer>
-      <div class="mx-auto mb-16 max-w-2xl text-center">
+      <div class="mx-auto mb-16 max-w-2xl text-left sm:text-center">
         <p class="mb-3 font-mono text-xs font-medium uppercase tracking-widest text-primary">Configuration</p>
         <h2 class="text-3xl font-bold text-highlighted sm:text-4xl">Configure it when you need control</h2>
         <p class="mt-4 text-lg text-muted leading-relaxed">

@@ -1,5 +1,6 @@
 import { getSkillFolders, resolveSkillFolder } from '../utils/skill-discovery'
 import type { SkillAvailability } from '../../app/data/skill-packages'
+import { resolveMetadataRouterSkillName } from '~~/shared/skill-preview'
 
 interface NuxtApiModule {
   name: string
@@ -23,6 +24,7 @@ export interface NuxtModuleResult {
   github?: string
   website?: string
   skillAvailability: SkillAvailability
+  skillName: string
   type: string
 }
 
@@ -30,10 +32,11 @@ let cachedModules: NuxtModuleResult[] | null = null
 let cachedAt = 0
 const CACHE_TTL = 1000 * 60 * 60 // 1 hour
 
-function resolveAvailability(npm: string, skillFolders: Set<string>, github?: string, website?: string): SkillAvailability {
-  if (resolveSkillFolder(npm, skillFolders)) return 'real'
-  if (github || website) return 'generated'
-  return 'unavailable'
+function resolveSkill(npm: string, skillFolders: Set<string>, github?: string, website?: string): { availability: SkillAvailability, skillName: string } {
+  const realSkillName = resolveSkillFolder(npm, skillFolders)
+  if (realSkillName) return { availability: 'real', skillName: realSkillName }
+  if (github || website) return { availability: 'generated', skillName: resolveMetadataRouterSkillName(npm) }
+  return { availability: 'unavailable', skillName: resolveMetadataRouterSkillName(npm) }
 }
 
 export default defineEventHandler(async () => {
@@ -46,18 +49,22 @@ export default defineEventHandler(async () => {
     getSkillFolders(),
   ])
 
-  cachedModules = data.modules.map(m => ({
-    name: m.name,
-    npm: m.npm,
-    description: m.description,
-    icon: m.icon,
-    downloads: m.stats?.downloads ?? 0,
-    stars: m.stats?.stars ?? 0,
-    github: m.github,
-    website: m.website,
-    skillAvailability: resolveAvailability(m.npm, skillFolders, m.github, m.website),
-    type: m.type,
-  }))
+  cachedModules = data.modules.map((m) => {
+    const resolved = resolveSkill(m.npm, skillFolders, m.github, m.website)
+    return {
+      name: m.name,
+      npm: m.npm,
+      description: m.description,
+      icon: m.icon,
+      downloads: m.stats?.downloads ?? 0,
+      stars: m.stats?.stars ?? 0,
+      github: m.github,
+      website: m.website,
+      skillAvailability: resolved.availability,
+      skillName: resolved.skillName,
+      type: m.type,
+    }
+  })
   cachedAt = Date.now()
 
   return { modules: cachedModules }

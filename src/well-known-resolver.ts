@@ -10,6 +10,7 @@ import type { ResolvedContribution, SkillManifestSkipped, ValidationIssue } from
 
 const WELL_KNOWN_DISCOVERY_V2_SCHEMA = 'https://schemas.agentskills.io/discovery/0.2.0/schema.json'
 const WELL_KNOWN_DISCOVERY_V2_INDEX_PATH = '/.well-known/agent-skills/index.json'
+const WELL_KNOWN_SKILLS_INDEX_PATH = '/.well-known/skills/index.json'
 
 interface WellKnownV2SkillEntry {
   name?: unknown
@@ -20,6 +21,17 @@ interface WellKnownV2SkillEntry {
 }
 
 interface WellKnownV2Index {
+  $schema?: unknown
+  skills?: unknown
+}
+
+interface WellKnownSkillsEntry {
+  name?: unknown
+  description?: unknown
+  files?: unknown
+}
+
+interface WellKnownSkillsIndex {
   $schema?: unknown
   skills?: unknown
 }
@@ -193,6 +205,24 @@ function sha256(bytes: Uint8Array): string {
   return `sha256:${createHash('sha256').update(bytes).digest('hex')}`
 }
 
+function normalizeSkillFilePath(value: unknown): string | null {
+  if (typeof value !== 'string') {
+    return null
+  }
+
+  const trimmed = value.trim().replaceAll('\\', '/')
+  if (!trimmed || trimmed.startsWith('/') || trimmed.includes('\0')) {
+    return null
+  }
+
+  const segments = trimmed.split('/')
+  if (segments.some(segment => !segment || segment === '.' || segment === '..')) {
+    return null
+  }
+
+  return trimmed
+}
+
 async function writeSkillFile(root: string, relativePath: string, bytes: Uint8Array): Promise<void> {
   const destination = join(root, relativePath)
   await ensureDir(dirname(destination))
@@ -205,7 +235,7 @@ function contributionFor(input: {
   skillName: string
   description?: string
   docsUrl: string
-  resolver: 'wellKnownV2'
+  resolver: 'wellKnownV2' | 'wellKnownSkills'
   indexUrl: string
 }): ResolvedContribution {
   const sourceRepo = parseGitHubRepo(input.packageInfo.repository)
@@ -225,6 +255,77 @@ function contributionFor(input: {
     resolver: input.resolver,
     forceIncludeScripts: true,
   }, input.targetDir, join(input.targetDir, '..'))
+}
+
+async function materializeSkillsIndexEntry(input: {
+  packageInfo: InstalledPackageInfo
+  entry: WellKnownSkillsEntry
+  indexUrl: string
+  docsUrl: string
+  cacheRoot: string
+  timeoutMs: number
+}): Promise<MaterializedSkill | null> {
+  const skillName = typeof input.entry.name === 'string' ? input.entry.name.trim() : ''
+  if (!isValidSkillName(skillName)) {
+    return { skipped: makeSkip(input.packageInfo.packageName, skillName || 'entry', 'well-known skill name is invalid') }
+  }
+
+  const description = typeof input.entry.description === 'string' ? input.entry.description.trim() : ''
+  if (!description) {
+    return { skipped: makeSkip(input.packageInfo.packageName, skillName, 'well-known skill is missing a description') }
+  }
+
+  if (!Array.isArray(input.entry.files)) {
+    return { skipped: makeSkip(input.packageInfo.packageName, skillName, 'well-known skill is missing a files array') }
+  }
+
+  const files = [...new Set(input.entry.files.map(normalizeSkillFilePath).filter((file): file is string => Boolean(file)))]
+  if (!files.includes('SKILL.md')) {
+    return { skipped: makeSkip(input.packageInfo.packageName, skillName, 'well-known skill must list SKILL.md') }
+  }
+
+  if (files.length !== input.entry.files.length) {
+    return { skipped: makeSkip(input.packageInfo.packageName, skillName, 'well-known skill includes an unsafe file path') }
+  }
+
+  const origin = new URL(input.docsUrl).origin
+  const targetDir = join(
+    input.cacheRoot,
+    'well-known',
+    'skills',
+    sanitizeSegment(origin),
+    sanitizeSegment(input.packageInfo.packageName),
+    sanitizeSegment(input.packageInfo.version || 'unknown'),
+    sanitizeSegment(skillName),
+  )
+
+  await emptyDir(targetDir)
+
+  for (const file of files) {
+    const fileUrl = resolveSameOriginUrl(`${skillName}/${file}`, new URL('./', input.indexUrl).toString())
+    if (!fileUrl) {
+      return { skipped: makeSkip(input.packageInfo.packageName, skillName, 'well-known skill file URL must stay on the discovery origin') }
+    }
+
+    const response = await fetchUrlBytes(fileUrl, input.timeoutMs)
+    if (!response.ok || !response.data) {
+      return { skipped: makeSkip(input.packageInfo.packageName, skillName, `failed to fetch well-known skill file ${file}`) }
+    }
+
+    await writeSkillFile(targetDir, file, response.data)
+  }
+
+  return {
+    contribution: contributionFor({
+      packageInfo: input.packageInfo,
+      targetDir,
+      skillName,
+      description,
+      docsUrl: input.docsUrl,
+      resolver: 'wellKnownSkills',
+      indexUrl: input.indexUrl,
+    }),
+  }
 }
 
 async function materializeV2Skill(input: {
@@ -301,6 +402,51 @@ async function materializeV2Skill(input: {
       indexUrl: input.indexUrl,
     }),
   }
+}
+
+async function resolveSkillsIndex(input: {
+  packageInfo: InstalledPackageInfo
+  index: WellKnownSkillsIndex
+  indexUrl: string
+  docsUrl: string
+  cacheRoot: string
+  timeoutMs: number
+}): Promise<RemoteResolveResult> {
+  const skipped: SkillManifestSkipped[] = []
+  const contributions: ResolvedContribution[] = []
+
+  if (!Array.isArray(input.index.skills)) {
+    return {
+      contributions: [],
+      issues: [],
+      skipped: [makeSkip(input.packageInfo.packageName, input.packageInfo.packageName, 'well-known skills index is missing a skills array')],
+    }
+  }
+
+  for (const rawEntry of input.index.skills) {
+    if (!rawEntry || typeof rawEntry !== 'object') {
+      skipped.push(makeSkip(input.packageInfo.packageName, 'entry', 'well-known skill entry must be an object'))
+      continue
+    }
+
+    const materialized = await materializeSkillsIndexEntry({
+      packageInfo: input.packageInfo,
+      entry: rawEntry as WellKnownSkillsEntry,
+      indexUrl: input.indexUrl,
+      docsUrl: input.docsUrl,
+      cacheRoot: input.cacheRoot,
+      timeoutMs: input.timeoutMs,
+    })
+
+    if (materialized?.contribution) {
+      contributions.push(materialized.contribution)
+    }
+    if (materialized?.skipped) {
+      skipped.push(materialized.skipped)
+    }
+  }
+
+  return { contributions, issues: [], skipped }
 }
 
 async function resolveV2Index(input: {
@@ -384,6 +530,13 @@ async function resolveIndex(input: {
     })
   }
 
+  if (new URL(input.indexUrl).pathname === WELL_KNOWN_SKILLS_INDEX_PATH && !index.$schema) {
+    return await resolveSkillsIndex({
+      ...input,
+      index,
+    })
+  }
+
   if (typeof index.$schema === 'string' && index.$schema) {
     return {
       contributions: [],
@@ -409,27 +562,33 @@ export async function resolveViaWellKnown(
   const issues: ValidationIssue[] = []
 
   for (const docsUrl of bases) {
-    const indexUrl = new URL(WELL_KNOWN_DISCOVERY_V2_INDEX_PATH, docsUrl).toString()
-    const result = await resolveIndex({
-      packageInfo,
-      indexUrl,
-      docsUrl,
-      cacheRoot,
-      timeoutMs,
-    })
+    const indexUrls = [
+      new URL(WELL_KNOWN_DISCOVERY_V2_INDEX_PATH, docsUrl).toString(),
+      new URL(WELL_KNOWN_SKILLS_INDEX_PATH, docsUrl).toString(),
+    ]
 
-    if (!result) {
-      continue
-    }
+    for (const indexUrl of indexUrls) {
+      const result = await resolveIndex({
+        packageInfo,
+        indexUrl,
+        docsUrl,
+        cacheRoot,
+        timeoutMs,
+      })
 
-    issues.push(...result.issues)
-    skipped.push(...result.skipped)
+      if (!result) {
+        continue
+      }
 
-    if (result.contributions.length) {
-      return {
-        contributions: result.contributions,
-        issues,
-        skipped,
+      issues.push(...result.issues)
+      skipped.push(...result.skipped)
+
+      if (result.contributions.length) {
+        return {
+          contributions: result.contributions,
+          issues,
+          skipped,
+        }
       }
     }
   }

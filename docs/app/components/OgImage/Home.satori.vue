@@ -68,10 +68,10 @@
           lineHeight: '1.1',
         }"
       >
-        <span :style="{ fontSize: '72px', fontWeight: '700', color: '#161616', letterSpacing: '-0.025em' }">
+        <span :style="{ fontSize: '72px', fontWeight: '700', color: '#161616', letterSpacing: '0' }">
           Teach your AI agent
         </span>
-        <span :style="{ fontSize: '72px', fontWeight: '700', color: '#00dc82', letterSpacing: '-0.025em' }">
+        <span :style="{ fontSize: '72px', fontWeight: '700', color: '#00dc82', letterSpacing: '0' }">
           The Nuxt way.
         </span>
       </div>
@@ -101,7 +101,7 @@
           fontWeight: '500',
         }"
       >
-        npx nuxt module add nuxt-skill-hub
+        npx skills add https://nuxt-skill.onmax.me/
       </div>
     </div>
   </div>
