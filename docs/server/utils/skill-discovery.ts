@@ -1,5 +1,6 @@
 import { slugCandidates } from '../../../src/remote-resolver'
 import { PACKAGE_OVERRIDES } from '../../../src/package-overrides'
+import type { SkillResolverKind, SkillSourceKind } from '../../../src/types'
 
 const COMMUNITY_REPO = 'onmax/nuxt-skills'
 const COMMUNITY_BRANCH = 'main'
@@ -12,10 +13,19 @@ interface ModuleSkillEntry {
   skillName: string
   /** Base URL for fetching raw file content on the client */
   rawBase: string
+  sourceHrefBase?: string
   paths: string[]
   files: Record<string, string>
   /** Where this skill was resolved from */
   source: 'official' | 'community'
+  sourceKind: SkillSourceKind
+  resolver: SkillResolverKind
+  description?: string
+  sourceRepo?: string
+  sourceRef?: string
+  sourcePath?: string
+  repoUrl?: string
+  docsUrl?: string
 }
 
 interface SkillDiscoveryResult {
@@ -80,7 +90,21 @@ async function fetchOfficialSkills(): Promise<Record<string, ModuleSkillEntry>> 
       if (!paths.length) return
 
       const rawBase = `https://raw.githubusercontent.com/${override.repo}/${override.ref || 'main'}/${override.path}`
-      const entry: ModuleSkillEntry = { skillName: override.skillName!, rawBase, paths, files: {}, source: 'official' }
+      const entry: ModuleSkillEntry = {
+        skillName: override.skillName!,
+        rawBase,
+        sourceHrefBase: `https://github.com/${override.repo}/blob/${override.ref || 'main'}/${override.path}`,
+        paths,
+        files: {},
+        source: 'official',
+        sourceKind: 'github',
+        resolver: 'githubHeuristic',
+        sourceRepo: override.repo,
+        sourceRef: override.ref || 'main',
+        sourcePath: override.path,
+        repoUrl: `https://github.com/${override.repo}`,
+        docsUrl: override.docsUrls?.[0],
+      }
 
       if (paths.includes('SKILL.md')) {
         try {
@@ -130,7 +154,20 @@ async function fetchCommunitySkills(): Promise<{ skillFolders: Set<string>, modu
     if (!paths.length) continue
 
     const rawBase = `https://raw.githubusercontent.com/${COMMUNITY_REPO}/${COMMUNITY_BRANCH}/skills/${skillName}`
-    moduleSkills[skillName] = { skillName, rawBase, paths, files: {}, source: 'community' }
+    moduleSkills[skillName] = {
+      skillName,
+      rawBase,
+      sourceHrefBase: `https://github.com/${COMMUNITY_REPO}/blob/${COMMUNITY_BRANCH}/skills/${skillName}`,
+      paths,
+      files: {},
+      source: 'community',
+      sourceKind: 'github',
+      resolver: 'githubHeuristic',
+      sourceRepo: COMMUNITY_REPO,
+      sourceRef: COMMUNITY_BRANCH,
+      sourcePath: `skills/${skillName}`,
+      repoUrl: `https://github.com/${COMMUNITY_REPO}`,
+    }
 
     if (paths.includes('SKILL.md')) {
       fetches.push(

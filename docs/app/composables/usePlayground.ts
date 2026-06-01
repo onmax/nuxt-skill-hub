@@ -14,10 +14,11 @@ import {
   type NuxtContentMetadata,
   type SkillModuleRenderEntry,
   parseSkillFrontmatter,
+  type SkillResolverKind,
+  type SkillSourceKind,
 } from '~~/shared/skill-preview'
 
 const repoBlobBase = 'https://github.com/onmax/nuxt-skill-hub/blob/main'
-const skillsRepoBlobBase = 'https://github.com/onmax/nuxt-skills/blob/main/skills'
 const skillsRawBase = 'https://raw.githubusercontent.com/onmax/nuxt-skills/main/skills'
 const generatedSkillRoot = '.codex/skills/nuxt-nuxt-skill-hub'
 
@@ -25,8 +26,40 @@ interface ModuleSkillCacheEntry {
   skillName?: string
   /** Base URL for fetching raw file content */
   rawBase?: string
+  sourceHrefBase?: string
   paths: string[]
   files: Record<string, string>
+  source?: 'official' | 'community'
+  sourceKind?: SkillSourceKind
+  resolver?: SkillResolverKind
+  description?: string
+  sourceRepo?: string
+  sourceRef?: string
+  sourcePath?: string
+  repoUrl?: string
+  docsUrl?: string
+  official?: boolean
+}
+
+interface ModuleSkillFilesResponse {
+  meta?: {
+    skillName?: string
+    description?: string
+    sourceKind?: SkillSourceKind
+    sourceHrefBase?: string
+    sourceRepo?: string
+    sourceRef?: string
+    sourcePath?: string
+    repoUrl?: string
+    docsUrl?: string
+    official?: boolean
+    resolver?: SkillResolverKind
+    scriptsIncluded?: boolean
+  }
+  paths?: string[]
+  files?: Record<string, string>
+  path?: string
+  content?: string | null
 }
 
 function repoSource(path: string) {
@@ -78,6 +111,7 @@ export function usePlayground() {
   const { data: apiData } = useFetch('/api/skill-files')
 
   const moduleFileCache = ref<Record<string, ModuleSkillCacheEntry>>({})
+  const moduleIndexLoading = ref<Set<string>>(new Set())
   const moduleFileContentLoading = ref<Set<string>>(new Set())
 
   const moduleSkillCache = computed<Record<string, ModuleSkillCacheEntry>>(() => {
@@ -87,8 +121,8 @@ export function usePlayground() {
     for (const [moduleId, entry] of Object.entries(moduleFileCache.value)) {
       const base = merged[moduleId]
       merged[moduleId] = {
-        skillName: entry.skillName || base?.skillName,
-        rawBase: entry.rawBase || base?.rawBase,
+        ...(base || {}),
+        ...entry,
         paths: entry.paths.length ? entry.paths : base?.paths || [],
         files: {
           ...(base?.files || {}),
@@ -100,23 +134,80 @@ export function usePlayground() {
     return merged
   })
 
+  function moduleSkillQuery(module: SelectedModule, filePath?: string) {
+    return {
+      module: module.id,
+      packageName: module.packageName,
+      docsUrl: module.docsUrl,
+      repoUrl: module.repoUrl,
+      path: filePath,
+    }
+  }
+
+  async function fetchModuleSkillIndex(module: SelectedModule) {
+    if (module.skillAvailability === 'unavailable') return
+    if (moduleSkillCache.value[module.id]?.paths.length) return
+    if (moduleIndexLoading.value.has(module.id)) return
+
+    moduleIndexLoading.value = new Set([...moduleIndexLoading.value, module.id])
+    try {
+      const data = await $fetch<ModuleSkillFilesResponse>('/api/module-skill-files', {
+        query: moduleSkillQuery(module),
+      })
+      if (!data.paths?.length || !data.meta?.skillName) return
+
+      moduleFileCache.value = {
+        ...moduleFileCache.value,
+        [module.id]: {
+          skillName: data.meta.skillName,
+          paths: data.paths,
+          files: data.files || {},
+          sourceKind: data.meta.sourceKind,
+          sourceHrefBase: data.meta.sourceHrefBase,
+          resolver: data.meta.resolver,
+          description: data.meta.description,
+          sourceRepo: data.meta.sourceRepo,
+          sourceRef: data.meta.sourceRef,
+          sourcePath: data.meta.sourcePath,
+          repoUrl: data.meta.repoUrl,
+          docsUrl: data.meta.docsUrl,
+          official: data.meta.official,
+          source: data.meta.official === false ? 'community' : 'official',
+        },
+      }
+    }
+    catch (e) {
+      console.warn(`Failed to discover skill for ${module.packageName}`, e)
+    }
+    finally {
+      const next = new Set(moduleIndexLoading.value)
+      next.delete(module.id)
+      moduleIndexLoading.value = next
+    }
+  }
+
   async function fetchModuleFileContent(moduleId: string, filePath: string) {
     const cacheKey = `${moduleId}:${filePath}`
     const moduleEntry = moduleSkillCache.value[moduleId]
     if (!moduleEntry || moduleEntry.files[filePath] || moduleFileContentLoading.value.has(cacheKey)) return
+    const module = selectedModules.value.find(entry => entry.id === moduleId)
 
     moduleFileContentLoading.value = new Set([...moduleFileContentLoading.value, cacheKey])
     try {
-      // Fetch directly from GitHub raw content (works in static deployments)
-      const base = moduleEntry.rawBase || `${skillsRawBase}/${moduleEntry.skillName || moduleId}`
-      const content = await $fetch<string>(`${base}/${filePath}`, { responseType: 'text' })
+      const content = moduleEntry.rawBase
+        ? await $fetch<string>(`${moduleEntry.rawBase}/${filePath}`, { responseType: 'text' })
+        : module
+          ? (await $fetch<ModuleSkillFilesResponse>('/api/module-skill-files', {
+              query: moduleSkillQuery(module, filePath),
+            })).content
+          : await $fetch<string>(`${skillsRawBase}/${moduleEntry.skillName || moduleId}/${filePath}`, { responseType: 'text' })
       const cachedEntry = moduleFileCache.value[moduleId]
       if (typeof content === 'string') {
         moduleFileCache.value = {
           ...moduleFileCache.value,
           [moduleId]: {
-            skillName: cachedEntry?.skillName || moduleEntry.skillName,
-            rawBase: cachedEntry?.rawBase || moduleEntry.rawBase,
+            ...moduleEntry,
+            ...(cachedEntry || {}),
             paths: cachedEntry?.paths.length ? cachedEntry.paths : moduleEntry.paths,
             files: { ...(cachedEntry?.files || {}), [filePath]: content },
           },
@@ -133,6 +224,18 @@ export function usePlayground() {
     }
   }
 
+  watch(
+    () => selectedModules.value
+      .filter(module => module.enabled && module.skillAvailability !== 'unavailable')
+      .map(module => `${module.id}:${module.packageName}:${module.docsUrl || ''}:${module.repoUrl || ''}`),
+    () => {
+      for (const module of selectedModules.value.filter(module => module.enabled && module.skillAvailability !== 'unavailable')) {
+        fetchModuleSkillIndex(module)
+      }
+    },
+    { immediate: true },
+  )
+
   watch(activeFilePath, (path) => {
     const match = path.match(/^references\/modules\/([^/]+)\/(.+)$/)
     if (!match) {
@@ -144,7 +247,7 @@ export function usePlayground() {
       return
     }
     const module = selectedModules.value.find(entry => entry.id === moduleId)
-    if (module?.skillAvailability === 'real') {
+    if (moduleSkillCache.value[moduleId]?.paths.length || module?.skillAvailability === 'real') {
       fetchModuleFileContent(moduleId, filePath)
     }
   }, { immediate: true })
@@ -202,7 +305,7 @@ export function usePlayground() {
           path,
           language: filePath.endsWith('.json') ? 'json' : 'markdown',
           content,
-          sourceHref: module.skillAvailability === 'real' ? `${skillsRepoBlobBase}/${module.id}/${filePath}` : sourceHref,
+          sourceHref: realModuleSourceHref(moduleSkillCache.value[module.id], filePath) || sourceHref,
         }
       }
     }
@@ -311,28 +414,40 @@ export function usePlayground() {
   return { selectedModules, selectedModuleIds, activeFilePath, activeFile, fileTree, moduleAuthorMode, toggleModule, removeModule, addModule, isSelected, selectFile }
 }
 
-function createPreviewModuleEntry(module: SelectedModule, moduleFiles: Record<string, string>): SkillModuleRenderEntry {
+function realModuleSourceHref(realModuleFiles: ModuleSkillCacheEntry | undefined, filePath: string): string | undefined {
+  if (realModuleFiles?.sourceHrefBase) {
+    return `${realModuleFiles.sourceHrefBase}/${filePath}`
+  }
+
+  if (realModuleFiles?.rawBase) {
+    return `${realModuleFiles.rawBase}/${filePath}`
+  }
+}
+
+function createPreviewModuleEntry(module: SelectedModule, realModuleFiles: ModuleSkillCacheEntry): SkillModuleRenderEntry {
+  const moduleFiles = realModuleFiles.files
   const frontmatter = parseSkillFrontmatter(moduleFiles['SKILL.md'] || '')
-  const sourceKind = 'github'
+  const sourceKind = realModuleFiles.sourceKind || 'github'
   const skillName = frontmatter?.name || module.id
+  const official = realModuleFiles.official ?? realModuleFiles.source !== 'community'
 
   return {
     packageName: module.packageName,
     version: undefined,
     skillName,
     entryPath: `references/modules/${module.id}/SKILL.md`,
-    description: frontmatter?.description,
+    description: frontmatter?.description || realModuleFiles.description,
     scriptsIncluded: Object.keys(moduleFiles).some(path => path === 'scripts' || path.startsWith('scripts/')),
     sourceKind,
     sourceLabel: getSourceLabel(sourceKind),
-    sourceRepo: module.repoUrl?.includes('github.com/') ? module.repoUrl.replace('https://github.com/', '') : undefined,
-    sourceRef: 'main',
-    sourcePath: `skills/${module.id}`,
-    repoUrl: module.repoUrl,
-    docsUrl: module.docsUrl,
-    official: true,
-    trustLevel: getTrustLevel(true),
-    resolver: 'githubHeuristic',
+    sourceRepo: realModuleFiles.sourceRepo || (module.repoUrl?.includes('github.com/') ? module.repoUrl.replace('https://github.com/', '') : undefined),
+    sourceRef: realModuleFiles.sourceRef,
+    sourcePath: realModuleFiles.sourcePath,
+    repoUrl: realModuleFiles.repoUrl || module.repoUrl,
+    docsUrl: realModuleFiles.docsUrl || module.docsUrl,
+    official,
+    trustLevel: getTrustLevel(official),
+    resolver: realModuleFiles.resolver || 'githubHeuristic',
   }
 }
 
@@ -362,7 +477,7 @@ function getModulePreviewFiles(module: SelectedModule, realModuleFiles?: ModuleS
   moduleFiles: Record<string, string> | null
   sourceHref?: string
 } {
-  if (module.skillAvailability === 'real') {
+  if (realModuleFiles?.paths.length) {
     if (!realModuleFiles) {
       return { preview: null, moduleFiles: null }
     }
@@ -375,7 +490,7 @@ function getModulePreviewFiles(module: SelectedModule, realModuleFiles?: ModuleS
     )
 
     return {
-      preview: createPreviewModuleEntry(module, realModuleFiles.files),
+      preview: createPreviewModuleEntry(module, realModuleFiles),
       moduleFiles,
       sourceHref: repoSource(`${generatedSkillRoot}/references/modules/${module.id}`),
     }

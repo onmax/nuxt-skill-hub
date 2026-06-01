@@ -1,7 +1,7 @@
 import { fileURLToPath } from 'node:url'
 
 export default defineNuxtConfig({
-  modules: ['@nuxt/ui', '@vueuse/nuxt', 'motion-v/nuxt', '@nuxtjs/mdc'],
+  modules: ['@nuxt/ui', '@vueuse/nuxt', 'motion-v/nuxt', '@comark/nuxt'],
   app: {
     head: {
       title: 'nuxt-skill-hub — Teach your AI agent the Nuxt way.',

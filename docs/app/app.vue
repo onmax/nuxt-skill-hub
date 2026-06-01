@@ -3,6 +3,7 @@ const mobileMenuOpen = ref(false)
 
 const navItems = [
   { label: 'How it works', to: '#how-it-works' },
+  { label: 'Doctor', to: '#doctor' },
   { label: 'Skills', to: '#skills' },
   { label: 'Playground', to: '#playground' },
   { label: 'Docs', to: '#docs' },

@@ -13,10 +13,12 @@ const emit = defineEmits<{
 }>()
 
 const renderMarkdown = useLocalStorage('playground-render-md', true)
-const renderedMarkdown = shallowRef<Awaited<ReturnType<typeof parseMarkdown>> | null>(null)
-const renderMarkdownPending = ref(false)
-const renderMarkdownError = ref<string | null>(null)
 const mobilePane = ref<'files' | 'content'>('files')
+const renderedMarkdownClass = 'text-base leading-7 text-default [&_.comark-content_a]:cursor-pointer [&_.comark-content_a]:text-primary [&_.comark-content_a]:underline [&_.comark-content_code]:rounded-sm [&_.comark-content_code]:bg-muted [&_.comark-content_code]:px-1 [&_.comark-content_code]:py-0.5 [&_.comark-content_code]:font-mono [&_.comark-content_code]:text-[0.85em] [&_.comark-content_h1]:mb-4 [&_.comark-content_h1]:font-mono [&_.comark-content_h1]:text-2xl [&_.comark-content_h1]:font-semibold [&_.comark-content_h2]:mb-3 [&_.comark-content_h2]:mt-6 [&_.comark-content_h2]:font-mono [&_.comark-content_h2]:text-xl [&_.comark-content_h2]:font-semibold [&_.comark-content_h3]:mb-2 [&_.comark-content_h3]:mt-5 [&_.comark-content_h3]:font-mono [&_.comark-content_h3]:text-lg [&_.comark-content_h3]:font-semibold [&_.comark-content_li]:ml-5 [&_.comark-content_li]:list-disc [&_.comark-content_p]:my-3 [&_.comark-content_pre]:my-4 [&_.comark-content_pre]:overflow-x-auto [&_.comark-content_pre]:rounded-lg [&_.comark-content_pre]:border [&_.comark-content_pre]:border-default [&_.comark-content_pre]:bg-muted [&_.comark-content_pre]:p-3 [&_.comark-content_pre]:font-mono [&_.comark-content_pre]:text-sm'
+const comarkComponents = {
+  ProseA: 'a',
+  a: 'a',
+}
 
 function findTreeItem(items: SkillFileTree[], path: string): SkillFileTree | undefined {
   for (const item of items) {
@@ -26,6 +28,10 @@ function findTreeItem(items: SkillFileTree[], path: string): SkillFileTree | und
       if (child) return child
     }
   }
+}
+
+function getTreeItemKey(item: SkillFileTree): string {
+  return item.value || item.label
 }
 
 function serializeTree(items: SkillFileTree[]): string {
@@ -90,45 +96,6 @@ const shouldRenderMarkdown = computed(() =>
   Boolean(props.activeFile && renderMarkdown.value && canRenderMarkdown.value),
 )
 
-watch(
-  () => [shouldRenderMarkdown.value, props.activeFile?.content] as const,
-  async ([enabled, content], _, onCleanup) => {
-    let cancelled = false
-    onCleanup(() => {
-      cancelled = true
-    })
-
-    if (!enabled || !content) {
-      renderedMarkdown.value = null
-      renderMarkdownPending.value = false
-      renderMarkdownError.value = null
-      return
-    }
-
-    renderMarkdownPending.value = true
-    renderMarkdownError.value = null
-
-    try {
-      const parsed = await parseMarkdown(content)
-      if (!cancelled) {
-        renderedMarkdown.value = parsed
-      }
-    }
-    catch (error) {
-      if (!cancelled) {
-        renderedMarkdown.value = null
-        renderMarkdownError.value = error instanceof Error ? error.message : 'Failed to render markdown.'
-      }
-    }
-    finally {
-      if (!cancelled) {
-        renderMarkdownPending.value = false
-      }
-    }
-  },
-  { immediate: true },
-)
-
 let interval: ReturnType<typeof setInterval>
 onMounted(() => {
   interval = setInterval(() => {
@@ -181,6 +148,7 @@ onUnmounted(() => clearInterval(interval))
             :key="`mobile:${treeKey}`"
             v-model="selected"
             :items="fileTree"
+            :get-key="getTreeItemKey"
             color="primary"
             size="xs"
             trailing-icon="i-lucide-chevron-right"
@@ -226,26 +194,23 @@ onUnmounted(() => clearInterval(interval))
         </div>
         <div class="min-h-0 flex-1 overflow-auto p-3">
           <div
-            v-if="renderMarkdownPending"
-            class="flex h-full min-h-40 items-center justify-center text-dimmed"
+            v-if="shouldRenderMarkdown"
+            :class="renderedMarkdownClass"
+            @click="handleMarkdownClick"
           >
-            <p class="font-mono text-xs">
-              Rendering markdown...
-            </p>
-          </div>
-          <div
-            v-else-if="renderMarkdownError"
-            class="rounded-lg border border-error/30 bg-error/5 p-3 font-mono text-xs text-error"
-          >
-            {{ renderMarkdownError }}
-          </div>
-          <div v-else-if="renderedMarkdown" @click="handleMarkdownClick">
-            <MDCRenderer
-              tag="article"
-              :body="renderedMarkdown.body"
-              :data="renderedMarkdown.data"
-              class="text-base leading-7 text-default [&_a]:cursor-pointer [&_a]:text-primary [&_a]:underline [&_code]:rounded-sm [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.85em] [&_h1]:mb-4 [&_h1]:font-mono [&_h1]:text-2xl [&_h1]:font-semibold [&_h2]:mb-3 [&_h2]:mt-6 [&_h2]:font-mono [&_h2]:text-xl [&_h2]:font-semibold [&_h3]:mb-2 [&_h3]:mt-5 [&_h3]:font-mono [&_h3]:text-lg [&_h3]:font-semibold [&_li]:ml-5 [&_li]:list-disc [&_p]:my-3 [&_pre]:my-4 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:border [&_pre]:border-default [&_pre]:bg-muted [&_pre]:p-3 [&_pre]:font-mono [&_pre]:text-sm"
-            />
+            <Suspense :key="activeFilePath">
+              <Comark
+                :markdown="activeFile?.content || ''"
+                :components="comarkComponents"
+              />
+              <template #fallback>
+                <div class="flex h-full min-h-40 items-center justify-center text-dimmed">
+                  <p class="font-mono text-xs">
+                    Rendering markdown...
+                  </p>
+                </div>
+              </template>
+            </Suspense>
           </div>
           <pre
             v-else-if="activeFile"
@@ -292,6 +257,7 @@ onUnmounted(() => clearInterval(interval))
           :key="`desktop:${treeKey}`"
           v-model="selected"
           :items="fileTree"
+          :get-key="getTreeItemKey"
           color="primary"
           size="xs"
           trailing-icon="i-lucide-chevron-right"
@@ -335,26 +301,23 @@ onUnmounted(() => clearInterval(interval))
       </div>
       <div class="min-h-0 flex-1 overflow-auto p-4">
         <div
-          v-if="renderMarkdownPending"
-          class="flex h-full min-h-40 items-center justify-center text-dimmed"
+          v-if="shouldRenderMarkdown"
+          :class="renderedMarkdownClass"
+          @click="handleMarkdownClick"
         >
-          <p class="font-mono text-xs">
-            Rendering markdown...
-          </p>
-        </div>
-        <div
-          v-else-if="renderMarkdownError"
-          class="rounded-lg border border-error/30 bg-error/5 p-3 font-mono text-xs text-error"
-        >
-          {{ renderMarkdownError }}
-        </div>
-        <div v-else-if="renderedMarkdown" @click="handleMarkdownClick">
-          <MDCRenderer
-            tag="article"
-            :body="renderedMarkdown.body"
-            :data="renderedMarkdown.data"
-            class="text-base leading-7 text-default [&_a]:cursor-pointer [&_a]:text-primary [&_a]:underline [&_code]:rounded-sm [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.85em] [&_h1]:mb-4 [&_h1]:font-mono [&_h1]:text-2xl [&_h1]:font-semibold [&_h2]:mb-3 [&_h2]:mt-6 [&_h2]:font-mono [&_h2]:text-xl [&_h2]:font-semibold [&_h3]:mb-2 [&_h3]:mt-5 [&_h3]:font-mono [&_h3]:text-lg [&_h3]:font-semibold [&_li]:ml-5 [&_li]:list-disc [&_p]:my-3 [&_pre]:my-4 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:border [&_pre]:border-default [&_pre]:bg-muted [&_pre]:p-3 [&_pre]:font-mono [&_pre]:text-sm"
-          />
+          <Suspense :key="activeFilePath">
+            <Comark
+              :markdown="activeFile?.content || ''"
+              :components="comarkComponents"
+            />
+            <template #fallback>
+              <div class="flex h-full min-h-40 items-center justify-center text-dimmed">
+                <p class="font-mono text-xs">
+                  Rendering markdown...
+                </p>
+              </div>
+            </template>
+          </Suspense>
         </div>
         <pre
           v-else-if="activeFile"

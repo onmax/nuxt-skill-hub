@@ -55,12 +55,8 @@ const stages: PipelineStage[] = [
         </div>
 
         <div class="space-y-1">
-          <motion.div
+          <div
             v-for="(stage, si) in stages" :key="stage.label"
-            :initial="{ opacity: 0, y: 16 }"
-            :whileInView="{ opacity: 1, y: 0 }"
-            :viewport="{ once: true, amount: 0.3 }"
-            :transition="{ duration: 0.35, delay: si * 0.1 }"
             class="overflow-hidden rounded-xl border border-default"
           >
             <!-- Stage header -->
@@ -87,7 +83,7 @@ const stages: PipelineStage[] = [
                 </div>
               </div>
             </div>
-          </motion.div>
+          </div>
         </div>
 
       </motion.div>

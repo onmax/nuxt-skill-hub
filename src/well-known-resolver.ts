@@ -183,6 +183,7 @@ function docsBaseCandidates(packageInfo: InstalledPackageInfo): string[] {
   const override = findPackageOverride(packageInfo.packageName)
   const candidates = [
     ...(override?.docsUrls || []),
+    ...(packageInfo.docsUrls || []),
     packageInfo.homepage || '',
   ]
 

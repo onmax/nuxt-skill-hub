@@ -120,21 +120,12 @@ onUnmounted(() => {
         </button>
       </div>
 
-      <div
-        class="relative h-10 shrink-0"
-        :class="activeCommandTab === 'humans' ? 'w-[13rem]' : 'w-0'"
-        role="radiogroup"
-        aria-label="Package manager"
-        :aria-hidden="activeCommandTab !== 'humans'"
-      >
+      <Transition name="manager-panel">
         <div
-          class="absolute top-0 right-0 flex items-center gap-1 rounded-lg border border-default bg-muted p-1 text-sm transition-[opacity,transform,filter] duration-[260ms] ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none"
-          :class="
-            activeCommandTab === 'humans'
-              ? 'translate-y-0 opacity-100'
-              : 'pointer-events-none translate-y-2 opacity-0 blur-[1px]'
-          "
-          :aria-hidden="activeCommandTab !== 'humans'"
+          v-if="activeCommandTab === 'humans'"
+          class="flex shrink-0 items-center gap-1 rounded-lg border border-default bg-muted p-1 text-sm"
+          role="radiogroup"
+          aria-label="Package manager"
         >
           <button
             v-for="manager in packageManagers"
@@ -169,7 +160,7 @@ onUnmounted(() => {
             </span>
           </button>
         </div>
-      </div>
+      </Transition>
     </div>
 
     <UButton
@@ -246,11 +237,29 @@ onUnmounted(() => {
   transform: scale(0.5);
 }
 
+.manager-panel-enter-active,
+.manager-panel-leave-active {
+  transform-origin: left center;
+  transition:
+    opacity 180ms cubic-bezier(0.23, 1, 0.32, 1),
+    filter 180ms cubic-bezier(0.23, 1, 0.32, 1),
+    transform 180ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.manager-panel-enter-from,
+.manager-panel-leave-to {
+  opacity: 0;
+  filter: blur(1px);
+  transform: translateY(1px) scale(0.98);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .command-swap-enter-active,
   .command-swap-leave-active,
   .copy-icon-enter-active,
-  .copy-icon-leave-active {
+  .copy-icon-leave-active,
+  .manager-panel-enter-active,
+  .manager-panel-leave-active {
     transition-duration: 0ms;
   }
 }

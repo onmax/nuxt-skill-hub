@@ -297,7 +297,7 @@ function moduleLinkLabel(mod: ModuleNode) {
             :transition="{ duration: 0.45 }"
             class="inline-flex max-w-full items-center gap-2 rounded-full border border-primary/25 bg-default px-4 py-3 shadow-[0_0_30px_color-mix(in_srgb,var(--ui-primary)_12%,transparent)]"
           >
-            <span class="font-mono text-sm font-semibold tracking-tight text-highlighted">SKILLS.md</span>
+            <span class="font-mono text-sm font-semibold tracking-tight text-highlighted">SKILL.md</span>
             <div class="flex items-center">
               <div
                 v-for="mod in modulePool.slice(0, 4)"
@@ -427,7 +427,7 @@ function moduleLinkLabel(mod: ModuleNode) {
               <span class="ml-0.5 animate-pulse font-mono text-sm text-primary">▌</span>
             </motion.span>
 
-            <!-- Revealed: SKILLS.md + icon stack -->
+            <!-- Revealed: SKILL.md + icon stack -->
             <motion.span
               v-else
               key="center-skills"
@@ -436,7 +436,7 @@ function moduleLinkLabel(mod: ModuleNode) {
               :transition="{ duration: 0.25 }"
               class="flex items-center gap-2"
             >
-              <span class="font-mono text-sm font-semibold tracking-tight text-highlighted">SKILLS.md</span>
+              <span class="font-mono text-sm font-semibold tracking-tight text-highlighted">SKILL.md</span>
               <TransitionGroup
                 enter-active-class="transition-all duration-300 ease-out"
                 enter-from-class="opacity-0 scale-0 !-ml-6"
@@ -475,40 +475,37 @@ function moduleLinkLabel(mod: ModuleNode) {
           class="group block focus:outline-none"
         >
           <motion.div
-            layout
             :initial="{ opacity: 0, scale: 0.95 }"
             :animate="{ opacity: 1, scale: 1 }"
-            :transition="{ type: 'spring', stiffness: 350, damping: 22, layout: { type: 'spring', stiffness: 300, damping: 25 } }"
-            class="flex h-8 items-center rounded-full border bg-muted transition-colors group-hover:border-primary/25 group-hover:bg-default group-focus-visible:border-primary/25 group-focus-visible:bg-default"
+            :transition="{ type: 'spring', stiffness: 350, damping: 24 }"
+            class="flex h-8 w-[16.5rem] max-w-[16.5rem] items-center overflow-hidden rounded-full border bg-muted transition-colors group-hover:border-primary/25 group-hover:bg-default group-focus-visible:border-primary/25 group-focus-visible:bg-default"
             :class="s.phase === 'connected' && !s.color ? 'border-accented' : 'border-default'"
             :style="s.phase === 'connected' && s.color ? { borderColor: s.color + '60' } : {}"
           >
-            <AnimatePresence mode="popLayout">
+            <Transition
+              name="module-chip"
+              mode="out-in"
+            >
               <!-- Command text -->
-              <motion.span
+              <span
                 v-if="s.phase === 'pill-appear' || s.phase === 'typing'"
                 key="cmd"
-                :exit="{ opacity: 0 }"
-                :transition="{ duration: 0.15 }"
-                class="flex items-center px-3"
+                class="flex min-w-0 items-center px-3"
               >
-                <span class="font-mono text-xs text-dimmed whitespace-nowrap">{{ s.typedText }}</span>
+                <span class="block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-xs text-dimmed">{{ s.typedText }}</span>
                 <span v-if="s.phase === 'typing'" class="ml-0.5 animate-pulse font-mono text-xs text-primary">▌</span>
-              </motion.span>
+              </span>
 
               <!-- Module icon + label -->
-              <motion.span
+              <span
                 v-else
                 key="mod"
-                :initial="{ opacity: 0 }"
-                :animate="{ opacity: 1 }"
-                :transition="{ duration: 0.25 }"
-                class="flex items-center gap-1.5 px-3"
+                class="flex min-w-0 items-center gap-1.5 px-3"
               >
                 <img :src="s.mod.iconUrl" :alt="s.mod.label" class="size-3.5 shrink-0 rounded-full">
-                <span class="font-mono text-xs font-medium text-highlighted whitespace-nowrap">{{ s.mod.label }}</span>
-              </motion.span>
-            </AnimatePresence>
+                <span class="module-pill-label block min-w-0 flex-1 font-mono text-xs font-medium text-highlighted">{{ s.mod.label }}</span>
+              </span>
+            </Transition>
           </motion.div>
         </a>
       </div>
@@ -516,3 +513,40 @@ function moduleLinkLabel(mod: ModuleNode) {
     </div>
   </div>
 </template>
+
+<style scoped>
+.module-chip-enter-active,
+.module-chip-leave-active {
+  transition:
+    opacity 160ms cubic-bezier(0.23, 1, 0.32, 1),
+    filter 160ms cubic-bezier(0.23, 1, 0.32, 1),
+    transform 160ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.module-chip-enter-from {
+  opacity: 0;
+  filter: blur(1px);
+  transform: translateY(2px);
+}
+
+.module-chip-leave-to {
+  opacity: 0;
+  filter: blur(1px);
+  transform: translateY(-2px);
+}
+
+.module-pill-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .module-chip-enter-active,
+  .module-chip-leave-active {
+    transition-duration: 0ms;
+  }
+}
+</style>

@@ -1,4 +1,5 @@
 import { getSkillFolders, resolveSkillFolder } from '../utils/skill-discovery'
+import { readModuleSkillPreviewFile, resolveModuleSkillPreview, resolvePackageInfo } from '../utils/module-skill-resolver'
 
 const REPO = 'onmax/nuxt-skills'
 const BRANCH = 'main'
@@ -54,7 +55,45 @@ async function fetchModuleSkillFile(skillName: string, filePath: string): Promis
 export default defineEventHandler(async (event) => {
   const query = getQuery(event)
   const moduleId = query.module as string
+  const packageName = (query.packageName || query.package) as string | undefined
+  const docsUrl = query.docsUrl as string | undefined
+  const repoUrl = query.repoUrl as string | undefined
   const filePath = query.path as string | undefined
+
+  if (packageName) {
+    const pkg = await resolvePackageInfo(packageName, { docsUrl, repoUrl })
+    if (!pkg) {
+      return { files: {}, paths: [] }
+    }
+
+    if (filePath) {
+      const { preview, content } = await readModuleSkillPreviewFile(pkg, filePath)
+      return {
+        meta: preview?.meta,
+        path: filePath,
+        content,
+      }
+    }
+
+    const preview = await resolveModuleSkillPreview(pkg)
+    if (!preview) {
+      return { files: {}, paths: [] }
+    }
+
+    const files: Record<string, string> = {}
+    if (preview.paths.includes('SKILL.md')) {
+      const { content } = await readModuleSkillPreviewFile(pkg, 'SKILL.md')
+      if (content) {
+        files['SKILL.md'] = content
+      }
+    }
+
+    return {
+      meta: preview.meta,
+      files,
+      paths: preview.paths,
+    }
+  }
 
   if (!moduleId) {
     return { files: {}, paths: [] }

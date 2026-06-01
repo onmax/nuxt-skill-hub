@@ -14,6 +14,7 @@ export interface InstalledPackageInfo {
   description?: string
   repository?: string
   homepage?: string
+  docsUrls?: string[]
 }
 
 export interface RemoteResolveOptions {
@@ -95,7 +96,8 @@ function normalizeHttpUrl(url: string | undefined): string | undefined {
 function resolveDocsUrl(packageInfo: InstalledPackageInfo): string | undefined {
   const override = findPackageOverride(packageInfo.packageName)
   const overrideDocsUrl = override?.docsUrls?.map(normalizeHttpUrl).find(Boolean)
-  return overrideDocsUrl || normalizeHttpUrl(packageInfo.homepage)
+  const packageDocsUrl = packageInfo.docsUrls?.map(normalizeHttpUrl).find(Boolean)
+  return overrideDocsUrl || packageDocsUrl || normalizeHttpUrl(packageInfo.homepage)
 }
 
 function resolveRepositoryUrl(packageInfo: InstalledPackageInfo): { repoUrl?: string, sourceRepo?: string } {

@@ -1,13 +1,15 @@
 import { promises as fsp } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { join, relative } from 'pathe'
+import { readPackageJSON, resolvePackageJSON } from 'pkg-types'
 import { validateResolvedContributions } from '../../../src/internal'
-import { resolveRemoteContributionsForPackage, type InstalledPackageInfo } from '../../../src/remote-resolver'
+import { resolveRemoteContributionsForPackage, slugCandidates, type InstalledPackageInfo } from '../../../src/remote-resolver'
 import type { ResolvedContribution, SkillResolverKind, SkillSourceKind } from '../../../src/types'
 
 const CACHE_TTL = 1000 * 60 * 60
 const EXCLUDED_DIRS = new Set(['scripts', 'node_modules', '.git'])
 const projectRoot = fileURLToPath(new URL('../../../', import.meta.url))
+const docsRoot = join(projectRoot, 'docs')
 const cacheRoot = join(projectRoot, 'docs', '.nuxt', 'skill-hub-preview-cache')
 
 export interface ModuleSkillPreviewMeta {
@@ -16,6 +18,7 @@ export interface ModuleSkillPreviewMeta {
   skillName: string
   description?: string
   sourceKind: SkillSourceKind
+  sourceHrefBase?: string
   sourceRepo?: string
   sourceRef?: string
   sourcePath?: string
@@ -40,6 +43,88 @@ interface CachedPreview {
 }
 
 const cache = new Map<string, CachedPreview>()
+const packageMetadataCache = new Map<string, { data: PackageMetadata | null, at: number }>()
+
+interface PackageMetadataHints {
+  docsUrl?: string
+  repoUrl?: string
+}
+
+interface PackageMetadata {
+  name?: string
+  packageName?: string
+  version?: string
+  description?: string
+  repository?: unknown
+  homepage?: unknown
+  docs?: unknown
+  documentation?: unknown
+}
+
+function readString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function readUrlValues(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.flatMap(readUrlValues)
+  }
+
+  if (typeof value === 'string') {
+    return [value]
+  }
+
+  if (value && typeof value === 'object' && 'url' in value) {
+    const url = (value as { url?: unknown }).url
+    return typeof url === 'string' ? [url] : []
+  }
+
+  return []
+}
+
+function readRepositoryUrl(repository: unknown): string | undefined {
+  return readUrlValues(repository)[0]
+}
+
+function dedupe(values: Array<string | undefined>): string[] {
+  return [...new Set(values.filter((value): value is string => Boolean(value)))]
+}
+
+async function readInstalledPackageMetadata(packageName: string): Promise<PackageMetadata | null> {
+  for (const root of [docsRoot, projectRoot]) {
+    try {
+      const packageJsonPath = await resolvePackageJSON(packageName, { url: root })
+      return await readPackageJSON(packageJsonPath) as PackageMetadata
+    }
+    catch {
+      continue
+    }
+  }
+
+  return null
+}
+
+async function fetchRegistryPackageMetadata(packageName: string): Promise<PackageMetadata | null> {
+  try {
+    return await $fetch<PackageMetadata>(`https://registry.npmjs.org/${encodeURIComponent(packageName)}/latest`, {
+      timeout: 1500,
+    })
+  }
+  catch {
+    return null
+  }
+}
+
+async function readPackageMetadata(packageName: string): Promise<PackageMetadata | null> {
+  const cached = packageMetadataCache.get(packageName)
+  if (cached && Date.now() - cached.at < CACHE_TTL) {
+    return cached.data
+  }
+
+  const data = await readInstalledPackageMetadata(packageName) || await fetchRegistryPackageMetadata(packageName)
+  packageMetadataCache.set(packageName, { data, at: Date.now() })
+  return data
+}
 
 function createCacheKey(pkg: InstalledPackageInfo) {
   return JSON.stringify([
@@ -47,7 +132,45 @@ function createCacheKey(pkg: InstalledPackageInfo) {
     pkg.version || '',
     pkg.repository || '',
     pkg.homepage || '',
+    ...(pkg.docsUrls || []),
   ])
+}
+
+function toSourceHrefBase(contribution: ResolvedContribution): string | undefined {
+  if (contribution.sourceKind === 'github' && contribution.sourceRepo && contribution.sourceRef && contribution.sourcePath) {
+    return `https://github.com/${contribution.sourceRepo}/blob/${contribution.sourceRef}/${contribution.sourcePath}`
+  }
+
+  if (contribution.sourceKind === 'wellKnown' && contribution.resolver === 'wellKnownSkills' && contribution.docsUrl) {
+    return new URL(`/.well-known/skills/${contribution.skillName}`, contribution.docsUrl).toString().replace(/\/$/, '')
+  }
+}
+
+export async function resolvePackageInfo(
+  packageName: string,
+  hints: PackageMetadataHints = {},
+): Promise<InstalledPackageInfo | null> {
+  const metadata = await readPackageMetadata(packageName)
+  const docsUrls = dedupe([
+    ...readUrlValues(metadata?.docs),
+    ...readUrlValues(metadata?.documentation),
+    ...readUrlValues(metadata?.homepage),
+    hints.docsUrl,
+  ])
+  const repository = readRepositoryUrl(metadata?.repository) || hints.repoUrl
+
+  if (!metadata && !repository && !docsUrls.length) {
+    return null
+  }
+
+  return {
+    packageName: readString(metadata?.packageName) || readString(metadata?.name) || packageName,
+    version: readString(metadata?.version),
+    description: readString(metadata?.description),
+    repository,
+    homepage: docsUrls[0],
+    docsUrls,
+  }
 }
 
 async function collectSkillFiles(
@@ -96,6 +219,7 @@ function toPreviewMeta(contribution: ResolvedContribution, scriptsIncluded: bool
     skillName: contribution.skillName,
     description: contribution.description,
     sourceKind: contribution.sourceKind,
+    sourceHrefBase: toSourceHrefBase(contribution),
     sourceRepo: contribution.sourceRepo,
     sourceRef: contribution.sourceRef,
     sourcePath: contribution.sourcePath,
@@ -105,6 +229,11 @@ function toPreviewMeta(contribution: ResolvedContribution, scriptsIncluded: bool
     resolver: contribution.resolver,
     scriptsIncluded,
   }
+}
+
+function selectPreviewContribution(pkg: InstalledPackageInfo, contributions: ResolvedContribution[]): ResolvedContribution | undefined {
+  const candidates = new Set(slugCandidates(pkg.packageName))
+  return contributions.find(contribution => candidates.has(contribution.skillName)) || contributions[0]
 }
 
 export async function resolveModuleSkillPreview(pkg: InstalledPackageInfo): Promise<ModuleSkillPreview | null> {
@@ -120,7 +249,7 @@ export async function resolveModuleSkillPreview(pkg: InstalledPackageInfo): Prom
     enableGithubLookup: true,
   })
   const validated = await validateResolvedContributions(resolved.contributions)
-  const contribution = validated.contributions[0]
+  const contribution = selectPreviewContribution(pkg, validated.contributions)
 
   if (!contribution) {
     cache.set(cacheKey, { preview: null, at: Date.now() })
