@@ -20,13 +20,32 @@ function isCancelled(value: unknown): boolean {
   return value === null || typeof value === 'symbol'
 }
 
+function normalizeTargetSelection(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  return value
+    .map((entry) => {
+      if (typeof entry === 'string') return entry
+      if (entry && typeof entry === 'object' && typeof (entry as { value?: unknown }).value === 'string') {
+        return (entry as { value: string }).value
+      }
+      return ''
+    })
+    .filter(Boolean)
+}
+
 export interface AIGuidance {
   intro: string
   snippet: string
+  hintFile: string
+  hint: string
+  nextStep: string
   optionalFlags: string
 }
 
-export function buildAIGuidance(currentTarget?: string, detectedAgent?: string): AIGuidance {
+export function buildAIGuidance(currentTarget?: string, detectedAgent?: string, skillName = 'nuxt'): AIGuidance {
   const agentTargetMap: Record<string, string> = {
     codex: 'codex',
     claude: 'claude-code',
@@ -35,6 +54,8 @@ export function buildAIGuidance(currentTarget?: string, detectedAgent?: string):
   }
   const target = currentTarget || (detectedAgent ? agentTargetMap[detectedAgent] : undefined)
   const sourceLabel = detectedAgent ? ` (${detectedAgent})` : ''
+  const hintFile = target === 'claude-code' ? 'CLAUDE.md' : 'AGENTS.md'
+  const hint = `${MANAGED_HINT_START}\nUse the \`${skillName}\` skill as the Nuxt router/entrypoint for tasks in this repository.\n${MANAGED_HINT_END}`
   const snippetLines = [
     'export default defineNuxtConfig({',
     '  skillHub: {',
@@ -47,6 +68,9 @@ export function buildAIGuidance(currentTarget?: string, detectedAgent?: string):
   return {
     intro: `Install wizard skipped because nuxt-skill-hub was installed by an AI agent${sourceLabel}. Add this to your nuxt.config.ts:`,
     snippet: snippetLines.join('\n'),
+    hintFile,
+    hint,
+    nextStep: `Add the managed hint to ${hintFile}, then run \`npx nuxi prepare\` to generate the Nuxt skill tree.`,
     optionalFlags: target
       ? 'Optional flags: set `skillHub.skillName`, enable `skillHub.moduleAuthoring`, or switch to `skillHub.generationMode: \'manual\'` if needed.'
       : 'Optional flags: add `skillHub.targets` to pin an agent target, set `skillHub.skillName`, enable `skillHub.moduleAuthoring`, or switch to `skillHub.generationMode: \'manual\'` if needed.',
@@ -57,9 +81,11 @@ export async function runInstallWizard(nuxt: Nuxt): Promise<void> {
   const logger = useLogger('nuxt-skill-hub')
 
   if (isAgent) {
-    const guidance = buildAIGuidance(detectCurrentTarget(), agent)
+    const guidance = buildAIGuidance(detectCurrentTarget(), agent, await deriveSkillName(nuxt.options.rootDir))
     logger.info(guidance.intro)
     logger.info(`\`\`\`ts\n${guidance.snippet}\n\`\`\``)
+    logger.info(`Add this to ${guidance.hintFile}:\n\`\`\`md\n${guidance.hint}\n\`\`\``)
+    logger.info(guidance.nextStep)
     logger.info(guidance.optionalFlags)
     return
   }
@@ -102,6 +128,23 @@ export async function runInstallWizard(nuxt: Nuxt): Promise<void> {
     consola.info(`Detected agents: ${detectedTargets.length ? detectedTargets.join(', ') : 'none'}`)
     selectedTargets = detectedTargets
 
+    if (!selectedTargets.length) {
+      const chosen = await consola.prompt('Select agents to generate skills for:', {
+        type: 'multiselect',
+        options: allTargets.map(t => ({ label: t, value: t })),
+        initial: allTargets.includes('codex') ? ['codex'] : allTargets.slice(0, 1),
+        required: true,
+        cancel: 'null',
+      })
+
+      if (isCancelled(chosen)) {
+        consola.info('Setup cancelled.')
+        return
+      }
+
+      selectedTargets = normalizeTargetSelection(chosen)
+    }
+
     if (detectedTargets.length > 1) {
       const keepAll = await consola.prompt('Generate skills for all detected agents?', {
         type: 'confirm',
@@ -128,7 +171,7 @@ export async function runInstallWizard(nuxt: Nuxt): Promise<void> {
           return
         }
 
-        selectedTargets = (chosen as unknown as Array<{ label: string, value: string }>).map(c => c.value)
+        selectedTargets = normalizeTargetSelection(chosen)
       }
     }
   }

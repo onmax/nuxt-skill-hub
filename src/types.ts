@@ -5,9 +5,101 @@ export type { SkillSourceKind, SkillResolverKind, SkillTrustLevel }
 
 export type SkillHubGenerationMode = 'prepare' | 'manual'
 export const DEFAULT_SKILL_HUB_GENERATION_MODE: SkillHubGenerationMode = 'prepare'
+export const DEFAULT_REMOTE_TIMEOUT_MS = 1500
+export const DEFAULT_REMOTE_CACHE_TTL_MS = 1000 * 60 * 60 * 24
+export const DEFAULT_REMOTE_CONCURRENCY = 8
+export const DEFAULT_WELL_KNOWN_MAX_FILES = 40
+export const DEFAULT_WELL_KNOWN_MAX_BYTES = 512 * 1024
+export const DEFAULT_WELL_KNOWN_MAX_FILE_BYTES = 128 * 1024
 
 export function normalizeGenerationMode(value: string | undefined | null): SkillHubGenerationMode {
   return value === 'manual' ? 'manual' : DEFAULT_SKILL_HUB_GENERATION_MODE
+}
+
+export interface SkillHubRemoteOptions {
+  enabled?: boolean
+  timeoutMs?: number
+  concurrency?: number
+  refresh?: boolean
+  cacheTtlMs?: number
+  githubHeuristics?: boolean
+  timings?: boolean
+  maxFiles?: number
+  maxBytes?: number
+  maxFileBytes?: number
+}
+
+export interface NormalizedSkillHubRemoteOptions {
+  enabled: boolean
+  timeoutMs: number
+  concurrency: number
+  refresh: boolean
+  cacheTtlMs: number
+  githubHeuristics: boolean
+  timings: boolean
+  maxFiles: number
+  maxBytes: number
+  maxFileBytes: number
+}
+
+function positiveNumber(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : fallback
+}
+
+function nonNegativeNumber(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : fallback
+}
+
+function positiveInteger(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0
+    ? Math.floor(value)
+    : fallback
+}
+
+export function normalizeRemoteOptions(value: boolean | SkillHubRemoteOptions | undefined): NormalizedSkillHubRemoteOptions {
+  const options = typeof value === 'object' && value ? value : {}
+  const enabled = typeof value === 'boolean' ? value : options.enabled !== false
+
+  return {
+    enabled,
+    timeoutMs: positiveNumber(options.timeoutMs, DEFAULT_REMOTE_TIMEOUT_MS),
+    concurrency: positiveInteger(options.concurrency, DEFAULT_REMOTE_CONCURRENCY),
+    refresh: options.refresh === true,
+    cacheTtlMs: nonNegativeNumber(options.cacheTtlMs, DEFAULT_REMOTE_CACHE_TTL_MS),
+    githubHeuristics: options.githubHeuristics === true,
+    timings: options.timings === true,
+    maxFiles: positiveNumber(options.maxFiles, DEFAULT_WELL_KNOWN_MAX_FILES),
+    maxBytes: positiveNumber(options.maxBytes, DEFAULT_WELL_KNOWN_MAX_BYTES),
+    maxFileBytes: positiveNumber(options.maxFileBytes, DEFAULT_WELL_KNOWN_MAX_FILE_BYTES),
+  }
+}
+
+export interface SkillHubResolveStartContext {
+  skillName: string
+  packageCount: number
+  concurrency: number
+  remoteEnabled: boolean
+  githubHeuristics: boolean
+}
+
+export interface SkillHubResolvePackageContext {
+  skillName: string
+  packageName: string
+  packageIndex: number
+  packageCount: number
+  durationMs: number
+  resolver?: SkillResolverKind
+  sourceKind?: SkillSourceKind
+  contributionCount: number
+  skippedCount: number
+}
+
+export interface SkillHubResolveDoneContext extends SkillHubResolveStartContext {
+  durationMs: number
+  contributionCount: number
+  skippedCount: number
+  issueCount: number
+  resolverCounts: Partial<Record<SkillResolverKind, number>>
 }
 
 export interface ModuleOptions {
@@ -15,6 +107,7 @@ export interface ModuleOptions {
   targets?: SkillHubTarget[]
   moduleAuthoring?: boolean
   generationMode?: SkillHubGenerationMode
+  remote?: boolean | SkillHubRemoteOptions
   /**
    * Auto-register ESLint rule to remove redundant imports when @nuxt/eslint is installed.
    * @default true

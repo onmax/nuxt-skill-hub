@@ -11,5 +11,6 @@ export default defineNuxtConfig({
   ],
   skillHub: {
     targets: ['claude-code'],
+    remote: false,
   },
 } as any)

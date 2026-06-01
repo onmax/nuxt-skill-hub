@@ -365,7 +365,7 @@ export function resolveMetadataRouterSkillName(packageName: string): string {
 export function createMetadataRouterSkillFiles(input: MetadataRouterSkillInput): Record<string, string> {
   const description = input.description?.trim()
     || `Metadata-routed module skill for ${input.packageName}. Use it to reach the official docs and upstream source.`
-  const linkLines = createCompactMetadataRouterContent(input).trim()
+  const body = createMetadataRouterContent(input).trim()
 
   return {
     'SKILL.md': `---
@@ -373,7 +373,7 @@ name: ${yamlString(input.skillName)}
 description: ${yamlString(description)}
 ---
 
-${linkLines || 'Docs: unavailable\nSource code: unavailable'}
+${body}
 `,
   }
 }
@@ -441,6 +441,52 @@ function renderSkippedEntries(skipped: SkillSkippedRenderEntry[]): string {
   })
 
   return `### Skipped or unavailable\n${lines.join('\n')}\n`
+}
+
+function renderModuleSummary(entries: SkillModuleRenderEntry[], skipped: SkillSkippedRenderEntry[]): string {
+  if (!hasModuleGuidance(entries, skipped)) {
+    return ''
+  }
+
+  const grouped = groupModuleEntries(entries)
+  const counts: Array<[string, number]> = [
+    ['installed', grouped.officialUpstream.length],
+    ['resolved', grouped.githubResolved.length],
+    ['docs-discovered', grouped.wellKnownResolved.length],
+    ['metadata-routed', grouped.metadataRouted.length],
+    ['skipped', skipped.length],
+  ]
+  const coverage = counts
+    .filter(([, count]) => count > 0)
+    .map(([label, count]) => `${count} ${label}`)
+    .join(', ')
+
+  return `## Module guides
+Module guidance exists for installed packages. Keep it scoped to module-owned APIs, config, runtime behavior, plugins, composables, components, hooks, and owned files.
+
+- Inventory: [Module guide index](./references/modules/index.md)
+- Coverage: ${coverage || 'none'}`
+}
+
+export function createModuleIndex(entries: SkillModuleRenderEntry[], skipped: SkillSkippedRenderEntry[] = []): string {
+  if (!hasModuleGuidance(entries, skipped)) {
+    return ''
+  }
+
+  const grouped = groupModuleEntries(entries)
+  const moduleSections = [
+    renderModuleGroup('Official upstream skills', grouped.officialUpstream, './'),
+    renderModuleGroup('Resolved module skills', grouped.githubResolved, './'),
+    renderModuleGroup('Docs-discovered skills', grouped.wellKnownResolved, './'),
+    renderModuleGroup('Metadata-routed skills', grouped.metadataRouted, './'),
+    renderSkippedEntries(skipped),
+  ].filter(Boolean)
+
+  return `# Module Guide Index
+
+Use a module entry only when an installed module owns the surface. Module guidance is delta-only and should not replace broad Nuxt rules outside that module.
+
+${moduleSections.join('\n')}`
 }
 
 function findPack(metadata: NuxtContentMetadata, id: string): NuxtPackMetadata {
@@ -542,28 +588,12 @@ function createSkillMapSections(
   skipped: SkillSkippedRenderEntry[] = [],
   includeModuleAuthoring = false,
 ): string {
-  const includeModuleSections = hasModuleGuidance(entries, skipped)
-  const grouped = groupModuleEntries(entries)
-  const moduleSections = [
-    renderModuleGroup('Official upstream skills', grouped.officialUpstream, './references/modules/'),
-    renderModuleGroup('Resolved module skills', grouped.githubResolved, './references/modules/'),
-    renderModuleGroup('Docs-discovered skills', grouped.wellKnownResolved, './references/modules/'),
-    renderModuleGroup('Metadata-routed skills', grouped.metadataRouted, './references/modules/'),
-    renderSkippedEntries(skipped),
-  ].filter(Boolean)
-  const moduleGuidesSection = includeModuleSections
-    ? `## Module guides
-Use a module entry only when an installed module owns the surface. Module guidance is delta-only and should not replace broad Nuxt rules outside that module.
-
-${moduleSections.join('\n')}`
-    : ''
-
   return [
     '## Routing',
     'Load one matching guide first. Open more guides only when the first guide points you there or the task clearly crosses boundaries.',
     createRoutingTable(metadata, includeModuleAuthoring),
     createRoutingExamples(metadata, includeModuleAuthoring),
-    moduleGuidesSection,
+    renderModuleSummary(entries, skipped),
   ].filter(Boolean).join('\n\n')
 }
 
@@ -681,9 +711,28 @@ function createCompactMetadataRouterContent(entry: Pick<MetadataRouterSkillInput
   })}\n`
 }
 
+function createMetadataRouterContent(entry: MetadataRouterSkillInput): string {
+  const links = createCompactMetadataRouterContent(entry).trim()
+  const sourceSection = links || 'Docs: unavailable\n\nSource code: unavailable'
+
+  return `# ${entry.packageName} Module Router
+
+Use this module router only when the task directly involves \`${entry.packageName}\` APIs, config, runtime behavior, plugins, composables, components, hooks, or owned files.
+
+## Source of truth
+${sourceSection}
+
+## Context rules
+1. Start with the relevant route in the parent Nuxt skill before using this module router.
+2. Use the docs link for exact APIs, options, and examples instead of guessing from generic Nuxt or Vue patterns.
+3. Use the source link when behavior is version-sensitive or the docs are ambiguous.
+4. Keep this module guidance scoped to \`${entry.packageName}\`; do not replace broader Nuxt rules outside module-owned surfaces.
+`
+}
+
 export function createModuleWrapperContent(entry: SkillModuleRenderEntry): string {
   if (entry.sourceKind === 'generated') {
-    return createCompactMetadataRouterContent(entry)
+    return createMetadataRouterContent(entry)
   }
 
   const derivedEntry = withDerivedModuleFields(entry)

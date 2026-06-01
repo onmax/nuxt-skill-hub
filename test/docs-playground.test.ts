@@ -44,7 +44,7 @@ describe('docs playground metadata routing', () => {
     expect(entry).not.toContain('## Module authoring')
   })
 
-  it('keeps generated preview wrappers compact by default', () => {
+  it('renders generated preview wrappers as scoped metadata routers', () => {
     const entry = {
       packageName: '@nuxt/a11y',
       version: undefined,
@@ -60,12 +60,14 @@ describe('docs playground metadata routing', () => {
       resolver: 'metadataRouter' as const,
     }
 
-    expect(createModuleWrapperContent(entry).trim()).toBe(`Docs: [https://a11y.nuxt.com](https://a11y.nuxt.com)
-
-Source code: [https://github.com/nuxt/a11y](https://github.com/nuxt/a11y)`)
+    const content = createModuleWrapperContent(entry)
+    expect(content).toContain('# @nuxt/a11y Module Router')
+    expect(content).toContain('Docs: [https://a11y.nuxt.com](https://a11y.nuxt.com)')
+    expect(content).toContain('Source code: [https://github.com/nuxt/a11y](https://github.com/nuxt/a11y)')
+    expect(content).toContain('Keep this module guidance scoped to `@nuxt/a11y`')
   })
 
-  it('uses neutral labels for resolved preview skills and hides missing versions', () => {
+  it('keeps resolved preview module details out of the root skill', () => {
     const entry = createSkillEntrypoint('nuxt', DEFAULT_CORE_CONTENT_METADATA, undefined, false, [
       {
         packageName: '@nuxthub/core',
@@ -84,8 +86,11 @@ Source code: [https://github.com/nuxt/a11y](https://github.com/nuxt/a11y)`)
       },
     ])
 
-    expect(entry).toContain('### Resolved module skills')
-    expect(entry).toContain('Resolved module skill. Trust: `official`.')
+    expect(entry).toContain('## Module guides')
+    expect(entry).toContain('[Module guide index](./references/modules/index.md)')
+    expect(entry).toContain('1 resolved')
+    expect(entry).not.toContain('### Resolved module skills')
+    expect(entry).not.toContain('Resolved module skill. Trust: `official`.')
     expect(entry).not.toContain('GitHub-resolved')
     expect(entry).not.toContain('`unknown`')
   })

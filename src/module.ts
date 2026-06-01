@@ -6,7 +6,13 @@ import { PACKAGE_VERSION } from './package-info'
 import { runInstallWizard } from './install'
 import { DEFAULT_SKILL_HUB_GENERATION_MODE, normalizeGenerationMode } from './types'
 import { createAutoImportAddon } from './eslint/addon'
-import type { ModuleOptions, SkillHubContributionContext } from './types'
+import type {
+  ModuleOptions,
+  SkillHubContributionContext,
+  SkillHubResolveDoneContext,
+  SkillHubResolvePackageContext,
+  SkillHubResolveStartContext,
+} from './types'
 
 export default defineNuxtModule<ModuleOptions>({
   meta: {
@@ -118,5 +124,8 @@ export type { SkillHubTarget } from './agents'
 declare module '@nuxt/schema' {
   interface NuxtHooks {
     'skill-hub:contribute': (ctx: SkillHubContributionContext) => void | Promise<void>
+    'skill-hub:resolve:start': (ctx: SkillHubResolveStartContext) => void | Promise<void>
+    'skill-hub:resolve:package': (ctx: SkillHubResolvePackageContext) => void | Promise<void>
+    'skill-hub:resolve:done': (ctx: SkillHubResolveDoneContext) => void | Promise<void>
   }
 }

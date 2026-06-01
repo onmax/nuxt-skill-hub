@@ -3,7 +3,7 @@ import { promises as fsp } from 'node:fs'
 import { hash as ohash } from 'ohash'
 import { join, relative } from 'pathe'
 import { resolveLockfile } from 'pkg-types'
-import { normalizeGenerationMode } from '../types'
+import { normalizeGenerationMode, normalizeRemoteOptions } from '../types'
 import type { ModuleOptions } from '../types'
 import type { LocalSourceFingerprint } from './sources'
 
@@ -67,6 +67,7 @@ export async function createGenerationFingerprint(input: {
       targets: [...(input.options.targets || [])].sort(),
       moduleAuthoring: Boolean(input.options.moduleAuthoring),
       generationMode: normalizeGenerationMode(input.options.generationMode),
+      remote: normalizeRemoteOptions(input.options.remote),
     },
   })
 }

@@ -120,6 +120,8 @@ describe('install wizard', () => {
     expect(logged).toContain('installed by an AI agent (codex)')
     expect(logged).toContain('targets: [\'codex\']')
     expect(logged).toContain('generationMode: \'prepare\'')
+    expect(logged).toContain('Add this to AGENTS.md')
+    expect(logged).toContain('npx nuxi prepare')
   })
 
   it('prints claude guidance without prompting', async () => {
@@ -132,6 +134,7 @@ describe('install wizard', () => {
     const logged = mockLogger.info.mock.calls.map(call => call[0]).join('\n')
     expect(mockConsola.prompt).not.toHaveBeenCalled()
     expect(logged).toContain('targets: [\'claude-code\']')
+    expect(logged).toContain('Add this to CLAUDE.md')
     expect(logged).toContain('generationMode: \'prepare\'')
   })
 
@@ -151,6 +154,24 @@ describe('install wizard', () => {
 
   it('prefers detectCurrentTarget over std-env agent mapping', () => {
     expect(buildAIGuidance('codex', 'claude').snippet).toContain('targets: [\'codex\']')
+  })
+
+  it('asks humans to select from supported agents when none are detected', async () => {
+    setTTY(true)
+    vi.stubEnv('CI', '')
+    mockInstalledTargets = []
+    mockSupportedTargets = ['claude-code', 'codex']
+    mockConsola.prompt
+      .mockResolvedValueOnce(['codex'])
+      .mockResolvedValueOnce('skip')
+
+    await runInstallWizard(baseNuxt as never)
+
+    expect(mockConsola.prompt).toHaveBeenCalledWith('Select agents to generate skills for:', expect.objectContaining({
+      type: 'multiselect',
+      required: true,
+    }))
+    expect(mockConsola.prompt).toHaveBeenCalledTimes(2)
   })
 
   it('keeps the existing non-interactive skip for non-agent installs', async () => {
