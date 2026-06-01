@@ -66,6 +66,7 @@ describe('resolveRemoteContributionsForPackage', () => {
       cacheRoot,
       githubLookupTimeoutMs: 200,
       enableGithubLookup: true,
+      enableGithubHeuristics: true,
     })
 
     expect(result.contributions).toHaveLength(1)
@@ -395,6 +396,43 @@ describe('resolveRemoteContributionsForPackage', () => {
     expect(fetchUrlJsonMock).toHaveBeenCalledWith('https://docs.example.com/.well-known/skills/index.json', 200)
   })
 
+  it('can disable well-known probing while still generating metadata routers', async () => {
+    const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
+    const fetchUrlJsonMock = vi.fn(async () => ({ ok: false, status: 404 }))
+
+    vi.resetModules()
+    vi.doMock('../src/remote-fetch', () => ({
+      parseGitHubRepo: vi.fn(() => null),
+      fetchGitHubDefaultBranch: vi.fn(async () => 'main'),
+      fetchGitHubFileText: vi.fn(async () => ({ ok: false, status: 404 })),
+      listGitHubDirectory: vi.fn(async () => []),
+      fetchUrlJson: fetchUrlJsonMock,
+      fetchUrlBytes: vi.fn(async () => ({ ok: false, status: 404 })),
+    }))
+    vi.doMock('giget', () => ({
+      downloadTemplate: mockDownloadTemplate(async () => {
+        throw new Error('not found')
+      }),
+    }))
+
+    const { resolveRemoteContributionsForPackage } = await import('../src/remote-resolver')
+    const result = await resolveRemoteContributionsForPackage({
+      packageName: 'docs-sdk',
+      version: '1.0.0',
+      description: 'Docs SDK.',
+      homepage: 'https://docs.example.com/',
+    }, {
+      cacheRoot,
+      githubLookupTimeoutMs: 200,
+      enableGithubLookup: false,
+      enableWellKnownLookup: false,
+    })
+
+    expect(result.contributions).toHaveLength(1)
+    expect(result.contributions[0]?.sourceKind).toBe('generated')
+    expect(fetchUrlJsonMock).not.toHaveBeenCalled()
+  })
+
   it('skips schema-less well-known indexes instead of treating them as legacy discovery', async () => {
     const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
     const fetchUrlBytesMock = vi.fn(async () => ({ ok: true, data: Buffer.from(skillMarkdown('docs-sdk')) }))
@@ -513,6 +551,157 @@ describe('resolveRemoteContributionsForPackage', () => {
     expect(result.contributions[0]?.resolver).toBe('wellKnownSkills')
     await expect(fsp.readFile(join(result.contributions[0]!.sourceDir, 'SKILL.md'), 'utf8')).resolves.toBe(skill)
     await expect(fsp.readFile(join(result.contributions[0]!.sourceDir, 'references/api.md'), 'utf8')).resolves.toBe(apiRef)
+  })
+
+  it('skips Docus well-known indexes that exceed file limits', async () => {
+    const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
+
+    vi.resetModules()
+    vi.doMock('../src/remote-fetch', () => ({
+      parseGitHubRepo: vi.fn(() => null),
+      fetchGitHubDefaultBranch: vi.fn(async () => 'main'),
+      fetchGitHubFileText: vi.fn(async () => ({ ok: false, status: 404 })),
+      listGitHubDirectory: vi.fn(async () => []),
+      fetchUrlJson: vi.fn(async (url: string) => url === 'https://docs.example.com/.well-known/skills/index.json'
+        ? {
+            ok: true,
+            data: {
+              skills: [
+                {
+                  name: 'docs-sdk',
+                  description: 'Use the SDK docs.',
+                  files: ['SKILL.md', 'references/api.md'],
+                },
+              ],
+            },
+          }
+        : { ok: false, status: 404 }),
+      fetchUrlBytes: vi.fn(async () => ({ ok: true, data: Buffer.from(skillMarkdown('docs-sdk')) })),
+    }))
+    vi.doMock('giget', () => ({
+      downloadTemplate: mockDownloadTemplate(async () => {
+        throw new Error('not found')
+      }),
+    }))
+
+    const { resolveRemoteContributionsForPackage } = await import('../src/remote-resolver')
+    const result = await resolveRemoteContributionsForPackage({
+      packageName: 'docs-sdk',
+      version: '1.0.0',
+      description: 'Docs SDK.',
+      homepage: 'https://docs.example.com/',
+    }, {
+      cacheRoot,
+      githubLookupTimeoutMs: 200,
+      enableGithubLookup: true,
+      wellKnownLimits: {
+        maxFiles: 1,
+      },
+    })
+
+    expect(result.contributions).toHaveLength(1)
+    expect(result.contributions[0]?.sourceKind).toBe('generated')
+    expect(result.skipped.some(entry => entry.reason.includes('exceeding the limit of 1'))).toBe(true)
+  })
+
+  it('skips Docus well-known indexes that include non-context files', async () => {
+    const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
+
+    vi.resetModules()
+    vi.doMock('../src/remote-fetch', () => ({
+      parseGitHubRepo: vi.fn(() => null),
+      fetchGitHubDefaultBranch: vi.fn(async () => 'main'),
+      fetchGitHubFileText: vi.fn(async () => ({ ok: false, status: 404 })),
+      listGitHubDirectory: vi.fn(async () => []),
+      fetchUrlJson: vi.fn(async (url: string) => url === 'https://docs.example.com/.well-known/skills/index.json'
+        ? {
+            ok: true,
+            data: {
+              skills: [
+                {
+                  name: 'docs-sdk',
+                  description: 'Use the SDK docs.',
+                  files: ['SKILL.md', 'assets/logo.png'],
+                },
+              ],
+            },
+          }
+        : { ok: false, status: 404 }),
+      fetchUrlBytes: vi.fn(async () => ({ ok: true, data: Buffer.from(skillMarkdown('docs-sdk')) })),
+    }))
+    vi.doMock('giget', () => ({
+      downloadTemplate: mockDownloadTemplate(async () => {
+        throw new Error('not found')
+      }),
+    }))
+
+    const { resolveRemoteContributionsForPackage } = await import('../src/remote-resolver')
+    const result = await resolveRemoteContributionsForPackage({
+      packageName: 'docs-sdk',
+      version: '1.0.0',
+      description: 'Docs SDK.',
+      homepage: 'https://docs.example.com/',
+    }, {
+      cacheRoot,
+      githubLookupTimeoutMs: 200,
+      enableGithubLookup: true,
+    })
+
+    expect(result.contributions).toHaveLength(1)
+    expect(result.contributions[0]?.sourceKind).toBe('generated')
+    expect(result.skipped.some(entry => entry.reason.includes('only .md and .json files are supported'))).toBe(true)
+  })
+
+  it('skips Docus well-known files that exceed byte limits', async () => {
+    const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
+    const oversized = `${skillMarkdown('docs-sdk')}${'x'.repeat(32)}`
+
+    vi.resetModules()
+    vi.doMock('../src/remote-fetch', () => ({
+      parseGitHubRepo: vi.fn(() => null),
+      fetchGitHubDefaultBranch: vi.fn(async () => 'main'),
+      fetchGitHubFileText: vi.fn(async () => ({ ok: false, status: 404 })),
+      listGitHubDirectory: vi.fn(async () => []),
+      fetchUrlJson: vi.fn(async (url: string) => url === 'https://docs.example.com/.well-known/skills/index.json'
+        ? {
+            ok: true,
+            data: {
+              skills: [
+                {
+                  name: 'docs-sdk',
+                  description: 'Use the SDK docs.',
+                  files: ['SKILL.md'],
+                },
+              ],
+            },
+          }
+        : { ok: false, status: 404 }),
+      fetchUrlBytes: vi.fn(async () => ({ ok: true, data: Buffer.from(oversized) })),
+    }))
+    vi.doMock('giget', () => ({
+      downloadTemplate: mockDownloadTemplate(async () => {
+        throw new Error('not found')
+      }),
+    }))
+
+    const { resolveRemoteContributionsForPackage } = await import('../src/remote-resolver')
+    const result = await resolveRemoteContributionsForPackage({
+      packageName: 'docs-sdk',
+      version: '1.0.0',
+      description: 'Docs SDK.',
+      homepage: 'https://docs.example.com/',
+    }, {
+      cacheRoot,
+      githubLookupTimeoutMs: 200,
+      enableGithubLookup: true,
+      wellKnownLimits: {
+        maxFileBytes: 16,
+      },
+    })
+
+    expect(result.contributions).toHaveLength(1)
+    expect(result.contributions[0]?.sourceKind).toBe('generated')
+    expect(result.skipped.some(entry => entry.reason.includes('per-file limit of 16 bytes'))).toBe(true)
   })
 
   it('resolves well-known v2 skill-md entries and verifies digests', async () => {
@@ -763,6 +952,7 @@ describe('resolveRemoteContributionsForPackage', () => {
       cacheRoot,
       githubLookupTimeoutMs: 200,
       enableGithubLookup: true,
+      enableGithubHeuristics: true,
     })
 
     expect(result.contributions).toHaveLength(3)
@@ -910,11 +1100,13 @@ describe('resolveRemoteContributionsForPackage', () => {
       cacheRoot,
       githubLookupTimeoutMs: 200,
       enableGithubLookup: true,
+      enableGithubHeuristics: true,
     })
     const second = await resolveRemoteContributionsForPackage(packageInfo, {
       cacheRoot,
       githubLookupTimeoutMs: 200,
       enableGithubLookup: true,
+      enableGithubHeuristics: true,
     })
 
     expect(first.contributions).toHaveLength(1)

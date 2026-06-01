@@ -64,6 +64,7 @@ export interface InstalledPackageMetadata {
   packageRoot: string
   repository?: string
   homepage?: string
+  docsUrls?: string[]
   packageData: unknown
 }
 
@@ -299,6 +300,27 @@ function readRepositoryUrl(repository: string | { url?: string } | undefined): s
   return undefined
 }
 
+function readUrlValues(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.flatMap(readUrlValues)
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    return [value.trim()]
+  }
+
+  if (value && typeof value === 'object' && 'url' in value) {
+    const url = (value as { url?: unknown }).url
+    return typeof url === 'string' && url.trim() ? [url.trim()] : []
+  }
+
+  return []
+}
+
+function dedupe(values: Array<string | undefined>): string[] {
+  return [...new Set(values.filter((value): value is string => Boolean(value)))]
+}
+
 async function discoverInstalledPackageFromSpecifier(specifier: string, rootDir: string): Promise<InstalledPackageMetadata | null> {
   if (!isPackageSpecifier(specifier)) {
     return null
@@ -353,6 +375,12 @@ export async function collectInstalledModulePackages(
 
 async function readInstalledPackageMetadata(packageJsonPath: string, fallbackSpecifier?: string): Promise<InstalledPackageMetadata> {
   const pkg = await readPackageJSON(packageJsonPath)
+  const docsUrls = dedupe([
+    ...readUrlValues((pkg as { docs?: unknown }).docs),
+    ...readUrlValues((pkg as { documentation?: unknown }).documentation),
+    ...readUrlValues(pkg.homepage),
+  ])
+
   return {
     packageName: pkg.name || (fallbackSpecifier ? packageNameFromSpecifier(fallbackSpecifier) : basename(dirname(packageJsonPath))),
     version: pkg.version,
@@ -360,6 +388,7 @@ async function readInstalledPackageMetadata(packageJsonPath: string, fallbackSpe
     packageRoot: dirname(packageJsonPath),
     repository: readRepositoryUrl(pkg.repository as string | { url?: string } | undefined),
     homepage: pkg.homepage,
+    docsUrls,
     packageData: pkg,
   }
 }

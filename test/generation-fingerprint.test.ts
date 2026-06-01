@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { createGenerationFingerprint, resolveLockfileInfo } from '../src/generation/fingerprint'
+import { getGenerationStatePath, isGeneratedSkillFreshWithOptions } from '../src/generation/state'
 
 describe('resolveLockfileInfo', () => {
   it('returns null when no supported lockfile exists', async () => {
@@ -143,5 +144,59 @@ describe('createGenerationFingerprint', () => {
     })
 
     expect(withoutScripts).not.toBe(withScripts)
+  })
+
+  it('changes when remote generation controls change', async () => {
+    const root = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-fingerprint-remote-'))
+    await fsp.writeFile(join(root, 'package.json'), JSON.stringify({
+      name: 'fingerprint-remote-fixture',
+      private: true,
+    }, null, 2), 'utf8')
+
+    const common = {
+      packageVersion: '0.0.4',
+      rootDir: root,
+      buildDir: join(root, '.nuxt'),
+      exportRoot: root,
+      skillName: 'nuxt-fingerprint-remote',
+      installedPackages: [],
+      localSources: [],
+    }
+
+    const enabled = await createGenerationFingerprint({
+      ...common,
+      options: {
+        targets: ['codex'],
+        generationMode: 'prepare' as const,
+        remote: { enabled: true },
+      },
+    })
+
+    const disabled = await createGenerationFingerprint({
+      ...common,
+      options: {
+        targets: ['codex'],
+        generationMode: 'prepare' as const,
+        remote: false,
+      },
+    })
+
+    expect(enabled).not.toBe(disabled)
+  })
+})
+
+describe('isGeneratedSkillFreshWithOptions', () => {
+  it('honors refresh and cache TTL settings', async () => {
+    const root = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-state-'))
+    await fsp.writeFile(join(root, 'SKILL.md'), '# Skill\n', 'utf8')
+    await fsp.writeFile(getGenerationStatePath(root), JSON.stringify({
+      fingerprint: 'abc',
+      generatedAt: new Date(Date.now() - 10_000).toISOString(),
+      packageVersion: '0.0.4',
+    }, null, 2), 'utf8')
+
+    await expect(isGeneratedSkillFreshWithOptions(root, 'abc', { cacheTtlMs: 60_000 })).resolves.toBe(true)
+    await expect(isGeneratedSkillFreshWithOptions(root, 'abc', { cacheTtlMs: 1 })).resolves.toBe(false)
+    await expect(isGeneratedSkillFreshWithOptions(root, 'abc', { refresh: true, cacheTtlMs: 60_000 })).resolves.toBe(false)
   })
 })

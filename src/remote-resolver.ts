@@ -3,7 +3,7 @@ import { downloadTemplate } from 'giget'
 import { dirname, join } from 'pathe'
 import { findPackageOverride } from './package-overrides'
 import { fetchGitHubDefaultBranch, fetchGitHubFileText, listGitHubDirectory, parseGitHubRepo } from './remote-fetch'
-import { resolveViaWellKnown } from './well-known-resolver'
+import { resolveViaWellKnown, type WellKnownResolutionLimits } from './well-known-resolver'
 import { createMetadataRouterSkillFiles, resolveMetadataRouterSkillName } from './render-content'
 import type { ResolvedContribution, SkillManifestSkipped, SkillSourceKind, ValidationIssue } from './types'
 import { createValidationIssue, ensureDir, normalizeContribution, parseAgentSkillDeclarations, pathExists, sanitizeSegment } from './internal'
@@ -21,6 +21,9 @@ export interface RemoteResolveOptions {
   cacheRoot: string
   githubLookupTimeoutMs: number
   enableGithubLookup: boolean
+  enableGithubHeuristics?: boolean
+  enableWellKnownLookup?: boolean
+  wellKnownLimits?: Partial<WellKnownResolutionLimits>
 }
 
 export interface RemoteResolveResult {
@@ -500,19 +503,29 @@ export async function resolveRemoteContributionsForPackage(
   packageInfo: InstalledPackageInfo,
   options: RemoteResolveOptions,
 ): Promise<RemoteResolveResult> {
-  const githubAgentsResult = options.enableGithubLookup
-    ? await resolveViaGitHubAgents(packageInfo, options.cacheRoot, options.githubLookupTimeoutMs)
+  const githubAgentsPromise = options.enableGithubLookup
+    ? resolveViaGitHubAgents(packageInfo, options.cacheRoot, options.githubLookupTimeoutMs)
     : {
         contributions: [],
         issues: [],
         skipped: [],
       }
+  const wellKnownPromise = options.enableWellKnownLookup === false
+    ? {
+        contributions: [],
+        issues: [],
+        skipped: [],
+      }
+    : resolveViaWellKnown(packageInfo, options.cacheRoot, options.githubLookupTimeoutMs, options.wellKnownLimits)
+
+  const [githubAgentsResult, wellKnownResult] = await Promise.all([
+    githubAgentsPromise,
+    wellKnownPromise,
+  ])
 
   if (githubAgentsResult.contributions.length) {
     return githubAgentsResult
   }
-
-  const wellKnownResult = await resolveViaWellKnown(packageInfo, options.cacheRoot, options.githubLookupTimeoutMs)
 
   if (wellKnownResult.contributions.length) {
     return {
@@ -522,7 +535,7 @@ export async function resolveRemoteContributionsForPackage(
     }
   }
 
-  const githubHeuristicResult = options.enableGithubLookup
+  const githubHeuristicResult = options.enableGithubLookup && options.enableGithubHeuristics
     ? await resolveViaGitHubHeuristics(packageInfo, options.cacheRoot, options.githubLookupTimeoutMs)
     : {
         contributions: [],

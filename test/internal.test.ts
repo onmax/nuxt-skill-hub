@@ -38,6 +38,9 @@ describe('discoverInstalledPackageFromDirectory', () => {
     await fsp.writeFile(join(root, 'package.json'), JSON.stringify({
       name: 'docus',
       version: '5.8.0',
+      docs: 'https://docus.dev/docs',
+      documentation: { url: 'https://docus.dev/reference' },
+      homepage: 'https://docus.dev',
       repository: {
         type: 'git',
         url: 'git+https://github.com/nuxt-content/docus.git',
@@ -51,6 +54,8 @@ describe('discoverInstalledPackageFromDirectory', () => {
       version: '5.8.0',
       packageRoot: root,
       repository: 'git+https://github.com/nuxt-content/docus.git',
+      homepage: 'https://docus.dev',
+      docsUrls: ['https://docus.dev/docs', 'https://docus.dev/reference', 'https://docus.dev'],
     })
   })
 })

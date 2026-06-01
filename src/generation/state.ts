@@ -40,10 +40,40 @@ export async function writeGenerationState(generatedSkillRoot: string, fingerpri
 }
 
 export async function isGeneratedSkillFresh(generatedSkillRoot: string, fingerprint: string): Promise<boolean> {
+  return isGeneratedSkillFreshWithOptions(generatedSkillRoot, fingerprint)
+}
+
+export async function isGeneratedSkillFreshWithOptions(
+  generatedSkillRoot: string,
+  fingerprint: string,
+  options: {
+    refresh?: boolean
+    cacheTtlMs?: number
+  } = {},
+): Promise<boolean> {
+  if (options.refresh) {
+    return false
+  }
+
   const [state, entryExists] = await Promise.all([
     readGenerationState(generatedSkillRoot),
     pathExists(join(generatedSkillRoot, 'SKILL.md')),
   ])
 
-  return Boolean(entryExists && state?.fingerprint === fingerprint)
+  if (!entryExists || state?.fingerprint !== fingerprint) {
+    return false
+  }
+
+  if (typeof options.cacheTtlMs === 'number' && Number.isFinite(options.cacheTtlMs)) {
+    if (options.cacheTtlMs <= 0) {
+      return false
+    }
+
+    const generatedAt = Date.parse(state.generatedAt)
+    if (!Number.isFinite(generatedAt) || Date.now() - generatedAt > options.cacheTtlMs) {
+      return false
+    }
+  }
+
+  return true
 }

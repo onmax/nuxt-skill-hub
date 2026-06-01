@@ -13,6 +13,7 @@ const options: Option[] = [
   { name: 'targets', type: 'SkillHubTarget[]', default: '[]', description: 'Optional explicit agent targets. Leave empty to auto-detect installed agents.' },
   { name: 'moduleAuthoring', type: 'boolean', default: 'false', description: 'Adds module-author guidance on top of the default Nuxt app skill.' },
   { name: 'generationMode', type: '\'prepare\' | \'manual\'', default: 'prepare', description: 'Controls when the full generated skill tree is refreshed inside Nuxt buildDir.' },
+  { name: 'remote', type: 'boolean | object', default: 'enabled', description: 'Controls remote module skill lookup, concurrency, cache refresh, timing logs, timeout, and .well-known context budgets.' },
   { name: 'eslint', type: 'boolean', default: 'true', description: 'Auto-registers the redundant auto-import rule when @nuxt/eslint is installed. Set to false to opt out.' },
 ]
 
@@ -26,6 +27,13 @@ const configCode = `modules: ['nuxt-skill-hub'],
   skillHub: {
     targets: ['claude-code'],
     generationMode: 'prepare',
+    remote: {
+      refresh: false,
+      timeoutMs: 1500,
+      concurrency: 8,
+      githubHeuristics: false,
+      timings: false,
+    },
     eslint: false,
   }
 `
@@ -40,7 +48,7 @@ const { copy, copied } = useClipboard({ copiedDuring: 2000 })
         <p class="mb-3 font-mono text-xs font-medium uppercase tracking-widest text-primary">Configuration</p>
         <h2 class="text-3xl font-bold text-highlighted sm:text-4xl">Configure it when you need control</h2>
         <p class="mt-4 text-lg text-muted leading-relaxed">
-          Most projects work with the defaults. Configure <code class="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-sm text-primary">skillHub</code> in <code class="rounded bg-muted/20 px-1.5 py-0.5 font-mono text-sm text-highlighted">nuxt.config.ts</code> when you need a custom skill name, explicit agent targets, extra module-author guidance, a different generation policy, or to opt out of the ESLint redundant-import rule.
+          Most projects work with the defaults. Configure <code class="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-sm text-primary">skillHub</code> in <code class="rounded bg-muted/20 px-1.5 py-0.5 font-mono text-sm text-highlighted">nuxt.config.ts</code> when you need a custom skill name, explicit agent targets, extra module-author guidance, a different generation policy, remote lookup control, or to opt out of the ESLint redundant-import rule.
         </p>
       </div>
 
@@ -124,6 +132,13 @@ const { copy, copied } = useClipboard({ copiedDuring: 2000 })
   <span class="text-primary">skillHub</span>: {
     <span class="text-highlighted">targets</span>: [<span class="text-emerald-500 dark:text-emerald-400">'claude-code'</span>],
     <span class="text-highlighted">generationMode</span>: <span class="text-emerald-500 dark:text-emerald-400">'prepare'</span>,
+    <span class="text-highlighted">remote</span>: {
+      <span class="text-highlighted">refresh</span>: <span class="text-rose-500 dark:text-rose-400">false</span>,
+      <span class="text-highlighted">timeoutMs</span>: <span class="text-sky-500 dark:text-sky-400">1500</span>,
+      <span class="text-highlighted">concurrency</span>: <span class="text-sky-500 dark:text-sky-400">8</span>,
+      <span class="text-highlighted">githubHeuristics</span>: <span class="text-rose-500 dark:text-rose-400">false</span>,
+      <span class="text-highlighted">timings</span>: <span class="text-rose-500 dark:text-rose-400">false</span>,
+    },
     <span class="text-highlighted">eslint</span>: <span class="text-rose-500 dark:text-rose-400">false</span>,
   }
 <span class="opacity-45">})</span></pre>

@@ -4,13 +4,22 @@ import { isIP } from 'node:net'
 import { dirname, join } from 'pathe'
 import { findPackageOverride } from './package-overrides'
 import { fetchUrlBytes, fetchUrlJson, parseGitHubRepo } from './remote-fetch'
-import { emptyDir, ensureDir, isValidSkillName, normalizeContribution, sanitizeSegment } from './internal'
+import { emptyDir, ensureDir, isValidSkillName, mapWithConcurrency, normalizeContribution, sanitizeSegment } from './internal'
+import {
+  DEFAULT_WELL_KNOWN_MAX_BYTES,
+  DEFAULT_WELL_KNOWN_MAX_FILE_BYTES,
+  DEFAULT_WELL_KNOWN_MAX_FILES,
+  type ResolvedContribution,
+  type SkillManifestSkipped,
+  type ValidationIssue,
+} from './types'
 import type { InstalledPackageInfo, RemoteResolveResult } from './remote-resolver'
-import type { ResolvedContribution, SkillManifestSkipped, ValidationIssue } from './types'
 
 const WELL_KNOWN_DISCOVERY_V2_SCHEMA = 'https://schemas.agentskills.io/discovery/0.2.0/schema.json'
 const WELL_KNOWN_DISCOVERY_V2_INDEX_PATH = '/.well-known/agent-skills/index.json'
 const WELL_KNOWN_SKILLS_INDEX_PATH = '/.well-known/skills/index.json'
+const WELL_KNOWN_ENTRY_CONCURRENCY = 4
+const WELL_KNOWN_FILE_CONCURRENCY = 8
 
 interface WellKnownV2SkillEntry {
   name?: unknown
@@ -39,6 +48,31 @@ interface WellKnownSkillsIndex {
 interface MaterializedSkill {
   contribution?: ResolvedContribution
   skipped?: SkillManifestSkipped
+}
+
+export interface WellKnownResolutionLimits {
+  maxFiles: number
+  maxBytes: number
+  maxFileBytes: number
+}
+
+interface FetchedSkillFile {
+  path: string
+  bytes: Uint8Array
+}
+
+function normalizeLimits(limits: Partial<WellKnownResolutionLimits> = {}): WellKnownResolutionLimits {
+  return {
+    maxFiles: typeof limits.maxFiles === 'number' && Number.isFinite(limits.maxFiles) && limits.maxFiles > 0
+      ? limits.maxFiles
+      : DEFAULT_WELL_KNOWN_MAX_FILES,
+    maxBytes: typeof limits.maxBytes === 'number' && Number.isFinite(limits.maxBytes) && limits.maxBytes > 0
+      ? limits.maxBytes
+      : DEFAULT_WELL_KNOWN_MAX_BYTES,
+    maxFileBytes: typeof limits.maxFileBytes === 'number' && Number.isFinite(limits.maxFileBytes) && limits.maxFileBytes > 0
+      ? limits.maxFileBytes
+      : DEFAULT_WELL_KNOWN_MAX_FILE_BYTES,
+  }
 }
 
 function makeSkip(packageName: string, skillName: string, reason: string): SkillManifestSkipped {
@@ -224,6 +258,10 @@ function normalizeSkillFilePath(value: unknown): string | null {
   return trimmed
 }
 
+function isSupportedSkillContextFile(path: string): boolean {
+  return path === 'SKILL.md' || path.endsWith('.md') || path.endsWith('.json')
+}
+
 async function writeSkillFile(root: string, relativePath: string, bytes: Uint8Array): Promise<void> {
   const destination = join(root, relativePath)
   await ensureDir(dirname(destination))
@@ -265,6 +303,7 @@ async function materializeSkillsIndexEntry(input: {
   docsUrl: string
   cacheRoot: string
   timeoutMs: number
+  limits: WellKnownResolutionLimits
 }): Promise<MaterializedSkill | null> {
   const skillName = typeof input.entry.name === 'string' ? input.entry.name.trim() : ''
   if (!isValidSkillName(skillName)) {
@@ -289,6 +328,14 @@ async function materializeSkillsIndexEntry(input: {
     return { skipped: makeSkip(input.packageInfo.packageName, skillName, 'well-known skill includes an unsafe file path') }
   }
 
+  if (files.some(file => !isSupportedSkillContextFile(file))) {
+    return { skipped: makeSkip(input.packageInfo.packageName, skillName, 'well-known skill includes a non-context file; only .md and .json files are supported') }
+  }
+
+  if (files.length > input.limits.maxFiles) {
+    return { skipped: makeSkip(input.packageInfo.packageName, skillName, `well-known skill lists ${files.length} files, exceeding the limit of ${input.limits.maxFiles}`) }
+  }
+
   const origin = new URL(input.docsUrl).origin
   const targetDir = join(
     input.cacheRoot,
@@ -300,20 +347,50 @@ async function materializeSkillsIndexEntry(input: {
     sanitizeSegment(skillName),
   )
 
-  await emptyDir(targetDir)
-
-  for (const file of files) {
+  const fileUrls = files.map((file) => {
     const fileUrl = resolveSameOriginUrl(`${skillName}/${file}`, new URL('./', input.indexUrl).toString())
     if (!fileUrl) {
-      return { skipped: makeSkip(input.packageInfo.packageName, skillName, 'well-known skill file URL must stay on the discovery origin') }
+      return null
     }
 
-    const response = await fetchUrlBytes(fileUrl, input.timeoutMs)
+    return { file, fileUrl }
+  })
+
+  if (fileUrls.includes(null)) {
+    return { skipped: makeSkip(input.packageInfo.packageName, skillName, 'well-known skill file URL must stay on the discovery origin') }
+  }
+
+  const fetchedFiles: FetchedSkillFile[] = []
+  let totalBytes = 0
+  const responses = await mapWithConcurrency(
+    fileUrls as Array<{ file: string, fileUrl: string }>,
+    WELL_KNOWN_FILE_CONCURRENCY,
+    async ({ file, fileUrl }) => ({
+      file,
+      response: await fetchUrlBytes(fileUrl, input.timeoutMs),
+    }),
+  )
+
+  for (const { file, response } of responses) {
     if (!response.ok || !response.data) {
       return { skipped: makeSkip(input.packageInfo.packageName, skillName, `failed to fetch well-known skill file ${file}`) }
     }
 
-    await writeSkillFile(targetDir, file, response.data)
+    if (response.data.byteLength > input.limits.maxFileBytes) {
+      return { skipped: makeSkip(input.packageInfo.packageName, skillName, `well-known skill file ${file} exceeds the per-file limit of ${input.limits.maxFileBytes} bytes`) }
+    }
+
+    totalBytes += response.data.byteLength
+    if (totalBytes > input.limits.maxBytes) {
+      return { skipped: makeSkip(input.packageInfo.packageName, skillName, `well-known skill files exceed the total limit of ${input.limits.maxBytes} bytes`) }
+    }
+
+    fetchedFiles.push({ path: file, bytes: response.data })
+  }
+
+  await emptyDir(targetDir)
+  for (const file of fetchedFiles) {
+    await writeSkillFile(targetDir, file.path, file.bytes)
   }
 
   return {
@@ -336,6 +413,7 @@ async function materializeV2Skill(input: {
   docsUrl: string
   cacheRoot: string
   timeoutMs: number
+  limits: WellKnownResolutionLimits
 }): Promise<MaterializedSkill | null> {
   const skillName = typeof input.entry.name === 'string' ? input.entry.name.trim() : ''
   if (!isValidSkillName(skillName)) {
@@ -378,6 +456,10 @@ async function materializeV2Skill(input: {
     return { skipped: makeSkip(input.packageInfo.packageName, skillName, 'well-known v2 skill digest mismatch') }
   }
 
+  if (response.data.byteLength > input.limits.maxFileBytes || response.data.byteLength > input.limits.maxBytes) {
+    return { skipped: makeSkip(input.packageInfo.packageName, skillName, `well-known v2 skill exceeds the file size limit of ${Math.min(input.limits.maxFileBytes, input.limits.maxBytes)} bytes`) }
+  }
+
   const origin = new URL(input.docsUrl).origin
   const targetDir = join(
     input.cacheRoot,
@@ -412,6 +494,7 @@ async function resolveSkillsIndex(input: {
   docsUrl: string
   cacheRoot: string
   timeoutMs: number
+  limits: WellKnownResolutionLimits
 }): Promise<RemoteResolveResult> {
   const skipped: SkillManifestSkipped[] = []
   const contributions: ResolvedContribution[] = []
@@ -424,21 +507,27 @@ async function resolveSkillsIndex(input: {
     }
   }
 
-  for (const rawEntry of input.index.skills) {
-    if (!rawEntry || typeof rawEntry !== 'object') {
-      skipped.push(makeSkip(input.packageInfo.packageName, 'entry', 'well-known skill entry must be an object'))
-      continue
-    }
+  const materializedEntries = await mapWithConcurrency(
+    input.index.skills,
+    WELL_KNOWN_ENTRY_CONCURRENCY,
+    async (rawEntry): Promise<MaterializedSkill | null> => {
+      if (!rawEntry || typeof rawEntry !== 'object') {
+        return { skipped: makeSkip(input.packageInfo.packageName, 'entry', 'well-known skill entry must be an object') }
+      }
 
-    const materialized = await materializeSkillsIndexEntry({
-      packageInfo: input.packageInfo,
-      entry: rawEntry as WellKnownSkillsEntry,
-      indexUrl: input.indexUrl,
-      docsUrl: input.docsUrl,
-      cacheRoot: input.cacheRoot,
-      timeoutMs: input.timeoutMs,
-    })
+      return await materializeSkillsIndexEntry({
+        packageInfo: input.packageInfo,
+        entry: rawEntry as WellKnownSkillsEntry,
+        indexUrl: input.indexUrl,
+        docsUrl: input.docsUrl,
+        cacheRoot: input.cacheRoot,
+        timeoutMs: input.timeoutMs,
+        limits: input.limits,
+      })
+    },
+  )
 
+  for (const materialized of materializedEntries) {
     if (materialized?.contribution) {
       contributions.push(materialized.contribution)
     }
@@ -457,6 +546,7 @@ async function resolveV2Index(input: {
   docsUrl: string
   cacheRoot: string
   timeoutMs: number
+  limits: WellKnownResolutionLimits
 }): Promise<RemoteResolveResult> {
   const skipped: SkillManifestSkipped[] = []
   const contributions: ResolvedContribution[] = []
@@ -469,21 +559,27 @@ async function resolveV2Index(input: {
     }
   }
 
-  for (const rawEntry of input.index.skills) {
-    if (!rawEntry || typeof rawEntry !== 'object') {
-      skipped.push(makeSkip(input.packageInfo.packageName, 'entry', 'well-known v2 skill entry must be an object'))
-      continue
-    }
+  const materializedEntries = await mapWithConcurrency(
+    input.index.skills,
+    WELL_KNOWN_ENTRY_CONCURRENCY,
+    async (rawEntry): Promise<MaterializedSkill | null> => {
+      if (!rawEntry || typeof rawEntry !== 'object') {
+        return { skipped: makeSkip(input.packageInfo.packageName, 'entry', 'well-known v2 skill entry must be an object') }
+      }
 
-    const materialized = await materializeV2Skill({
-      packageInfo: input.packageInfo,
-      entry: rawEntry as WellKnownV2SkillEntry,
-      indexUrl: input.indexUrl,
-      docsUrl: input.docsUrl,
-      cacheRoot: input.cacheRoot,
-      timeoutMs: input.timeoutMs,
-    })
+      return await materializeV2Skill({
+        packageInfo: input.packageInfo,
+        entry: rawEntry as WellKnownV2SkillEntry,
+        indexUrl: input.indexUrl,
+        docsUrl: input.docsUrl,
+        cacheRoot: input.cacheRoot,
+        timeoutMs: input.timeoutMs,
+        limits: input.limits,
+      })
+    },
+  )
 
+  for (const materialized of materializedEntries) {
     if (materialized?.contribution) {
       contributions.push(materialized.contribution)
     }
@@ -501,6 +597,7 @@ async function resolveIndex(input: {
   docsUrl: string
   cacheRoot: string
   timeoutMs: number
+  limits: WellKnownResolutionLimits
 }): Promise<RemoteResolveResult | null> {
   const response = await fetchUrlJson<WellKnownV2Index>(input.indexUrl, input.timeoutMs)
   if (!response.ok) {
@@ -557,39 +654,46 @@ export async function resolveViaWellKnown(
   packageInfo: InstalledPackageInfo,
   cacheRoot: string,
   timeoutMs: number,
+  rawLimits?: Partial<WellKnownResolutionLimits>,
 ): Promise<RemoteResolveResult> {
   const bases = docsBaseCandidates(packageInfo)
   const skipped: SkillManifestSkipped[] = []
   const issues: ValidationIssue[] = []
+  const limits = normalizeLimits(rawLimits)
 
-  for (const docsUrl of bases) {
-    const indexUrls = [
+  const attempts = bases.flatMap((docsUrl) => {
+    return [
       new URL(WELL_KNOWN_DISCOVERY_V2_INDEX_PATH, docsUrl).toString(),
       new URL(WELL_KNOWN_SKILLS_INDEX_PATH, docsUrl).toString(),
-    ]
+    ].map(indexUrl => ({ docsUrl, indexUrl }))
+  })
 
-    for (const indexUrl of indexUrls) {
-      const result = await resolveIndex({
+  const results = await Promise.all(
+    attempts.map(async ({ docsUrl, indexUrl }) => ({
+      result: await resolveIndex({
         packageInfo,
         indexUrl,
         docsUrl,
         cacheRoot,
         timeoutMs,
-      })
+        limits,
+      }),
+    })),
+  )
 
-      if (!result) {
-        continue
-      }
+  for (const { result } of results) {
+    if (!result) {
+      continue
+    }
 
-      issues.push(...result.issues)
-      skipped.push(...result.skipped)
+    issues.push(...result.issues)
+    skipped.push(...result.skipped)
 
-      if (result.contributions.length) {
-        return {
-          contributions: result.contributions,
-          issues,
-          skipped,
-        }
+    if (result.contributions.length) {
+      return {
+        contributions: result.contributions,
+        issues,
+        skipped,
       }
     }
   }

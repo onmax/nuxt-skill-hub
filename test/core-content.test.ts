@@ -6,6 +6,7 @@ import { PACKAGE_VERSION } from '../src/package-info'
 import { loadVueSkillFiles } from '../src/vue-content'
 import {
   createModuleWrapperContent,
+  createModuleIndex,
   createSkillEntrypoint,
   createStableSkillWrapper,
   DEFAULT_NUXT_CONTENT_METADATA,
@@ -92,7 +93,7 @@ describe('createSkillEntrypoint', () => {
 })
 
 describe('createModuleWrapperContent', () => {
-  it('renders compact metadata routers for generated module wrappers', () => {
+  it('renders scoped metadata routers for generated module wrappers', () => {
     const entry = {
       packageName: '@nuxtjs/i18n',
       version: undefined,
@@ -108,12 +109,14 @@ describe('createModuleWrapperContent', () => {
       resolver: 'metadataRouter' as const,
     }
 
-    expect(createModuleWrapperContent(entry).trim()).toBe(`Docs: [https://i18n.nuxtjs.org](https://i18n.nuxtjs.org)
-
-Source code: [https://github.com/nuxt-modules/i18n](https://github.com/nuxt-modules/i18n)`)
+    const content = createModuleWrapperContent(entry)
+    expect(content).toContain('# @nuxtjs/i18n Module Router')
+    expect(content).toContain('Docs: [https://i18n.nuxtjs.org](https://i18n.nuxtjs.org)')
+    expect(content).toContain('Source code: [https://github.com/nuxt-modules/i18n](https://github.com/nuxt-modules/i18n)')
+    expect(content).toContain('Start with the relevant route in the parent Nuxt skill')
   })
 
-  it('uses neutral labels for resolved module skills and omits missing versions in module lists', () => {
+  it('keeps the root module section compact and moves details to the module index', () => {
     const entry = createSkillEntrypoint('nuxt', DEFAULT_NUXT_CONTENT_METADATA, undefined, false, [
       {
         packageName: '@nuxthub/core',
@@ -131,15 +134,40 @@ Source code: [https://github.com/nuxt-modules/i18n](https://github.com/nuxt-modu
       },
     ])
 
-    expect(entry).toContain('### Resolved module skills')
-    expect(entry).toContain('[@nuxthub/core](./references/modules/nuxthub/nuxthub.md)')
-    expect(entry).toContain('Resolved module skill. Trust: `official`.')
+    expect(entry).toContain('## Module guides')
+    expect(entry).toContain('[Module guide index](./references/modules/index.md)')
+    expect(entry).toContain('1 resolved')
+    expect(entry).not.toContain('### Resolved module skills')
+    expect(entry).not.toContain('[@nuxthub/core](./references/modules/nuxthub/nuxthub.md)')
     expect(entry).not.toContain('GitHub-resolved')
     expect(entry).not.toContain('`unknown`')
   })
 
+  it('renders detailed module entries in the module index', () => {
+    const index = createModuleIndex([
+      {
+        packageName: '@nuxthub/core',
+        version: undefined,
+        skillName: 'nuxthub',
+        description: 'NuxtHub support.',
+        scriptsIncluded: false,
+        sourceKind: 'github' as const,
+        repoUrl: 'https://github.com/nuxt-hub/core',
+        docsUrl: 'https://hub.nuxt.com',
+        official: true,
+        trustLevel: 'official' as const,
+        resolver: 'agentsField' as const,
+        wrapperPath: 'references/modules/nuxthub/nuxthub.md',
+      },
+    ])
+
+    expect(index).toContain('### Resolved module skills')
+    expect(index).toContain('[@nuxthub/core](./nuxthub/nuxthub.md)')
+    expect(index).toContain('Resolved module skill. Trust: `official`.')
+  })
+
   it('renders docs-discovered module skills in their own group', () => {
-    const entry = createSkillEntrypoint('nuxt', DEFAULT_NUXT_CONTENT_METADATA, undefined, false, [
+    const index = createModuleIndex([
       {
         packageName: 'docus',
         version: '5.9.0',
@@ -156,8 +184,8 @@ Source code: [https://github.com/nuxt-modules/i18n](https://github.com/nuxt-modu
       },
     ])
 
-    expect(entry).toContain('### Docs-discovered skills')
-    expect(entry).toContain('[docus](./references/modules/docus/create-docs.md) `v5.9.0` - Docs-discovered skill. Trust: `official`.')
+    expect(index).toContain('### Docs-discovered skills')
+    expect(index).toContain('[docus](./docus/create-docs.md) `v5.9.0` - Docs-discovered skill. Trust: `official`.')
   })
 })
 
