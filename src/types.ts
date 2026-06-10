@@ -108,11 +108,6 @@ export interface ModuleOptions {
   moduleAuthoring?: boolean
   generationMode?: SkillHubGenerationMode
   remote?: boolean | SkillHubRemoteOptions
-  /**
-   * Auto-register ESLint rule to remove redundant imports when @nuxt/eslint is installed.
-   * @default true
-   */
-  eslint?: boolean
 }
 
 export interface AgentSkillDeclaration {

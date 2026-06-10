@@ -14,9 +14,6 @@
       "types": "./dist/types.d.mts",
       "import": "./dist/module.mjs",
       "default": "./dist/module.mjs"
-    },
-    "./eslint-plugin": {
-      "import": "./dist/runtime/eslint/plugin.js"
     }
   },
   "main": "./dist/module.mjs",

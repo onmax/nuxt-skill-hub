@@ -5,7 +5,6 @@ import { resolveExportRoot, deriveSkillName, detectConflictingSkills, formatConf
 import { PACKAGE_VERSION } from './package-info'
 import { runInstallWizard } from './install'
 import { DEFAULT_SKILL_HUB_GENERATION_MODE, normalizeGenerationMode } from './types'
-import { createAutoImportAddon } from './eslint/addon'
 import type {
   ModuleOptions,
   SkillHubContributionContext,
@@ -34,9 +33,6 @@ export default defineNuxtModule<ModuleOptions>({
   },
   async setup(options, nuxt) {
     const logger = useLogger('nuxt-skill-hub')
-
-    if (options.eslint !== false)
-      createAutoImportAddon(nuxt)
 
     if (isCI && !isTest) {
       logger.info('Skipping skill generation in CI')
