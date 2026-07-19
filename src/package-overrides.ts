@@ -1,5 +1,6 @@
 export interface PackageOverride {
   packageName: string
+  official?: boolean
   repo?: string
   ref?: string
   path?: string
@@ -21,6 +22,31 @@ export const PACKAGE_OVERRIDES: PackageOverride[] = [
     ref: 'main',
     path: 'skills/vueuse-functions',
     skillName: 'vueuse-functions',
+  },
+  {
+    packageName: '@vueuse/nuxt',
+    repo: 'vueuse/vueuse',
+    ref: 'main',
+    path: 'skills/vueuse-functions',
+    skillName: 'vueuse-functions',
+  },
+  {
+    packageName: '@nuxt/content',
+    official: false,
+    repo: 'onmax/nuxt-skills',
+    ref: 'main',
+    path: 'skills/nuxt-content',
+    skillName: 'nuxt-content',
+    docsUrls: ['https://content.nuxt.com/'],
+  },
+  {
+    packageName: 'nuxt-studio',
+    official: false,
+    repo: 'onmax/nuxt-skills',
+    ref: 'main',
+    path: 'skills/nuxt-studio',
+    skillName: 'nuxt-studio',
+    docsUrls: ['https://nuxt.studio/'],
   },
   {
     packageName: 'docus',

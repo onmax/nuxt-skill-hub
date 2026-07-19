@@ -1,6 +1,6 @@
 ---
 name: nuxt
-description: "Use Nuxt Skill Hub guidance for Nuxt, Vue, Nitro, runtime config, page metadata, hydration, data fetching, Nuxt UI, Nuxt Content, and installed Nuxt module work."
+description: "Use Nuxt Skill Hub guidance for Nuxt, Vue, Nitro, runtime config, page metadata, hydration, data fetching, Nuxt UI, Nuxt Content, Nuxt Studio, VueUse, and installed Nuxt module work."
 ---
 
 # Nuxt
@@ -37,7 +37,8 @@ Then run the project's prepare step so Skill Hub can generate the local agent sk
 - Hydration warnings, time, randomness, browser globals, or client-only rendering: use hydration and SSR consistency guidance.
 - Runtime config, environment variables, API routes, Nitro handlers, caching, or request validation: use Nuxt server guidance.
 - Vue component structure, props, emits, composables, or reactivity after the Nuxt decision is settled: use Vue guidance.
-- Nuxt UI, Nuxt Content, NuxtHub, or other module APIs: start with the broad Nuxt rule, then apply module-specific docs or generated Skill Hub module guidance.
+- Nuxt UI, Nuxt Content, Nuxt Studio, NuxtHub, or other module APIs: use the installed module's generated Skill Hub guidance.
+- VueUse browser and reactivity utilities: use VueUse's official skill, but keep Nuxt's `useFetch`, `useCookie`, `useHead`, `useTitle`, `useStorage`, and `useImage` semantics with Nuxt or their owning Nuxt module.
 
 ## Links
 

@@ -498,12 +498,18 @@ function packLink(metadata: NuxtContentMetadata, id: string): string {
   return `[${pack.title}](./references/nuxt/${pack.relativePath})`
 }
 
-function createRoutingTable(metadata: NuxtContentMetadata, includeModuleAuthoring = false): string {
+function createRoutingTable(metadata: NuxtContentMetadata, includeModuleAuthoring = false, includeModuleGuidance = false): string {
   const rows: Array<[string, string]> = [
     ...(includeModuleAuthoring
       ? [[
           'Writing or refactoring a Nuxt module (`defineNuxtModule`, hooks, public APIs)',
           packLink(metadata, 'module-authoring'),
+        ] as [string, string]]
+      : []),
+    ...(includeModuleGuidance
+      ? [[
+          'Installed module APIs such as Nuxt Content, Nuxt Studio, Nuxt UI, VueUse, or NuxtHub',
+          '[Module guide index](./references/modules/index.md)',
         ] as [string, string]]
       : []),
     [
@@ -591,7 +597,7 @@ function createSkillMapSections(
   return [
     '## Routing',
     'Load one matching guide first. Open more guides only when the first guide points you there or the task clearly crosses boundaries.',
-    createRoutingTable(metadata, includeModuleAuthoring),
+    createRoutingTable(metadata, includeModuleAuthoring, hasModuleGuidance(entries, skipped)),
     createRoutingExamples(metadata, includeModuleAuthoring),
     renderModuleSummary(entries, skipped),
   ].filter(Boolean).join('\n\n')
@@ -605,7 +611,7 @@ export function createSkillEntrypoint(
   entries: SkillModuleRenderEntry[] = [],
   skipped: SkillSkippedRenderEntry[] = [],
 ): string {
-  const description = 'Routes Nuxt work to the smallest relevant guide. Use for `useFetch`/`useAsyncData`, SSR, hydration mismatches, `definePageMeta`, `useHead`/`useSeoMeta`, `runtimeConfig`, Nitro/h3 server routes, plugins, Nuxt UI, Nuxt Content, or Nuxt module authoring.'
+  const description = 'Routes Nuxt work to the smallest relevant guide. Use for `useFetch`/`useAsyncData`, SSR, hydration mismatches, `definePageMeta`, `useHead`/`useSeoMeta`, `runtimeConfig`, Nitro/h3 server routes, plugins, Nuxt UI, Nuxt Content, Nuxt Studio, VueUse, or Nuxt module authoring.'
   const monorepoScopeSection = monorepoScopePath
     ? `## Monorepo scope
 This skill applies only to \`${monorepoScopePath}\`. Treat files and tasks outside that subtree as out of scope unless the user explicitly redirects you there.`

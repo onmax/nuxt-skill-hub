@@ -76,10 +76,10 @@ export function resolveSkillFolder(nameOrPackage: string, skillFolders: Set<stri
 }
 
 /**
- * Fetch skills from official module repos (PACKAGE_OVERRIDES).
- * These take priority over community skills.
+ * Fetch explicitly mapped skills from PACKAGE_OVERRIDES.
+ * These take priority over convention-based community matches.
  */
-async function fetchOfficialSkills(): Promise<Record<string, ModuleSkillEntry>> {
+async function fetchCuratedSkills(): Promise<Record<string, ModuleSkillEntry>> {
   const results: Record<string, ModuleSkillEntry> = {}
   const overridesWithRepo = PACKAGE_OVERRIDES.filter(o => o.repo && o.path && o.skillName)
 
@@ -96,7 +96,7 @@ async function fetchOfficialSkills(): Promise<Record<string, ModuleSkillEntry>> 
         sourceHrefBase: `https://github.com/${override.repo}/blob/${override.ref || 'main'}/${override.path}`,
         paths,
         files: {},
-        source: 'official',
+        source: override.official === false ? 'community' : 'official',
         sourceKind: 'github',
         resolver: 'githubHeuristic',
         sourceRepo: override.repo,
@@ -119,7 +119,7 @@ async function fetchOfficialSkills(): Promise<Record<string, ModuleSkillEntry>> 
       results[override.skillName!] = entry
     }
     catch {
-      console.warn(`Failed to fetch official skill from ${override.repo}`)
+      console.warn(`Failed to fetch curated skill from ${override.repo}`)
     }
   }))
 
@@ -183,25 +183,25 @@ async function fetchCommunitySkills(): Promise<{ skillFolders: Set<string>, modu
 }
 
 /**
- * Discover all module skills. Official repo skills take priority over community.
+ * Discover all module skills. Explicit package mappings take priority over convention matches.
  */
 export async function discoverModuleSkills(npmPackages?: string[]): Promise<SkillDiscoveryResult> {
   if (cached && Date.now() - cached.at < CACHE_TTL) return cached.result
 
-  const [officialSkills, community] = await Promise.all([
-    fetchOfficialSkills(),
+  const [curatedSkills, community] = await Promise.all([
+    fetchCuratedSkills(),
     fetchCommunitySkills(),
   ])
 
-  // Merge: official wins over community for the same skill name
+  // Merge explicit package mappings over convention-based community entries.
   const moduleSkills: Record<string, ModuleSkillEntry> = { ...community.moduleSkills }
-  for (const [skillName, entry] of Object.entries(officialSkills)) {
+  for (const [skillName, entry] of Object.entries(curatedSkills)) {
     moduleSkills[skillName] = entry
   }
 
-  // Skill folders = union of community + official
+  // Skill folders = union of community + curated mappings.
   const skillFolders = new Set(community.skillFolders)
-  for (const skillName of Object.keys(officialSkills)) {
+  for (const skillName of Object.keys(curatedSkills)) {
     skillFolders.add(skillName)
   }
 
