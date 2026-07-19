@@ -77,6 +77,54 @@ describe('resolveRemoteContributionsForPackage', () => {
     expect(downloadMock.mock.calls.some(call => String(call[0]).includes('onmax/nuxt-skills'))).toBe(false)
   })
 
+  it('resolves the curated Nuxt Content skill without treating it as official upstream guidance', async () => {
+    const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
+    const downloadMock = mockDownloadTemplate(async (input, destinationDir) => {
+      if (input === 'gh:onmax/nuxt-skills/skills/nuxt-content#main') {
+        await createSkillFiles(destinationDir, 'nuxt-content')
+        return
+      }
+
+      throw new Error('not found')
+    })
+    const listGitHubDirectoryMock = vi.fn(async () => ['unrelated-skill'])
+
+    vi.resetModules()
+    vi.doMock('../src/remote-fetch', () => ({
+      parseGitHubRepo: vi.fn(() => null),
+      fetchGitHubDefaultBranch: vi.fn(async () => 'main'),
+      fetchGitHubFileText: vi.fn(async () => ({ ok: false, status: 404 })),
+      listGitHubDirectory: listGitHubDirectoryMock,
+      fetchUrlJson: vi.fn(async () => ({ ok: false, status: 404 })),
+      fetchUrlBytes: vi.fn(async () => ({ ok: false, status: 404 })),
+    }))
+    vi.doMock('giget', () => ({
+      downloadTemplate: downloadMock,
+    }))
+
+    const { resolveRemoteContributionsForPackage } = await import('../src/remote-resolver')
+    const result = await resolveRemoteContributionsForPackage({
+      packageName: '@nuxt/content',
+      version: '3.15.0',
+    }, {
+      cacheRoot,
+      githubLookupTimeoutMs: 200,
+      enableGithubLookup: true,
+      enableGithubHeuristics: true,
+      enableWellKnownLookup: false,
+    })
+
+    expect(result.contributions).toHaveLength(1)
+    expect(result.contributions[0]).toMatchObject({
+      skillName: 'nuxt-content',
+      sourceRepo: 'onmax/nuxt-skills',
+      sourcePath: 'skills/nuxt-content',
+      official: false,
+      resolver: 'githubHeuristic',
+    })
+    expect(listGitHubDirectoryMock).not.toHaveBeenCalled()
+  })
+
   it('generates a metadata-routed skill when github metadata is unavailable but package metadata exists', async () => {
     const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
     const downloadMock = mockDownloadTemplate(async () => {

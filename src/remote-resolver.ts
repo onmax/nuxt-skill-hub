@@ -268,7 +268,7 @@ async function resolveAgentSkillsForRef(
         sourceKind: 'github',
         sourceRepo: context.repo,
         sourceRef: ref,
-        official: true,
+        official: context.override?.official !== false,
         resolver: 'agentsField',
       }, cacheRoot)
       if (resolved) {
@@ -341,7 +341,9 @@ async function resolveViaGitHubHeuristics(
   }
 
   const tryResolveForRef = async (ref: string, allowTreeLookup: boolean): Promise<ResolvedContribution[] | null> => {
-    const skillsDirs = allowTreeLookup ? await listGitHubDirectory(context.repo!, ref, 'skills', timeoutMs) : []
+    const skillsDirs = allowTreeLookup && !context.override?.path
+      ? await listGitHubDirectory(context.repo!, ref, 'skills', timeoutMs)
+      : []
     if (skillsDirs.length) {
       const contributions: ResolvedContribution[] = []
       for (const skillName of skillsDirs) {
@@ -351,7 +353,7 @@ async function resolveViaGitHubHeuristics(
           sourceKind: 'github',
           sourceRepo: context.repo!,
           sourceRef: ref,
-          official: true,
+          official: context.override?.official !== false,
           resolver: 'githubHeuristic',
         }, cacheRoot)
         if (resolved) {
@@ -374,7 +376,7 @@ async function resolveViaGitHubHeuristics(
         sourceKind: 'github',
         sourceRepo: context.repo!,
         sourceRef: ref,
-        official: true,
+        official: context.override?.official !== false,
         resolver: 'githubHeuristic',
       }, cacheRoot)
 

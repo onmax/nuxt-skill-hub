@@ -53,6 +53,7 @@ describe('createSkillEntrypoint', () => {
     expect(entry).not.toContain('## Vue guidance')
     expect(entry).not.toContain('## All Nuxt packs')
     expect(entry).not.toContain('## Primary Packs')
+    expect(entry).not.toContain('Installed module APIs such as Nuxt Content')
   })
 
   it('renders a hard monorepo scope warning when a scope path is provided', () => {
@@ -136,6 +137,7 @@ describe('createModuleWrapperContent', () => {
 
     expect(entry).toContain('## Module guides')
     expect(entry).toContain('[Module guide index](./references/modules/index.md)')
+    expect(entry).toContain('Installed module APIs such as Nuxt Content, Nuxt Studio, Nuxt UI, VueUse, or NuxtHub')
     expect(entry).toContain('1 resolved')
     expect(entry).not.toContain('### Resolved module skills')
     expect(entry).not.toContain('[@nuxthub/core](./references/modules/nuxthub/nuxthub.md)')
