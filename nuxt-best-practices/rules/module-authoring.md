@@ -1,77 +1,77 @@
 ## Module Authoring Conventions
 
-### Rule ID: `module-keep-setup-fast-and-defer-heavy-work`
-### Rule: Keep module setup fast and defer heavy work
-### When to apply
-Authoring or updating a Nuxt module with runtime behavior.
+### `module-keep-setup-fast-and-defer-heavy-work`: Keep module setup fast and defer heavy work
+**Apply when:** authoring or updating a Nuxt module with runtime behavior.
+**Skip when:** initialization must finish before the app or module lifecycle can continue.
 
-### Wrong pattern
-Performing expensive async work directly in module `setup`.
+```ts
+// Wrong: every dev start waits for the download inside setup
+export default defineNuxtModule({
+  async setup(options) {
+    const icons = await downloadIconSet(options.set)
+    addTemplate({ filename: 'icons.mjs', getContents: () => serialize(icons) })
+  },
+})
+```
 
-### Recommended pattern
-Keep `setup` lightweight and defer heavier tasks to lifecycle hooks or deferred build/runtime hooks.
+```ts
+// Right: setup only registers; the work runs when the template is generated
+export default defineNuxtModule({
+  setup(options) {
+    addTemplate({
+      filename: 'icons.mjs',
+      getContents: async () => serialize(await downloadIconSet(options.set)),
+    })
+  },
+})
+```
 
-### Nuxt-specific caveat
-Nuxt warns when module setup takes too long; slow setup delays dev server and build startup.
+**Why:** Nuxt warns when module setup is slow, and slow setup delays dev server and build startup. Move heavy work to hooks, templates, or runtime.
+**Verify:** the `defineNuxtModule` setup body has no long awaited operations on the startup path.
 
-### Execution checklist
-- [ ] Inputs to inspect: `defineNuxtModule` setup body and async operations.
-- [ ] Minimal verification: startup-critical path avoids long blocking work.
-- [ ] Stop condition: required initialization must complete before app/module lifecycle proceeds.
+### `module-prefix-public-exports`: Prefix public exports and routes
+**Apply when:** adding module composables, components, plugins, or server routes.
+**Skip when:** a backward-compatibility policy requires legacy unprefixed aliases.
 
-### Rule ID: `module-prefix-public-exports`
-### Rule: Prefix public exports and routes
-### When to apply
-Adding module composables, components, plugins, or server routes.
+```ts
+export default defineNuxtModule({
+  setup() {
+    const { resolve } = createResolver(import.meta.url)
+    addImports({ name: 'useFooData', from: resolve('./runtime/composables') }) // not useData
+    addComponentsDir({ path: resolve('./runtime/components'), prefix: 'Foo' }) // <FooButton>
+    addServerHandler({ route: '/api/_foo/session', handler: resolve('./runtime/server/session') }) // not /api/auth
+  },
+})
+```
 
-### Wrong pattern
-Publishing generic names like `useData`, `<Button>`, or `/api/auth` from a module.
+**Why:** unprefixed module routes and components collide with app code and other modules.
+**Verify:** every exported composable, component, and server route carries the module's prefix.
 
-### Recommended pattern
-Prefix public surface with module identity (`useFooData`, `<FooButton>`, `/api/_foo/*`).
+### `module-public-kit-apis-only`: Prefer documented Nuxt Kit APIs over internals
+**Apply when:** implementing module behavior or code generation.
+**Skip when:** the behavior has no documented public API yet (pin and document the internal dependency).
 
-### Nuxt-specific caveat
-Unprefixed module routes/components collide easily with app code and other modules.
+```ts
+// Wrong: deep imports like 'nuxt/dist/...', underscored nuxt.options fields, undocumented hooks
+// Right:
+import { addPlugin, createResolver, defineNuxtModule } from '@nuxt/kit'
 
-### Execution checklist
-- [ ] Inputs to inspect: names of components/composables/runtime API routes.
-- [ ] Minimal verification: exported names are collision-resistant and module-scoped.
-- [ ] Stop condition: backward compatibility policy requires legacy unprefixed aliases.
+export default defineNuxtModule({
+  meta: { name: 'foo', configKey: 'foo', compatibility: { nuxt: '>=3.12.0' } },
+  setup() {
+    addPlugin(createResolver(import.meta.url).resolve('./runtime/plugin'))
+  },
+})
+```
 
-### Rule ID: `module-public-kit-apis-only`
-### Rule: Prefer documented Nuxt Kit APIs over internals
-### When to apply
-Implementing Nuxt module behavior and code generation logic.
+**Why:** private internals can break in minor or patch releases even when declared compatibility looks broad.
+**Verify:** imports come from `@nuxt/kit` or documented hooks only, and `meta.compatibility` is set.
 
-### Wrong pattern
-Relying on private Nuxt internals or undocumented hooks.
+### `module-skill-scope-only`: Scope module skills to module APIs only
+**Apply when:** publishing `agents.skills` with a module.
+**Skip when:** never; a module skill that adds global rules unrelated to the module is out of scope and should be cut.
 
-### Recommended pattern
-Use stable `@nuxt/kit` APIs, documented hooks, and declared compatibility constraints.
+Document only the module's APIs, integration points, and module-specific caveats. Leave general Nuxt guidance to Nuxt's own skills.
 
-### Nuxt-specific caveat
-Private internals can break across minor/patch updates even when compatibility appears broad.
-
-### Execution checklist
-- [ ] Inputs to inspect: imported kit functions/hooks and internal path imports.
-- [ ] Minimal verification: implementation uses public Nuxt APIs with explicit compatibility.
-- [ ] Stop condition: required behavior has no documented public API yet.
-
-### Rule ID: `module-skill-scope-only`
-### Rule: Scope module skills to module APIs only
-### When to apply
-Publishing `agents.skills` with a module.
-
-### Wrong pattern
-Embedding global Nuxt framework guidance inside module-specific skill docs.
-
-### Recommended pattern
-Document only module APIs, integration points, and module-specific caveats.
-
-### Nuxt-specific caveat
-Module guidance can override Nuxt guidance only inside that module's explicit scope.
-
-### Execution checklist
-- [ ] Inputs to inspect: skill frontmatter, rule language, examples.
-- [ ] Minimal verification: instructions are module-scoped and version-aligned.
-- [ ] Stop condition: module skill introduces global rules unrelated to module behavior.
+**Why:** module guidance can override Nuxt guidance only inside that module's explicit scope.
+**Verify:** frontmatter, rule text, and examples are module-scoped and match the module version.

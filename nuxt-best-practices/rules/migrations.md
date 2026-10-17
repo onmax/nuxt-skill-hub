@@ -1,58 +1,28 @@
 ## Migrations and Compatibility
 
-### Rule ID: `migration-reversible-slices`
-### Rule: Perform migrations in reversible slices
-### When to apply
-Nuxt, Nitro, h3, or module major/minor upgrades.
+### `migration-reversible-slices`: Perform migrations in reversible slices
+**Apply when:** upgrading Nuxt, Nitro, h3, or a module across major or minor versions.
+**Skip when:** the migration cannot be tested incrementally; say so instead of shipping one large change.
 
-### Wrong pattern
-Large unscoped migration commits with no rollback checkpoints.
+Split the upgrade into small commits (dependency bump, config keys, one API family at a time) and validate after each.
 
-### Recommended pattern
-Split migration into small steps with explicit validation after each step.
+**Why:** each slice must be checked on both the SSR render path and client hydration, which a single large diff makes impossible to bisect.
+**Verify:** every slice reverts independently and has its own validation step.
 
-### Nuxt-specific caveat
-Validate both SSR render path and client hydration path.
+### `migration-upgrade-touched-deprecations`: Remove deprecated APIs in touched areas
+**Apply when:** editing files that already use deprecated Nuxt, Nitro, or h3 patterns.
+**Skip when:** the replacement API is not yet stable in the target version.
 
-### Execution checklist
-- [ ] Inputs to inspect: changed APIs, config keys, and migration commit boundaries.
-- [ ] Minimal verification: each slice can be reverted independently.
-- [ ] Stop condition: migration cannot be tested incrementally.
+Upgrade deprecated usage in the code path you are already changing; do not leave old and new patterns mixed there.
 
-### Rule ID: `migration-upgrade-touched-deprecations`
-### Rule: Remove deprecated APIs in touched areas
-### When to apply
-Editing files already using deprecated Nuxt/Nitro/h3 patterns.
+**Why:** official migration guides map each deprecation to its replacement; ad hoc substitutes drift from them.
+**Verify:** no deprecated symbols remain in modified files, and each replacement follows the official mapping.
 
-### Wrong pattern
-Keeping mixed old/new patterns in the same touched code path.
+### `migration-verify-ssr-and-hydration`: Verify both server render and hydration behavior after each slice
+**Apply when:** a migration touches rendering, data fetching, plugins, or runtime config.
+**Skip when:** no runnable app context exists; report that runtime checks were not done.
 
-### Recommended pattern
-Upgrade touched deprecated usage while context is active.
+After each slice, run the app (`nuxi dev`, or `nuxi build` + `nuxi preview`) and check SSR HTML, browser console hydration warnings, critical async-data paths, and client-side route navigation.
 
-### Nuxt-specific caveat
-Prefer official migration mappings over ad-hoc replacements.
-
-### Execution checklist
-- [ ] Inputs to inspect: touched deprecated symbols and replacement mapping.
-- [ ] Minimal verification: no deprecated usage remains in modified files.
-- [ ] Stop condition: required replacement API is not yet stable in target version.
-
-### Rule ID: `migration-verify-ssr-and-hydration`
-### Rule: Verify both server render and hydration behavior after each slice
-### When to apply
-Any migration touching rendering, data fetching, plugins, or runtime config.
-
-### Wrong pattern
-Validating only build success without browser hydration and runtime checks.
-
-### Recommended pattern
-Validate SSR output, hydration warnings, critical data paths, and route navigation on each migration slice.
-
-### Nuxt-specific caveat
-Nuxt migrations can pass type checks while still regressing payload transfer or hydration behavior.
-
-### Execution checklist
-- [ ] Inputs to inspect: browser console hydration warnings, route transitions, and async-data behavior.
-- [ ] Minimal verification: no hydration mismatch warnings and no duplicate initial fetch regressions.
-- [ ] Stop condition: environment lacks a runnable app context for runtime verification.
+**Why:** Nuxt migrations can pass type checks and build while still regressing payload transfer or hydration.
+**Verify:** no hydration mismatch warnings and no duplicate initial fetches on hydration.

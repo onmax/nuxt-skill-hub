@@ -1,58 +1,47 @@
 ## Abstraction Disambiguation
 
-### Rule ID: `disambiguation-framework-primitives-first`
-### Rule: Prefer framework-owned primitives before generic Vue or raw HTML
-### When to apply
-Any fix where generic Vue code, hand-rolled HTML, or custom event wiring looks plausible.
+### `disambiguation-framework-primitives-first`: Prefer framework-owned primitives before generic Vue or raw HTML
+**Apply when:** generic Vue code, hand-rolled HTML, or custom event wiring looks like a plausible fix.
+**Skip when:** the task explicitly requires behavior outside the framework-owned abstraction.
 
-### Wrong pattern
-Solving a Nuxt problem with ad hoc watchers, raw fetches, or custom markup when Nuxt, Nuxt Content, or Nuxt UI already owns the surface.
+```vue
+<!-- Wrong: hand-rolled watcher + $fetch for route data -->
+<script setup lang="ts">
+const route = useRoute()
+const post = ref()
+watch(() => route.params.slug, async (slug) => {
+  post.value = await $fetch(`/api/posts/${slug}`)
+}, { immediate: true })
+</script>
+```
 
-### Recommended pattern
-Identify the framework-owned abstraction first, then use generic Vue primitives only when the framework does not provide a suitable surface.
+```vue
+<!-- Right: Nuxt owns route-reactive data loading -->
+<script setup lang="ts">
+const route = useRoute()
+const { data: post } = await useFetch(() => `/api/posts/${route.params.slug}`)
+</script>
+```
 
-### Nuxt-specific caveat
-Visually correct custom code can still be the wrong answer if it bypasses a Nuxt-native abstraction that hidden evals or framework conventions expect.
+**Why:** custom code that renders correctly is still wrong if it bypasses an abstraction that Nuxt, Nuxt Content, or Nuxt UI owns. Evals and framework conventions expect the native one.
+**Verify:** name the surface being edited, check whether Nuxt, Nuxt Content, or Nuxt UI has a first-class primitive for it, and confirm the final code uses it. Fall back to generic Vue only when none fits.
 
-### Execution checklist
-- [ ] Inputs to inspect: the exact surface being edited and whether Nuxt, Nuxt Content, or Nuxt UI already provides a first-class primitive.
-- [ ] Minimal verification: the final solution uses the framework abstraction when one exists.
-- [ ] Stop condition: the task explicitly requires behavior outside the owned abstraction.
+### `disambiguation-nearby-concepts-before-editing`: Resolve nearby concept pairs before changing code
+**Apply when:** the task could map to two similar Nuxt concepts.
+**Skip when:** both concepts are intentionally involved and clearly separated.
 
-### Rule ID: `disambiguation-nearby-concepts-before-editing`
-### Rule: Resolve nearby concept pairs before changing code
-### When to apply
-Tasks that could map to two similar Nuxt concepts.
+Decide the pair before editing:
+- `definePageMeta` (page behavior: layout, middleware) vs `useHead`/`useSeoMeta` (document head)
+- data collection (records) vs page collection (renderable pages)
+- `<NuxtLink>` (internal routes) vs raw `<a>` (external or router-bypassing)
+- `useCookie` (SSR-safe) vs `document.cookie` (client-only)
 
-### Wrong pattern
-Editing the first plausible API without deciding the actual concept pair first.
+**Why:** strong agents fail Nuxt tasks more often by picking the wrong neighboring abstraction than by writing broken code.
+**Verify:** from the prompt's symptoms and the file's location, the chosen abstraction matches what the change is actually responsible for.
 
-### Recommended pattern
-Explicitly decide the concept pair before editing, such as `definePageMeta` vs `useHead`, data collection vs page collection, `NuxtLink` vs raw `<a>`, or `useCookie` vs `document.cookie`.
+### `disambiguation-do-not-stop-at-visually-correct`: Do not accept a visually correct result as sufficient
+**Apply when:** UI, docs, or content tasks where a hand-built implementation can look right.
+**Skip when:** the prompt explicitly asks for custom markup or behavior the primitive cannot support.
 
-### Nuxt-specific caveat
-Many strong agents fail Nuxt tasks by choosing the wrong nearby abstraction rather than by writing broken code.
-
-### Execution checklist
-- [ ] Inputs to inspect: prompt symptoms, file location, and framework-owned surface.
-- [ ] Minimal verification: the chosen abstraction matches the actual responsibility of the change.
-- [ ] Stop condition: both concepts are intentionally involved and clearly separated.
-
-### Rule ID: `disambiguation-do-not-stop-at-visually-correct`
-### Rule: Do not accept a visually correct result as sufficient
-### When to apply
-UI, docs, or content tasks where a hand-built implementation can look correct.
-
-### Wrong pattern
-Declaring success because the output looks fine while bypassing Nuxt UI, Content, or SSR-aware primitives.
-
-### Recommended pattern
-Check whether the implementation is framework-correct, not only visually correct.
-
-### Nuxt-specific caveat
-Nuxt evals often reject custom HTML solutions even when they render acceptably, because the intended abstraction was a framework primitive.
-
-### Execution checklist
-- [ ] Inputs to inspect: component usage, slot API, and data source wiring.
-- [ ] Minimal verification: the implementation matches the expected framework primitive and API shape.
-- [ ] Stop condition: the prompt explicitly asks for custom markup or behavior the primitive cannot support.
+**Why:** Nuxt evals reject custom HTML that renders acceptably when the intended answer was a Nuxt UI, Nuxt Content, or SSR-aware primitive.
+**Verify:** check component choice, slot API, and data-source wiring against the expected framework primitive, not the screenshot.

@@ -1,58 +1,61 @@
 ## Plugins and Runtime Boot
 
-### Rule ID: `plugin-use-composables-before-plugin`
-### Rule: Prefer composables/utilities before creating a plugin
-### When to apply
-Adding shared logic or helper functions used by limited parts of the app.
+### `plugin-use-composables-before-plugin`: Prefer composables/utilities before creating a plugin
+**Apply when:** adding shared logic or helpers used by part of the app.
+**Skip when:** the integration needs app-level hooks or app-wide injection.
 
-### Wrong pattern
-Creating a global plugin for logic that can live in local composables/utilities.
+```ts
+// Wrong: app/plugins/format.ts runs on every boot just to inject a helper
+export default defineNuxtPlugin(() => ({ provide: { formatPrice } }))
+```
 
-### Recommended pattern
-Use plugins only for true app-wide injection, app hooks, or framework integration boundaries.
+```ts
+// Right: app/utils/format-price.ts, auto-imported where used
+export const formatPrice = (cents: number) =>
+  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100)
+```
 
-### Nuxt-specific caveat
-Every plugin participates in startup/hydration paths; unnecessary plugins add global boot cost.
+**Why:** every plugin runs in the startup and hydration path, so unnecessary plugins add global boot cost.
+**Verify:** each plugin is justified by app-wide behavior (injection, app hooks, framework integration), not convenience.
 
-### Execution checklist
-- [ ] Inputs to inspect: plugin purpose, usage breadth, and required injection scope.
-- [ ] Minimal verification: plugin is justified by app-wide behavior, not convenience alone.
-- [ ] Stop condition: integration requires app-level hook/injection semantics.
+### `plugin-async-parallel-when-independent`: Run async plugins in parallel when they are independent
+**Apply when:** several async plugins have no ordering dependency.
+**Skip when:** plugin order is required for correctness.
 
-### Rule ID: `plugin-async-parallel-when-independent`
-### Rule: Run async plugins in parallel when they are independent
-### When to apply
-Multiple async plugins with no ordering dependency.
+```ts
+// app/plugins/analytics.ts
+export default defineNuxtPlugin({
+  name: 'analytics',
+  parallel: true, // later plugins do not wait for this one
+  async setup() { await initAnalytics() },
+})
+```
 
-### Wrong pattern
-Leaving independent async plugins serialized.
+```ts
+// app/plugins/flags.ts: needs the auth plugin's result
+export default defineNuxtPlugin({
+  name: 'flags',
+  dependsOn: ['auth'],
+  async setup() { await loadFlags() },
+})
+```
 
-### Recommended pattern
-Use object plugin syntax with `parallel: true`; define `dependsOn` only for real ordering constraints.
+**Why:** plugins run serially by default; the object syntax supports `parallel` and dependency-aware sequencing.
+**Verify:** independent async plugins are `parallel: true` and still have no race conditions; `dependsOn` lists only real dependencies.
 
-### Nuxt-specific caveat
-Nuxt plugin runtime supports parallel execution and dependency-aware sequencing.
+### `plugin-order-controls-only-when-necessary`: Use plugin ordering controls sparingly
+**Apply when:** you need deterministic plugin execution order.
+**Skip when:** the required order cannot be expressed without broad global ordering hacks; rethink the plugin design instead.
 
-### Execution checklist
-- [ ] Inputs to inspect: plugin async work and inter-plugin dependency graph.
-- [ ] Minimal verification: independent plugins run in parallel without race conditions.
-- [ ] Stop condition: plugin order is required for correctness.
+```ts
+// Wrong: magic numbers to win a race
+export default defineNuxtPlugin({ order: -40, setup() { /* ... */ } })
+```
 
-### Rule ID: `plugin-order-controls-only-when-necessary`
-### Rule: Use plugin ordering controls sparingly
-### When to apply
-You need deterministic plugin execution order.
+```ts
+// Right: name the dependency
+export default defineNuxtPlugin({ name: 'i18n-sync', dependsOn: ['i18n'], setup() { /* ... */ } })
+```
 
-### Wrong pattern
-Using `order`/`enforce` aggressively to patch unclear plugin design.
-
-### Recommended pattern
-Keep default order first; use `dependsOn` for explicit dependency edges and reserve `order` for advanced edge cases.
-
-### Nuxt-specific caveat
-`order` overrides `enforce` and increases maintenance risk when plugin graphs evolve.
-
-### Execution checklist
-- [ ] Inputs to inspect: plugin metadata (`enforce`, `dependsOn`, `order`) and real dependency needs.
-- [ ] Minimal verification: ordering metadata is minimal and documented by dependency reason.
-- [ ] Stop condition: required order cannot be represented without broad global ordering hacks.
+**Why:** `order` overrides `enforce` and becomes a maintenance risk as the plugin graph grows. Prefer default (filename) order, then `dependsOn`, then `order` for rare edge cases.
+**Verify:** `enforce`/`dependsOn`/`order` metadata is minimal and each entry has a stated dependency reason.

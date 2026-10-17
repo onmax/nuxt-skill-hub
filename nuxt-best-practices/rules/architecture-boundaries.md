@@ -1,58 +1,67 @@
 ## Architecture Boundaries
 
-### Rule ID: `arch-secrets-server-only`
-### Rule: Keep secrets and request checks server-side
-### When to apply
-Implementing auth, secret-bearing API calls, or per-request business logic.
+### `arch-secrets-server-only`: Keep secrets and request checks server-side
+**Apply when:** implementing auth, secret-bearing API calls, or per-request business logic.
+**Skip when:** never skip; if a server-only check cannot be moved out of client code, stop and flag it.
 
-### Wrong pattern
-Placing secret usage in shared composables imported by client code.
+```ts
+// Wrong: app/composables/useReports.ts ships to the browser
+export function useReports() {
+  const { reportsToken } = useRuntimeConfig().public
+  return useFetch('https://reports.internal/api', { headers: { 'x-token': reportsToken } })
+}
+```
 
-### Recommended pattern
-Move sensitive logic to `server/api/*` handlers, server utilities, or server plugins.
+```ts
+// Right: server/api/reports.get.ts
+export default defineEventHandler(async (event) => {
+  await requireUser(event) // server/utils/auth.ts
+  const { reportsToken } = useRuntimeConfig(event)
+  return $fetch('https://reports.internal/api', { headers: { 'x-token': reportsToken } })
+})
+```
 
-### Nuxt-specific caveat
-Anything in `runtimeConfig.public` is client-visible.
+**Why:** everything in `runtimeConfig.public` and every composable imported by client code is visible in the browser.
+**Verify:** grep changed `server/`, `app/composables/`, and `runtimeConfig` usage; no secret values or token checks end up in client bundles.
 
-### Execution checklist
-- [ ] Inputs to inspect: changed files in `server/`, `composables/`, and `runtimeConfig` usage.
-- [ ] Minimal verification: no secret values or token checks in client bundles.
-- [ ] Stop condition: a required server-only check cannot be moved out of client code.
+### `arch-request-safe-state`: Use request-safe state boundaries
+**Apply when:** adding reusable cross-page logic with state.
+**Skip when:** the state is truly global and immutable (constants, static lookup tables).
 
-### Rule ID: `arch-request-safe-state`
-### Rule: Use request-safe state boundaries
-### When to apply
-Adding reusable cross-page logic with state.
+```ts
+// Wrong: module scope is shared by every SSR request
+const currentUser = ref<User | null>(null)
+export const useCurrentUser = () => currentUser
+```
 
-### Wrong pattern
-Using mutable module-level singletons for request-scoped state.
+```ts
+// Right: per-request state, serialized to the client
+export const useCurrentUser = () => useState<User | null>('current-user', () => null)
+```
 
-### Recommended pattern
-Use `useState`/composables for shared state and pass request context explicitly where needed.
+**Why:** the server process handles many requests; module-level mutable state leaks one user's data into another's render.
+**Verify:** no request-specific data lives in module-scope `ref`/`reactive`/`let`; shared state goes through `useState` or is passed request context explicitly.
 
-### Nuxt-specific caveat
-SSR runs per request; module globals can leak state across requests.
+### `arch-server-entrypoint-for-sensitive-io`: Keep sensitive I/O behind server entrypoints
+**Apply when:** calling third-party APIs, databases, or internal services with credentials.
+**Skip when:** the upstream is public and needs no credentials.
 
-### Execution checklist
-- [ ] Inputs to inspect: shared state in module scope and composable state factories.
-- [ ] Minimal verification: request-specific data is not shared globally.
-- [ ] Stop condition: solution depends on mutable globals without explicit isolation.
+```vue
+<!-- Wrong: browser calls the privileged upstream with the user's token -->
+<script setup lang="ts">
+const token = useCookie('token')
+const { data } = await useFetch('https://crm.example.com/contacts', {
+  headers: { Authorization: `Bearer ${token.value}` },
+})
+</script>
+```
 
-### Rule ID: `arch-server-entrypoint-for-sensitive-io`
-### Rule: Keep sensitive I/O behind server entrypoints
-### When to apply
-Calling third-party APIs, databases, or internal services with credentials.
+```vue
+<!-- Right: browser calls a constrained internal endpoint -->
+<script setup lang="ts">
+const { data } = await useFetch('/api/contacts')
+</script>
+```
 
-### Wrong pattern
-Making direct browser fetches to privileged upstream services with forwarded sensitive headers.
-
-### Recommended pattern
-Expose a constrained `server/api/*` boundary and call it from client/UI code.
-
-### Nuxt-specific caveat
-`useFetch('/api/*')` on server uses request-aware fetch behavior; external APIs require explicit header allowlisting.
-
-### Execution checklist
-- [ ] Inputs to inspect: upstream fetch targets, header forwarding, and token placement.
-- [ ] Minimal verification: browser code only talks to safe internal endpoints.
-- [ ] Stop condition: architecture requires direct client access to privileged credentials.
+**Why:** relative `useFetch('/api/*')` on the server reuses request context; external APIs need an explicit header allowlist.
+**Verify:** browser code only talks to internal endpoints; check fetch targets, forwarded headers, and where tokens are read.

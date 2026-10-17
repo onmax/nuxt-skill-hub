@@ -1,77 +1,64 @@
 ## Performance and Rendering
 
-### Rule ID: `perf-use-nuxtlink-for-internal-nav`
-### Rule: Use `NuxtLink` for internal navigation
-### When to apply
-Creating or refactoring internal navigation links.
+### `perf-use-nuxtlink-for-internal-nav`: Use `NuxtLink` for internal navigation
+**Apply when:** creating or refactoring internal links.
+**Skip when:** the target is external or deliberately bypasses the router.
 
-### Wrong pattern
-Using raw `<a>` tags for internal routes without Nuxt link behavior.
+```vue
+<!-- Wrong: full page reload, no prefetch -->
+<a href="/pricing">Pricing</a>
+```
 
-### Recommended pattern
-Use `NuxtLink` for internal routes and tune prefetch strategy when needed (`visible` vs `interaction`).
+```vue
+<!-- Right -->
+<NuxtLink to="/pricing">Pricing</NuxtLink>
+<NuxtLink to="/reports" prefetch-on="interaction">Reports</NuxtLink>
+```
 
-### Nuxt-specific caveat
-`NuxtLink` carries built-in route-aware prefetching and defaults that reduce navigation latency.
+**Why:** `NuxtLink` does client-side navigation with route-aware prefetching (on `visible` by default, or on `interaction`).
+**Verify:** internal links in pages, layouts, and components use `NuxtLink` and keep their semantics and accessibility.
 
-### Execution checklist
-- [ ] Inputs to inspect: internal links in pages/layout/components.
-- [ ] Minimal verification: internal links use `NuxtLink` and preserve semantics/accessibility.
-- [ ] Stop condition: link target is external or deliberately bypasses router.
+### `perf-match-route-rules-to-content-volatility`: Use route rules to match rendering strategy to content volatility
+**Apply when:** routes have different static, stale-while-revalidate, ISR, or client-only needs.
+**Skip when:** the deployment target cannot support the required rule (for example `isr` on a host without it).
 
-### Rule ID: `perf-match-route-rules-to-content-volatility`
-### Rule: Use route rules to match rendering strategy to content volatility
-### When to apply
-Pages with mixed static, stale-while-revalidate, ISR, or client-only requirements.
+```ts
+// nuxt.config.ts
+export default defineNuxtConfig({
+  routeRules: {
+    '/': { prerender: true },
+    '/blog/**': { swr: 3600 },
+    '/products/**': { isr: 600 },
+    '/dashboard/**': { ssr: false },
+  },
+})
+```
 
-### Wrong pattern
-Applying one rendering mode globally when route behavior differs.
+**Why:** route rules directly set cache semantics and server behavior per route; one global mode fits no mixed app.
+**Verify:** each route family's rule matches its freshness and SEO needs; check response cache headers or prerendered output.
 
-### Recommended pattern
-Set explicit `routeRules` per route family (`prerender`, `swr`, `isr`, `ssr: false`) based on freshness and SEO needs.
+### `perf-lazy-load-and-hydrate-intentionally`: Use lazy component loading and lazy hydration intentionally
+**Apply when:** a component is not needed for first meaningful paint or immediate interaction.
+**Skip when:** the component must be interactive on first render.
 
-### Nuxt-specific caveat
-Nuxt/Nitro route rules directly shape cache semantics and server behavior per route.
+```vue
+<template>
+  <HeroBanner />
+  <!-- Lazy prefix: code-split, loaded only when rendered -->
+  <LazyCommentList v-if="showComments" />
+  <!-- Lazy hydration: SSR HTML now, JS hydrates when visible -->
+  <LazyRelatedProducts hydrate-on-visible />
+</template>
+```
 
-### Execution checklist
-- [ ] Inputs to inspect: route patterns, freshness requirements, and SEO constraints.
-- [ ] Minimal verification: configured rules align with intended cache/render behavior.
-- [ ] Stop condition: deployment target cannot support required route rule semantics.
+**Why:** eager hydration of everything costs main-thread time on navigation; Nuxt's lazy hydration triggers (`hydrate-on-visible`, `hydrate-on-idle`, `hydrate-on-interaction`) cut it.
+**Verify:** below-the-fold or non-critical UI defers code or hydration without breaking UX.
 
-### Rule ID: `perf-lazy-load-and-hydrate-intentionally`
-### Rule: Use lazy component loading and lazy hydration intentionally
-### When to apply
-Components not required for first meaningful paint or immediate interactivity.
+### `perf-reduce-payload-and-asset-cost`: Reduce payload and asset cost before adding infra complexity
+**Apply when:** regressions trace to response size, client JS, images, fonts, or third-party scripts.
+**Skip when:** the bottleneck is backend latency unrelated to payload or assets.
 
-### Wrong pattern
-Hydrating all components eagerly on initial page load.
+Before adding caching layers: trim async-data payloads (`pick`/`transform`), serve images through Nuxt Image (`<NuxtImg>`), fonts through Nuxt Fonts, third-party scripts through Nuxt Scripts (`useScript`), and profile with Nuxt DevTools and `nuxi analyze`.
 
-### Recommended pattern
-Use `Lazy*` component imports and hydration triggers (for example `hydrate-on-visible`) for non-critical islands.
-
-### Nuxt-specific caveat
-Lazy hydration support exists in Nuxt and can materially reduce main-thread work on initial navigation.
-
-### Execution checklist
-- [ ] Inputs to inspect: above-the-fold criticality and interactive timing needs.
-- [ ] Minimal verification: non-critical UI defers code/hydration without breaking UX.
-- [ ] Stop condition: component must be immediately interactive for first render flow.
-
-### Rule ID: `perf-reduce-payload-and-asset-cost`
-### Rule: Reduce payload and asset cost before adding infra complexity
-### When to apply
-Performance regressions tied to response size, client JS, images, or third-party scripts.
-
-### Wrong pattern
-Adding caching layers first while shipping oversized payloads/assets.
-
-### Recommended pattern
-Trim async-data payload shape, optimize images/fonts/scripts with Nuxt-native tooling, and profile with DevTools + `nuxi analyze`.
-
-### Nuxt-specific caveat
-Nuxt Image, Nuxt Fonts, and Nuxt Scripts are designed to target LCP/CLS/INP regressions with Nuxt-aware defaults.
-
-### Execution checklist
-- [ ] Inputs to inspect: payload tab, bundle analysis, image/script/font loading paths.
-- [ ] Minimal verification: measurable reduction in transferred bytes or blocking work on critical path.
-- [ ] Stop condition: bottleneck is backend latency unrelated to client payload/asset behavior.
+**Why:** Nuxt Image, Fonts, and Scripts target LCP, CLS, and INP with Nuxt-aware defaults; caching oversized responses keeps them oversized.
+**Verify:** a measurable drop in transferred bytes or blocking work on the critical path (payload tab, bundle analysis, network waterfall).

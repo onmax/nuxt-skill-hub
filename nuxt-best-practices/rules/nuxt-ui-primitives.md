@@ -1,58 +1,62 @@
 ## Nuxt UI Primitives
 
-### Rule ID: `ui-primitives-before-custom-markup`
-### Rule: Prefer Nuxt UI primitives before custom markup
-### When to apply
-Building or fixing page chrome, tables, forms, modals, command palettes, dropdowns, or similar UI surfaces.
+### `ui-primitives-before-custom-markup`: Prefer Nuxt UI primitives before custom markup
+**Apply when:** building or fixing page chrome, tables, forms, modals, command palettes, dropdowns, or similar UI.
+**Skip when:** the required behavior is genuinely outside the component model.
 
-### Wrong pattern
-Rebuilding a UI surface with raw HTML, custom keyboard handlers, or ad hoc styling when Nuxt UI already provides a first-class component.
+```vue
+<!-- Wrong: hand-built dropdown with custom keyboard and focus handling -->
+<button @click="open = !open">Actions</button>
+<ul v-if="open" @keydown.esc="open = false">...</ul>
+```
 
-### Recommended pattern
-Start with the Nuxt UI primitive first and only fall back to custom markup when the primitive cannot express the required behavior.
+```vue
+<!-- Right -->
+<UDropdownMenu :items="[
+  { label: 'Edit', icon: 'i-lucide-pencil', onSelect: edit },
+  { label: 'Delete', icon: 'i-lucide-trash', onSelect: remove },
+]">
+  <UButton label="Actions" />
+</UDropdownMenu>
+```
 
-### Nuxt-specific caveat
-Nuxt UI tasks often fail because agents build something that looks correct while bypassing the intended component.
+**Why:** Nuxt UI tasks often fail because the agent builds something that looks right while bypassing the intended component.
+**Verify:** check whether a Nuxt UI component exists for the surface; if one fits, the implementation uses it.
 
-### Execution checklist
-- [ ] Inputs to inspect: whether a matching Nuxt UI component exists for the surface.
-- [ ] Minimal verification: the implementation uses the framework component when one fits.
-- [ ] Stop condition: the required behavior is genuinely outside the component model.
+### `ui-current-api-shape-not-lookalike`: Match the current Nuxt UI API shape, not a plausible lookalike
+**Apply when:** using existing or newly added Nuxt UI components.
+**Skip when:** the project intentionally wraps or replaces the upstream component API.
 
-### Rule ID: `ui-current-api-shape-not-lookalike`
-### Rule: Match the current Nuxt UI API shape, not a plausible lookalike
-### When to apply
-Using existing or newly added Nuxt UI components.
+```vue
+<!-- Wrong: older or lookalike API -->
+<UModal v-model="open"><UCard>...</UCard></UModal>
+<UTable :rows="users" :columns="[{ key: 'email', label: 'Email' }]" />
+```
 
-### Wrong pattern
-Guessing old props, old slot names, or generic dialog and table APIs that only resemble the real component.
+```vue
+<!-- Right: current API -->
+<UModal v-model:open="open" title="Invite user">
+  <template #body>...</template>
+</UModal>
+<UTable :data="users" :columns="[{ accessorKey: 'email', header: 'Email' }]" />
+```
 
-### Recommended pattern
-Use the documented prop names, models, slots, and grouping patterns for the exact Nuxt UI component.
+**Why:** Nuxt UI evals mostly catch wrong-but-plausible API memory (old props, slot names, models), not broken UI.
+**Verify:** props, `v-model` names, slots, and item/column shapes match the docs for the installed version.
 
-### Nuxt-specific caveat
-Nuxt UI evals frequently expose “wrong but plausible” API memory rather than outright broken UI.
+### `ui-page-shells-belong-to-framework-components`: Use framework page-shell components when they exist
+**Apply when:** docs pages, marketing shells, dashboards, or app chrome where Nuxt UI has a page primitive.
+**Skip when:** the prompt explicitly requires bespoke shell markup.
 
-### Execution checklist
-- [ ] Inputs to inspect: component props, slot API, and state model.
-- [ ] Minimal verification: component usage matches the expected API shape for the installed version.
-- [ ] Stop condition: the installed module intentionally wraps or replaces the upstream component API.
+```vue
+<!-- Wrong: <div class="grid ..."><header><h1>{{ page.title }}</h1></header>...</div> -->
+<!-- Right: -->
+<UPage>
+  <UPageHeader :title="page.title" :description="page.description" />
+  <UPageBody><ContentRenderer :value="page" /></UPageBody>
+  <template #right><UContentToc :links="page.body.toc.links" /></template>
+</UPage>
+```
 
-### Rule ID: `ui-page-shells-belong-to-framework-components`
-### Rule: Use framework page-shell components when they exist
-### When to apply
-Docs pages, marketing shells, dashboards, or app page chrome where Nuxt UI supplies a page primitive.
-
-### Wrong pattern
-Hand-assembling repeated header and footer page chrome when a framework page-shell component exists.
-
-### Recommended pattern
-Prefer the page-shell component and compose around it.
-
-### Nuxt-specific caveat
-A raw HTML page can look polished while still being the wrong answer if the framework expects a Nuxt UI shell.
-
-### Execution checklist
-- [ ] Inputs to inspect: repeated page chrome, layout composition, and available Nuxt UI shell primitives.
-- [ ] Minimal verification: shared page chrome is expressed through the framework primitive when available.
-- [ ] Stop condition: the prompt explicitly requires bespoke shell markup.
+**Why:** a polished raw-HTML page is still the wrong answer when the framework expects a Nuxt UI shell (`UPage`, `UPageHero`, `UDashboardPanel`, and similar).
+**Verify:** repeated page chrome is expressed through the available shell components and composed around them.
