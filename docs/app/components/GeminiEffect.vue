@@ -78,17 +78,48 @@ function extractDominantColor(iconUrl: string): Promise<string | undefined> {
   })
 }
 
+// Ordered: the mobile list shows the first few.
+const FEATURED_MODULES = [
+  '@nuxt/ui',
+  '@nuxt/content',
+  '@nuxt/image',
+  '@nuxtjs/i18n',
+  '@pinia/nuxt',
+  '@vueuse/nuxt',
+  '@nuxt/fonts',
+  '@nuxt/icon',
+  '@nuxtjs/color-mode',
+  '@nuxt/eslint',
+  '@nuxthub/core',
+  '@nuxtjs/seo',
+  '@nuxt/scripts',
+  '@nuxtjs/supabase',
+  '@sidebase/nuxt-auth',
+  '@nuxt/test-utils',
+  '@nuxtjs/sitemap',
+  'nuxt-og-image',
+  '@nuxtjs/mdc',
+  '@nuxt/a11y',
+]
+
 // Fetch modules from API
 const { data: apiData } = await useFetch('/api/nuxt-modules')
 
 const modulePool = computed<ModuleNode[]>(() => {
   const modules = apiData.value?.modules
   if (!modules?.length) return []
-  return modules
-    .filter((m: NuxtModuleResult) => m.icon)
+  // Well-known modules only. api.nuxt.com has stats for few modules, so ranking by
+  // stars or downloads mostly surfaced obscure ones; fall back to that ranking if needed.
+  const withIcon = modules.filter((m: NuxtModuleResult) => m.icon)
+  const featured = withIcon
+    .filter((m: NuxtModuleResult) => FEATURED_MODULES.includes(m.npm))
+    .sort((a: NuxtModuleResult, b: NuxtModuleResult) => FEATURED_MODULES.indexOf(a.npm) - FEATURED_MODULES.indexOf(b.npm))
+  return (featured.length >= 8
+    ? featured
+    : [...withIcon].sort((a: NuxtModuleResult, b: NuxtModuleResult) => b.downloads - a.downloads).slice(0, FEATURED_MODULES.length))
     .map((m: NuxtModuleResult) => ({
       id: m.npm,
-      label: m.name,
+      label: m.npm,
       icon: m.icon,
       iconUrl: moduleIconUrl(m.icon),
       command: `npx nuxt module add ${m.npm}`,
@@ -201,6 +232,11 @@ async function runAnimation() {
   const selected = weightedSample(pool, count)
   const generatedSlots = generateSlots(count)
 
+  if (prefersReducedMotion.value === 'reduce') {
+    showStaticFrame(selected, generatedSlots)
+    return
+  }
+
   slots.value = generatedSlots
   states.value = generatedSlots.map((_, i) => ({
     mod: selected[i]!,
@@ -251,16 +287,40 @@ async function runAnimation() {
     })())
     await Promise.all(promises)
 
-    // Pause then fade out and restart
+    // Pause then fade out and restart, but only once the demo is on screen again
     await wait(2500)
     containerOpacity.value = 0
     await wait(900)
-    runAnimation()
+    await until(isActive).toBe(true)
+    if (!ac.signal.aborted) runAnimation()
   }
   catch { /* aborted */ }
 }
 
-onMounted(runAnimation)
+const root = useTemplateRef<HTMLElement>('root')
+const isOnScreen = useElementVisibility(root)
+const documentVisibility = useDocumentVisibility()
+const isActive = computed(() => isOnScreen.value && documentVisibility.value === 'visible')
+const prefersReducedMotion = usePreferredReducedMotion()
+
+function showStaticFrame(selected: ModuleNode[], generatedSlots: SlotPosition[]) {
+  slots.value = generatedSlots
+  states.value = generatedSlots.map((_, i) => ({
+    mod: selected[i]!,
+    phase: 'connected' as Phase,
+    typedText: selected[i]!.command,
+    lineProgress: 1,
+  }))
+  centerPhase.value = 'revealed'
+  centerTypedText.value = centerCommand
+  connectedIcons.value = selected.map(mod => ({ iconUrl: mod.iconUrl }))
+}
+
+onMounted(async () => {
+  await until(isActive).toBe(true)
+  runAnimation()
+})
+onBeforeUnmount(() => abortController?.abort())
 
 function curvePath(slot: SlotPosition) {
   const fx = slot.x * 10
@@ -278,7 +338,7 @@ function moduleLinkLabel(mod: ModuleNode) {
 </script>
 
 <template>
-  <div class="mx-auto w-full max-w-4xl">
+  <div ref="root" class="mx-auto w-full max-w-4xl">
     <!-- Mobile: static list using first 6 from API -->
     <div class="md:hidden">
       <div class="relative overflow-hidden rounded-[2rem] border border-default/80 bg-default/90 p-4 shadow-[0_20px_60px_rgba(15,23,42,0.08)]">
