@@ -1,58 +1,61 @@
 ## Server Routes, h3 Patterns, and Runtime Config
 
-### Rule ID: `server-validate-input-at-boundary`
-### Rule: Validate request input at handler boundaries
-### When to apply
-Creating or updating `server/api/*` routes, webhook handlers, or actions.
+### `server-validate-input-at-boundary`: Validate request input at handler boundaries
+**Apply when:** creating or updating `server/api/*` routes, webhook handlers, or actions.
+**Skip when:** the handler cannot define a stable input contract; flag that instead of casting.
 
-### Wrong pattern
-Trusting payload shape and casting request body directly.
+```ts
+// server/api/webhooks/billing.post.ts
+const BillingEvent = z.object({ type: z.string(), data: z.object({ id: z.string() }) })
 
-### Recommended pattern
-Validate input at handler entry and return explicit HTTP errors on invalid data.
+export default defineEventHandler(async (event) => {
+  // Wrong: const payload = (await readBody(event)) as BillingEvent
+  const result = BillingEvent.safeParse(await readBody(event))
+  if (!result.success)
+    throw createError({ status: 422, statusText: 'Invalid Payload', data: result.error.flatten() })
+  return handleBillingEvent(result.data)
+})
+```
 
-### Nuxt-specific caveat
-Keep validation close to h3 handler entrypoints to avoid hidden assumptions.
+**Why:** validation at the h3 entrypoint keeps downstream code free of hidden shape assumptions. `readValidatedBody` is the shorthand (see Nitro and h3 Server Patterns).
+**Verify:** params, query, and body of each new or edited handler are validated; an invalid payload returns an explicit 4xx.
 
-### Execution checklist
-- [ ] Inputs to inspect: new/edited handler params, body parsing, query usage.
-- [ ] Minimal verification: invalid payload returns explicit error status.
-- [ ] Stop condition: handler cannot define a stable input contract.
+### `server-runtime-config-public-minimal`: Keep runtime config exposure intentional
+**Apply when:** adding env vars or endpoint values to `runtimeConfig`.
+**Skip when:** never put secrets in public config; if a feature seems to require it, move the logic server-side.
 
-### Rule ID: `server-runtime-config-public-minimal`
-### Rule: Keep runtime config exposure intentional
-### When to apply
-Adding env vars or endpoint values in `runtimeConfig`.
+```ts
+// nuxt.config.ts
+export default defineNuxtConfig({
+  runtimeConfig: {
+    stripeSecret: '', // server only, NUXT_STRIPE_SECRET
+    public: {
+      apiBase: '/api', // client-visible, NUXT_PUBLIC_API_BASE
+      // Wrong: stripeSecret, dbUrl, or a whole upstream config object here
+    },
+  },
+})
+```
 
-### Wrong pattern
-Moving broad server configuration into `runtimeConfig.public`.
+**Why:** keys under `runtimeConfig.public` ship to every client; adding one is a public API change.
+**Verify:** the `nuxt.config` diff adds only the public keys the client actually reads.
 
-### Recommended pattern
-Expose only the minimum public keys required by the client.
+### `server-header-forwarding-allowlist`: Forward request headers intentionally
+**Apply when:** passing request context from SSR to internal or external API calls.
+**Skip when:** the upstream contract demands full raw header pass-through (document why).
 
-### Nuxt-specific caveat
-Changes under `runtimeConfig.public` are effectively public API changes.
+```vue
+<script setup lang="ts">
+// Internal: relative useFetch on the server forwards request context for you
+const { data: me } = await useFetch('/api/me')
 
-### Execution checklist
-- [ ] Inputs to inspect: `nuxt.config` runtime config additions/changes.
-- [ ] Minimal verification: only intended public keys are exposed.
-- [ ] Stop condition: feature requires exposing secrets in public config.
+// External: allowlist what the upstream needs
+const headers = useRequestHeaders(['accept-language'])
+const { data: offers } = await useFetch('https://api.partner.com/offers', { headers })
 
-### Rule ID: `server-header-forwarding-allowlist`
-### Rule: Forward request headers intentionally
-### When to apply
-Proxying request context from SSR to internal or external API calls.
+// Wrong: { headers: useRequestHeaders() } sends cookies and auth to a third party
+</script>
+```
 
-### Wrong pattern
-Blindly forwarding all inbound headers to upstream services.
-
-### Recommended pattern
-Use `useFetch('/api/*')` for internal request-context propagation and explicit allowlists for external API calls.
-
-### Nuxt-specific caveat
-Relative `useFetch` calls on server use request-aware fetch behavior; external forwarding still requires explicit safety controls.
-
-### Execution checklist
-- [ ] Inputs to inspect: forwarded header sets and upstream destination type (internal vs external).
-- [ ] Minimal verification: only required headers are forwarded, with no unsafe pass-through.
-- [ ] Stop condition: upstream contract demands full raw header pass-through.
+**Why:** relative `useFetch` calls on the server are request-aware; external calls get nothing by default and need explicit safety controls when you add headers.
+**Verify:** for each upstream (internal or external), only the required headers are forwarded.

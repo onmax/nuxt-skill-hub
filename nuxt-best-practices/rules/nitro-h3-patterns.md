@@ -1,96 +1,84 @@
 ## Nitro and h3 Server Patterns
 
-### Rule ID: `nitro-validated-input-helpers`
-### Rule: Use h3 validated helpers for route params, query, and body
-### When to apply
-Creating or refactoring `server/api/*` handlers with external input.
+### `nitro-validated-input-helpers`: Use h3 validated helpers for route params, query, and body
+**Apply when:** creating or refactoring `server/api/*` handlers that take external input.
+**Skip when:** the project has no accepted schema or validator library.
 
-### Wrong pattern
-Casting `event.context.params`, `getQuery(event)`, or `readBody(event)` to trusted shapes without validation.
+```ts
+// server/api/users/[id].patch.ts
+import { z } from 'zod'
 
-### Recommended pattern
-Use `getValidatedRouterParams`, `getValidatedQuery`, and `readValidatedBody` (for example with Zod parsers) at handler boundaries.
+const Params = z.object({ id: z.coerce.number().int() })
+const Body = z.object({ name: z.string().min(1) })
 
-### Nuxt-specific caveat
-Nuxt server routes run on h3; validated helpers provide both runtime safety and stronger type flow than ad-hoc casting.
+export default defineEventHandler(async (event) => {
+  // Wrong: const body = (await readBody(event)) as { name: string }
+  const { id } = await getValidatedRouterParams(event, Params.parse)
+  const body = await readValidatedBody(event, Body.parse)
+  return updateUser(id, body)
+})
+```
 
-### Execution checklist
-- [ ] Inputs to inspect: all untrusted handler inputs (params/query/body).
-- [ ] Minimal verification: invalid inputs return explicit client-safe errors.
-- [ ] Stop condition: accepted schema/validator is not available in project constraints.
+**Why:** `getValidatedRouterParams`, `getValidatedQuery`, and `readValidatedBody` give runtime safety and typed results; casting `getQuery`/`readBody` gives neither.
+**Verify:** every untrusted param, query, and body is validated; invalid input returns an explicit 4xx, not a 500.
 
-### Rule ID: `nitro-waituntil-for-nonblocking-work`
-### Rule: Move non-critical async side work to `event.waitUntil`
-### When to apply
-Logging, cache warmup, or analytics in server handlers that should not delay response.
+### `nitro-waituntil-for-nonblocking-work`: Move non-critical async side work to `event.waitUntil`
+**Apply when:** logging, cache warmup, or analytics in handlers that should not delay the response.
+**Skip when:** the task's result is needed to compute the response.
 
-### Wrong pattern
-Awaiting non-essential async jobs before sending response.
+```ts
+export default defineEventHandler(async (event) => {
+  const order = await createOrder(await readValidatedBody(event, Order.parse))
+  // Wrong: await sendAnalytics(order)
+  event.waitUntil(sendAnalytics(order))
+  return order
+})
+```
 
-### Recommended pattern
-Return response early and schedule non-critical work with `event.waitUntil(...)`.
+**Why:** `event.waitUntil` lets the runtime provider (including edge runtimes) finish background work after the response is sent.
+**Verify:** no awaited non-essential work remains on the response's critical path.
 
-### Nuxt-specific caveat
-`event.waitUntil` integrates with runtime providers to finish background work after response, including edge-like runtimes.
+### `nitro-cache-varies-for-tenant-host`: Configure `cache.varies` when caching depends on request headers
+**Apply when:** using Nitro caching or cached route rules with host- or tenant-aware logic.
+**Skip when:** output is fully header-invariant.
 
-### Execution checklist
-- [ ] Inputs to inspect: awaited tasks in request critical path.
-- [ ] Minimal verification: response path no longer blocks on non-critical work.
-- [ ] Stop condition: task result is required to compute response.
+```ts
+export default defineCachedEventHandler((event) => {
+  const host = getRequestHost(event, { xForwardedHost: true })
+  return getTenantConfig(host)
+}, { maxAge: 60, varies: ['host', 'x-forwarded-host'] })
 
-### Rule ID: `nitro-cache-varies-for-tenant-host`
-### Rule: Configure `cache.varies` when caching depends on request headers
-### When to apply
-Using Nitro cache/route rules with host-aware or tenant-aware logic.
+// route rules: '/**': { cache: { maxAge: 60, varies: ['host', 'x-forwarded-host'] } }
+```
 
-### Wrong pattern
-Reading host-based request data under cached routes without declaring varying headers.
+**Why:** cached handlers drop incoming request headers by default, so host-based logic (including `useRequestURL()`) can resolve to `localhost` and one tenant's response gets served to all.
+**Verify:** each header the cached output branches on is listed in `varies`.
 
-### Recommended pattern
-Set `cache.varies` for headers that affect output (typically `host`, `x-forwarded-host` in multi-tenant setups).
+### `nitro-api-error-shape-client-safe`: Use client-safe API error shape in server handlers
+**Apply when:** throwing errors from `server/api/*` endpoints consumed by clients.
+**Skip when:** the upstream error contract cannot be mapped safely; document the gap.
 
-### Nuxt-specific caveat
-With cached responses, incoming request headers are dropped by default; `useRequestURL()` can otherwise resolve host as `localhost`.
+```ts
+// Wrong: internal detail in message (which API routes do not send to the client anyway)
+throw new Error(`DB lookup failed for ${email}: ${err.stack}`)
 
-### Execution checklist
-- [ ] Inputs to inspect: cached route logic that branches on headers/host.
-- [ ] Minimal verification: cache keys vary by intended tenant headers.
-- [ ] Stop condition: output is fully header-invariant.
+// Right
+throw createError({ status: 409, statusText: 'Email Taken', data: { field: 'email' } })
+```
 
-### Rule ID: `nitro-api-error-shape-client-safe`
-### Rule: Use client-safe API error shape in server handlers
-### When to apply
-Throwing errors from `server/api/*` endpoints consumed by clients.
+**Why:** in API routes, a short `statusText` reaches the client and `message` does not; put structured payload in `data` and keep sensitive detail and raw user input out of both.
+**Verify:** thrown errors use a consistent status and `statusText` contract with no leaked internals.
 
-### Wrong pattern
-Throwing generic errors or relying on long/internal `message` values to reach clients.
+### `nitro-runtime-config-from-event`: Prefer `useRuntimeConfig(event)` in server routes
+**Apply when:** reading runtime config inside server handlers.
+**Skip when:** the code is not running in an h3 event handler.
 
-### Recommended pattern
-Throw `createError` with explicit `status` and short `statusText`; use `data` for structured client payload and keep sensitive detail server-side.
+```ts
+export default defineEventHandler((event) => {
+  const { apiSecret } = useRuntimeConfig(event) // not useRuntimeConfig()
+  return callUpstream(apiSecret)
+})
+```
 
-### Nuxt-specific caveat
-In API routes, `statusText` is the safer client-facing channel; avoid embedding dynamic user input in messages.
-
-### Execution checklist
-- [ ] Inputs to inspect: thrown API errors and exposed message payloads.
-- [ ] Minimal verification: consistent status code/text contract with no sensitive leakage.
-- [ ] Stop condition: upstream error contract cannot be mapped safely.
-
-### Rule ID: `nitro-runtime-config-from-event`
-### Rule: Prefer `useRuntimeConfig(event)` in server routes
-### When to apply
-Accessing runtime config inside server handlers.
-
-### Wrong pattern
-Reading config without event context in handlers that may depend on runtime overrides.
-
-### Recommended pattern
-Pass `event` to `useRuntimeConfig(event)` in server handlers.
-
-### Nuxt-specific caveat
-Passing event is optional but recommended for runtime-overridden environment values in route execution.
-
-### Execution checklist
-- [ ] Inputs to inspect: server handlers using runtime config.
-- [ ] Minimal verification: handler config values resolve correctly in runtime deployment environment.
-- [ ] Stop condition: execution context is not an h3 event handler.
+**Why:** the event argument is optional but recommended so runtime-overridden environment values resolve correctly during route execution.
+**Verify:** handlers pass `event`, and config values are correct in the deployed runtime, not only in dev.

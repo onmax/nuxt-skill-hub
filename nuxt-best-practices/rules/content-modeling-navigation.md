@@ -1,58 +1,58 @@
 ## Content Modeling and Navigation
 
-### Rule ID: `content-data-collections-for-structured-records`
-### Rule: Use data collections for structured JSON or YAML records
-### When to apply
-Working with structured records that are not authored as full content pages.
+### `content-data-collections-for-structured-records`: Use data collections for structured JSON or YAML records
+**Apply when:** working with structured records that are not authored as full content pages.
+**Skip when:** the data is intentionally authored and rendered as page content.
 
-### Wrong pattern
-Treating JSON or YAML records as page content just because they live in the content tree.
+```ts
+// content.config.ts
+import { defineCollection, defineContentConfig } from '@nuxt/content'
+import { z } from 'zod'
 
-### Recommended pattern
-Model structured records as Nuxt Content data collections when they represent data rather than pages.
+export default defineContentConfig({
+  collections: {
+    docs: defineCollection({ type: 'page', source: 'docs/**/*.md' }),
+    // Right: authors are records, not pages (Wrong: type: 'page')
+    authors: defineCollection({
+      type: 'data',
+      source: 'authors/*.yml',
+      schema: z.object({ name: z.string(), avatar: z.string() }),
+    }),
+  },
+})
+```
 
-### Nuxt-specific caveat
-The right collection type changes the query surface and avoids page-oriented assumptions in navigation and rendering.
+**Why:** collection type changes the query surface. Page collections carry `path`, `body`, and navigation; data collections avoid those page assumptions and are read with `queryCollection('authors')`.
+**Verify:** for each collection, file format and `type` match the content model (records vs renderable pages).
 
-### Execution checklist
-- [ ] Inputs to inspect: file formats, collection config, and whether entries represent records or renderable pages.
-- [ ] Minimal verification: collection type matches the underlying content model.
-- [ ] Stop condition: the data is intentionally authored and rendered as page content.
+### `content-navigation-from-collections`: Use collection navigation primitives for generated docs navigation
+**Apply when:** building sidebars, section navigation, or docs trees from content.
+**Skip when:** the navigation behavior cannot be expressed with collection helpers.
 
-### Rule ID: `content-navigation-from-collections`
-### Rule: Use collection navigation primitives for generated docs navigation
-### When to apply
-Building sidebars, section navigation, or docs trees from content.
+```vue
+<!-- Wrong: flat query + custom tree building -->
+<script setup lang="ts">
+const { data: pages } = await useAsyncData('docs', () => queryCollection('docs').all())
+const tree = computed(() => buildTree(pages.value)) // groups by path segments
+</script>
 
-### Wrong pattern
-Manually assembling navigation trees when the collection model can generate them.
+<!-- Right -->
+<script setup lang="ts">
+const { data: navigation } = await useAsyncData('docs-nav', () => queryCollectionNavigation('docs'))
+</script>
+<template>
+  <UContentNavigation :navigation="navigation" />
+</template>
+```
 
-### Recommended pattern
-Use collection-navigation helpers such as `queryCollectionNavigation` before writing custom navigation assembly.
+**Why:** manual sidebar assembly is a repeated failure mode when Nuxt Content already provides `queryCollectionNavigation`.
+**Verify:** the sidebar derives from `queryCollectionNavigation`, not custom tree-building over the collection schema.
 
-### Nuxt-specific caveat
-Manual sidebar assembly is a repeated failure mode when Nuxt Content already has a first-class navigation primitive.
+### `content-model-before-rendering`: Finalize content modeling before choosing rendering primitives
+**Apply when:** a task mixes collection setup, querying, and rendering.
+**Skip when:** the collection model is already fixed and correct.
 
-### Execution checklist
-- [ ] Inputs to inspect: navigation source, collection schema, and current sidebar code.
-- [ ] Minimal verification: the navigation derives from collection primitives instead of custom tree-building.
-- [ ] Stop condition: the navigation behavior cannot be represented with collection helpers.
+Lock collection type, source, and schema first, then query, then render. A component that filters out `path` or strips `body` to display JSON records usually means the collection should be `type: 'data'`.
 
-### Rule ID: `content-model-before-rendering`
-### Rule: Finalize content modeling before choosing rendering primitives
-### When to apply
-Tasks that mix collection setup, querying, and rendering.
-
-### Wrong pattern
-Choosing the rendering component or sidebar implementation before deciding the collection model.
-
-### Recommended pattern
-Lock the collection type and query surface first, then render from that model.
-
-### Nuxt-specific caveat
-Many content bugs come from modeling mistakes that are then hidden under custom rendering code.
-
-### Execution checklist
-- [ ] Inputs to inspect: collection config, query usage, and rendering components.
-- [ ] Minimal verification: the rendering code follows the collection model rather than compensating for a wrong model.
-- [ ] Stop condition: the collection model is already fixed and correct.
+**Why:** many content bugs are modeling mistakes hidden under custom rendering code.
+**Verify:** rendering code follows the collection model in `content.config.ts` instead of compensating for a wrong one.

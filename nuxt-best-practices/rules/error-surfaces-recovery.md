@@ -1,39 +1,47 @@
 ## Error Surfaces and Recovery
 
-### Rule ID: `error-check-global-and-local-surfaces`
-### Rule: Check both global and local error surfaces
-### When to apply
-Handling runtime errors, route failures, or fallback UI in Nuxt.
+### `error-check-global-and-local-surfaces`: Check both global and local error surfaces
+**Apply when:** handling runtime errors, route failures, or fallback UI.
+**Skip when:** the issue is intentionally scoped to one surface.
 
-### Wrong pattern
-Fixing only `app/error.vue` or only a local `NuxtErrorBoundary` when the flow requires both.
+```vue
+<!-- app/error.vue: full-page errors (404s, fatal errors, server createError) -->
+<script setup lang="ts">
+import type { NuxtError } from '#app'
+defineProps<{ error: NuxtError }>()
+</script>
+<template>
+  <h1>{{ error.status }}</h1>
+  <button @click="clearError({ redirect: '/' })">Home</button>
+</template>
 
-### Recommended pattern
-Identify whether the issue needs a global error surface, a local boundary, or both, then implement both surfaces explicitly when required.
+<!-- Local: a failing widget should not take down the page -->
+<NuxtErrorBoundary>
+  <RevenueChart />
+  <template #error="{ error, clearError }">
+    <p>{{ error.message }}</p>
+    <button @click="clearError">Retry</button>
+  </template>
+</NuxtErrorBoundary>
+```
 
-### Nuxt-specific caveat
-Nuxt error handling is often multi-surface; solving only half the pattern is a recurring failure mode in strong models.
+**Why:** Nuxt error handling is often multi-surface. Fixing only `app/error.vue` or only one `<NuxtErrorBoundary>` when the flow needs both is a recurring failure.
+**Verify:** trace where the error originates and whether recovery is route-wide or subtree-local, then trigger it and confirm the intended surface renders it.
 
-### Execution checklist
-- [ ] Inputs to inspect: where the error originates and whether recovery is route-wide or local to a subtree.
-- [ ] Minimal verification: the intended error surface actually receives and renders the failure.
-- [ ] Stop condition: the issue is intentionally scoped to one surface only.
+### `error-use-nuxt-recovery-utilities`: Use Nuxt recovery helpers instead of ad hoc reset logic
+**Apply when:** recovering from an error state or clearing error UI.
+**Skip when:** the task explicitly requires a non-standard recovery path.
 
-### Rule ID: `error-use-nuxt-recovery-utilities`
-### Rule: Use Nuxt recovery helpers instead of ad hoc reset logic
-### When to apply
-Recovering from an error state or clearing error UI.
+```ts
+// Wrong: local flag + navigation; Nuxt's error state stays set
+showFallback.value = false
+await navigateTo('/')
 
-### Wrong pattern
-Resetting local refs or forcing navigation without using Nuxt recovery utilities.
+// Right: drive the error lifecycle through Nuxt
+showError({ status: 503, statusText: 'Service Unavailable' })
+await clearError({ redirect: '/' })
+// inside <NuxtErrorBoundary>, call the slot's clearError() instead
+```
 
-### Recommended pattern
-Use Nuxt error helpers such as `clearError`, `showError`, and framework-supported retry paths.
-
-### Nuxt-specific caveat
-Custom reset logic can leave the app in an inconsistent state if it bypasses Nuxt's error lifecycle.
-
-### Execution checklist
-- [ ] Inputs to inspect: current error state flow and whether Nuxt helpers are already present.
-- [ ] Minimal verification: recovery clears the error surface and restores intended navigation or rendering behavior.
-- [ ] Stop condition: the task explicitly requires a non-standard recovery path.
+**Why:** custom reset logic that bypasses Nuxt's error lifecycle can leave `useError()` set and the app in an inconsistent state.
+**Verify:** after recovery the error surface is gone, `useError()` is cleared, and navigation or rendering works as intended.
