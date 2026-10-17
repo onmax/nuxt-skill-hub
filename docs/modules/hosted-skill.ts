@@ -1,12 +1,11 @@
 import { promises as fsp } from 'node:fs'
 import { defineNuxtModule } from 'nuxt/kit'
 import { dirname, join } from 'pathe'
-import { createSkillEntrypoint, DEFAULT_NUXT_CONTENT_METADATA } from '../../shared/skill-render'
+import { createSkillEntrypoint, DEFAULT_NUXT_CONTENT_METADATA, UPSTREAM_VUE_GUIDE_URL } from '../../shared/skill-render'
 import { loadNuxtRuleFiles } from '../server/utils/nuxt-content'
 import { loadVueSkillFiles } from '../server/utils/vue-content'
 
 const SKILL_NAME = 'nuxt'
-const VUE_GUIDE_URL = 'https://github.com/vuejs-ai/skills/blob/main/skills/vue-best-practices/SKILL.md'
 
 const projectGuidanceSection = `## Project-specific guidance
 This hosted skill covers Nuxt itself. Module APIs (Nuxt UI, Nuxt Content, NuxtHub, and others) change between versions, so check the installed module's docs before relying on exact props or options.
@@ -24,7 +23,7 @@ export async function buildHostedSkillFiles(docsRoot: string): Promise<Record<st
   // Without a bundled Vue guide, link to the upstream copy instead of failing the build.
   const hasVueGuide = Boolean(vueFiles['SKILL.md'])
   if (!hasVueGuide) {
-    console.warn(`[hosted-skill] Vue guide unavailable, linking to ${VUE_GUIDE_URL}`)
+    console.warn(`[hosted-skill] Vue guide unavailable, linking to ${UPSTREAM_VUE_GUIDE_URL}`)
   }
 
   const files: Record<string, string> = {
@@ -32,7 +31,7 @@ export async function buildHostedSkillFiles(docsRoot: string): Promise<Record<st
       moduleAuthoring: true,
       installedPackages: DEFAULT_NUXT_CONTENT_METADATA.packs.flatMap(pack => pack.packages || []),
       extraSections: [projectGuidanceSection],
-      vueGuideHref: hasVueGuide ? undefined : VUE_GUIDE_URL,
+      vueGuideHref: hasVueGuide ? undefined : UPSTREAM_VUE_GUIDE_URL,
     }),
   }
 

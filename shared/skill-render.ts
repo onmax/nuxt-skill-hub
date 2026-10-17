@@ -445,6 +445,8 @@ function packLink(metadata: NuxtContentMetadata, id: string): string {
 }
 
 const DEFAULT_VUE_GUIDE_HREF = './references/vue/SKILL.md'
+/** Link to use when the Vue guide isn't bundled with the skill. */
+export const UPSTREAM_VUE_GUIDE_URL = 'https://github.com/vuejs-ai/skills/blob/main/skills/vue-best-practices/SKILL.md'
 
 export interface SkillEntrypointOptions {
   /** Restrict the skill to this subtree of a monorepo. */
