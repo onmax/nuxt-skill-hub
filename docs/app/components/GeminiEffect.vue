@@ -108,15 +108,11 @@ const { data: apiData } = await useFetch('/api/nuxt-modules')
 const modulePool = computed<ModuleNode[]>(() => {
   const modules = apiData.value?.modules
   if (!modules?.length) return []
-  // Well-known modules only. api.nuxt.com has stats for few modules, so ranking by
-  // stars or downloads mostly surfaced obscure ones; fall back to that ranking if needed.
-  const withIcon = modules.filter((m: NuxtModuleResult) => m.icon)
-  const featured = withIcon
-    .filter((m: NuxtModuleResult) => FEATURED_MODULES.includes(m.npm))
+  // Well-known modules only: api.nuxt.com has stats for few modules, so ranking by
+  // stars or downloads mostly surfaced obscure ones.
+  return modules
+    .filter((m: NuxtModuleResult) => m.icon && FEATURED_MODULES.includes(m.npm))
     .sort((a: NuxtModuleResult, b: NuxtModuleResult) => FEATURED_MODULES.indexOf(a.npm) - FEATURED_MODULES.indexOf(b.npm))
-  return (featured.length >= 8
-    ? featured
-    : [...withIcon].sort((a: NuxtModuleResult, b: NuxtModuleResult) => b.downloads - a.downloads).slice(0, FEATURED_MODULES.length))
     .map((m: NuxtModuleResult) => ({
       id: m.npm,
       label: m.npm,
@@ -259,7 +255,7 @@ async function runAnimation() {
   const pool = modulePool.value
   if (!pool.length) return
 
-  const count = randomModuleCount()
+  const count = Math.min(randomModuleCount(), pool.length)
   const selected = weightedSample(pool, count)
   const generatedSlots = generateSlots(count)
 
