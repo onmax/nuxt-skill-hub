@@ -61,7 +61,7 @@ my-app/
 
 The wrapper is written every time Nuxt starts. The generated tree is written during `nuxt prepare`, which also runs on `postinstall` in most Nuxt projects. Both steps are skipped in CI (unless tests are running), during `nuxi typecheck`, and when no agent target is detected. Results are cached in `node_modules/.cache/nuxt-skill-hub`. A later `nuxt prepare` restores the cached tree if the inputs (options, module versions, local skill files) are unchanged and the cache is younger than `remote.cacheTtlMs`.
 
-**Agents.** With no `targets` set, the module writes a wrapper for every agent whose config directory exists in your home directory, such as `~/.claude` or `~/.codex`. The agent list comes from [unagent](https://github.com/onmax/unagent). The wrapper path mirrors that config directory inside the project: `.claude/skills/<name>/` for Claude Code, `.codex/skills/<name>/` for Codex, `.cursor/rules/<name>/` for Cursor. If no agent is detected, nothing is written and the module logs a warning.
+**Agents.** With no `targets` set, the module writes a wrapper for every agent whose config directory exists in your home directory, such as `~/.claude` or `~/.codex`. The agent running the command (detected from its environment) is skipped, so set `targets` to include it. The agent list comes from [unagent](https://github.com/onmax/unagent). The wrapper path mirrors that config directory inside the project: `.claude/skills/<name>/` for Claude Code, `.codex/skills/<name>/` for Codex, `.cursor/rules/<name>/` for Cursor. If no agent is detected, nothing is written and the module logs a warning.
 
 **Skill name.** The default is `nuxt-<package name>` from your `package.json` (scope removed), or `nuxt` if there is no name.
 
@@ -102,7 +102,7 @@ export default defineNuxtConfig({
 | `remote.timeoutMs` | `number` | `1500` | Timeout for each GitHub API and docs request. Skill folder downloads from GitHub are not bound by it. |
 | `remote.concurrency` | `number` | `8` | Number of packages resolved in parallel. |
 | `remote.cacheTtlMs` | `number` | `86400000` (24 h) | How long a cached generated tree is reused. `0` regenerates on every `nuxt prepare`. |
-| `remote.refresh` | `boolean` | `false` | Ignore the cache once and regenerate. |
+| `remote.refresh` | `boolean` | `false` | Ignore the cache and regenerate on every `nuxt prepare` while set. |
 | `remote.timings` | `boolean` | `false` | Log how each package was resolved and how long it took. Also enabled when Nuxt `debug` is set. |
 | `remote.maxFiles` | `number` | `40` | Max files per skill from a `.well-known` index. |
 | `remote.maxBytes` | `number` | `524288` (512 KB) | Max total bytes per skill from a `.well-known` index. |
@@ -114,7 +114,7 @@ Skill Hub looks at every package in `modules` (local paths are ignored) and ever
 
 1. **Installed package.** An `agents.skills` field in the installed `package.json`. This is the recommended path. It needs no network, and the skill always matches the installed version. The app's own `package.json` is read the same way.
 2. **GitHub `agents` field.** The same field, read from the repo's `package.json`. Refs are tried in order: the built-in override ref (if any), tag `v<version>`, `<version>`, then the default branch, `main`, and `master`. The repo comes from the override, `repository`, or `homepage`.
-3. **Docs `.well-known`.** `/.well-known/agent-skills/index.json` ([Agent Skills discovery 0.2.0](https://schemas.agentskills.io/discovery/0.2.0/schema.json), `skill-md` entries with a sha256 digest) or `/.well-known/skills/index.json` (entries with `name`, `description`, and a `files` list of `.md`/`.json` files). The base URL comes from a built-in override docs URL, or from `docs`, `documentation`, or `homepage` in `package.json`. Files must be on the same origin.
+3. **Docs `.well-known`.** `/.well-known/agent-skills/index.json` (Agent Skills discovery 0.2.0 ([spec](https://agentskills.io/specification)), `skill-md` entries with a sha256 digest) or `/.well-known/skills/index.json` (entries with `name`, `description`, and a `files` list of `.md`/`.json` files). The base URL comes from a built-in override docs URL, or from `docs`, `documentation`, or `homepage` in `package.json`. Files must be on the same origin.
 4. **GitHub heuristics.** Only with `remote.githubHeuristics: true`. Looks for folders under `skills/`, then `skills/<slug>`, `.claude/skills/<slug>`, and `.github/skills/<slug>`.
 5. **Metadata router.** If nothing else matched and the package has a repository or docs URL, Skill Hub writes a short skill that links to them. Otherwise the package is skipped.
 
@@ -158,7 +158,7 @@ description: Use when configuring my-nuxt-module or calling its composables.
 
 Skill Hub validates each skill and skips it with a warning if a rule fails:
 
-- `name` is lowercase hyphen-case, up to 64 characters, with no `--`.
+- `name` is lowercase hyphen-case, up to 64 characters, with no `--` and no leading or trailing `-`.
 - The folder name equals `name`.
 - `path` stays inside the package root.
 - `SKILL.md` exists and has YAML frontmatter with `name` (equal to the declared name) and a non-empty `description`.
@@ -194,7 +194,7 @@ A module can call the same hook with `nuxt.hook('skill-hub:contribute', ...)` in
 Three more hooks report resolution progress for packages that don't ship their own skill:
 
 - `skill-hub:resolve:start`: `skillName`, `packageCount`, `concurrency`, `remoteEnabled`, `githubHeuristics`.
-- `skill-hub:resolve:package`: once per package, with `packageName`, `packageIndex`, `durationMs`, `contributionCount`, `skippedCount`, and `resolver`/`sourceKind` when a skill was found.
+- `skill-hub:resolve:package`: once per package, with `skillName`, `packageName`, `packageIndex` (zero-based), `packageCount`, `durationMs`, `contributionCount`, `skippedCount`, and `resolver`/`sourceKind` when a skill was found.
 - `skill-hub:resolve:done`: the start fields plus `durationMs`, `contributionCount`, `skippedCount`, `issueCount`, and `resolverCounts`.
 
 ## License
