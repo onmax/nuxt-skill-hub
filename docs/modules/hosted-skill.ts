@@ -6,6 +6,7 @@ import { loadNuxtRuleFiles } from '../server/utils/nuxt-content'
 import { loadVueSkillFiles } from '../server/utils/vue-content'
 
 const SKILL_NAME = 'nuxt'
+const VUE_GUIDE_URL = 'https://github.com/vuejs-ai/skills/blob/main/skills/vue-best-practices/SKILL.md'
 
 const projectGuidanceSection = `## Project-specific guidance
 This hosted skill covers Nuxt itself. Module APIs (Nuxt UI, Nuxt Content, NuxtHub, and others) change between versions, so check the installed module's docs before relying on exact props or options.
@@ -18,18 +19,27 @@ npx nuxi module add nuxt-skill-hub
 
 \`nuxt prepare\` then writes a local skill that also includes each installed module's skill.`
 
-export async function buildHostedSkillFiles(): Promise<Record<string, string>> {
-  const [nuxtFiles, vueFiles] = await Promise.all([loadNuxtRuleFiles(), loadVueSkillFiles()])
+export async function buildHostedSkillFiles(docsRoot: string): Promise<Record<string, string>> {
+  const [nuxtFiles, vueFiles] = await Promise.all([loadNuxtRuleFiles(docsRoot), loadVueSkillFiles(docsRoot)])
+  // Without a bundled Vue guide, link to the upstream copy instead of failing the build.
+  const hasVueGuide = Boolean(vueFiles['SKILL.md'])
+  if (!hasVueGuide) {
+    console.warn(`[hosted-skill] Vue guide unavailable, linking to ${VUE_GUIDE_URL}`)
+  }
+
   const files: Record<string, string> = {
     'SKILL.md': createSkillEntrypoint(SKILL_NAME, DEFAULT_NUXT_CONTENT_METADATA, {
       moduleAuthoring: true,
       installedPackages: DEFAULT_NUXT_CONTENT_METADATA.packs.flatMap(pack => pack.packages || []),
       extraSections: [projectGuidanceSection],
+      vueGuideHref: hasVueGuide ? undefined : VUE_GUIDE_URL,
     }),
   }
 
   for (const [path, contents] of Object.entries(nuxtFiles)) files[`references/nuxt/${path}`] = contents
-  for (const [path, contents] of Object.entries(vueFiles)) files[`references/vue/${path}`] = contents
+  if (hasVueGuide) {
+    for (const [path, contents] of Object.entries(vueFiles)) files[`references/vue/${path}`] = contents
+  }
 
   return files
 }
@@ -54,7 +64,7 @@ export default defineNuxtModule({
       return
     }
 
-    const files = await buildHostedSkillFiles()
+    const files = await buildHostedSkillFiles(nuxt.options.rootDir)
     const index = {
       skills: [{
         name: SKILL_NAME,

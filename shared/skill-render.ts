@@ -444,6 +444,8 @@ function packLink(metadata: NuxtContentMetadata, id: string): string {
   return `[${pack.title}](./references/nuxt/${pack.relativePath})`
 }
 
+const DEFAULT_VUE_GUIDE_HREF = './references/vue/SKILL.md'
+
 export interface SkillEntrypointOptions {
   /** Restrict the skill to this subtree of a monorepo. */
   monorepoScopePath?: string
@@ -455,6 +457,8 @@ export interface SkillEntrypointOptions {
   skipped?: SkillSkippedRenderEntry[]
   /** Extra markdown sections rendered after routing, before the finish step. */
   extraSections?: string[]
+  /** Where the Vue guide lives. Defaults to the bundled copy. */
+  vueGuideHref?: string
 }
 
 export function selectRoutedPacks(metadata: NuxtContentMetadata, options: SkillEntrypointOptions = {}): NuxtPackMetadata[] {
@@ -500,7 +504,7 @@ function createRoutingTable(metadata: NuxtContentMetadata, options: SkillEntrypo
   rows.push([
     'The remaining work is components, composables, reactivity, props/emits, or SFC structure',
     '"Split this component and keep the props typed"',
-    '[Vue Best Practices](./references/vue/SKILL.md)',
+    `[Vue Best Practices](${options.vueGuideHref || DEFAULT_VUE_GUIDE_HREF})`,
   ])
 
   return [
@@ -544,7 +548,7 @@ ${monorepoScopeSection}
 1. Repository-global instructions and required workflows win first.
 2. Inspect the exact surface you are changing: page, layout, component, composable, server handler, plugin, config file, or module-owned file.
 3. If a generic Vue or raw HTML fix looks plausible, read ${packLink(metadata, 'abstraction-disambiguation')} first. Most Nuxt mistakes are the right behavior built on the wrong primitive.
-4. Switch to [Vue Best Practices](./references/vue/SKILL.md) only when Nuxt no longer owns the abstraction.
+4. Switch to [Vue Best Practices](${options.vueGuideHref || DEFAULT_VUE_GUIDE_HREF}) only when Nuxt no longer owns the abstraction.
 5. Use module guides only for module-owned APIs, config, runtime behavior, and files.
 
 ${sections}
