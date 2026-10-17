@@ -453,6 +453,8 @@ export interface SkillEntrypointOptions {
   installedPackages?: string[]
   entries?: SkillModuleRenderEntry[]
   skipped?: SkillSkippedRenderEntry[]
+  /** Extra markdown sections rendered after routing, before the finish step. */
+  extraSections?: string[]
 }
 
 export function selectRoutedPacks(metadata: NuxtContentMetadata, options: SkillEntrypointOptions = {}): NuxtPackMetadata[] {
@@ -526,6 +528,7 @@ Open one guide that matches the task. Open more only when that guide points you 
 
 ${createRoutingTable(metadata, options)}`,
     renderModuleSummary(entries, skipped),
+    ...(options.extraSections || []),
   ].filter(Boolean).join('\n\n')
 
   return `---

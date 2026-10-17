@@ -1,5 +1,3 @@
-import { fileURLToPath } from 'node:url'
-
 export default defineNuxtConfig({
   modules: ['@nuxt/ui', '@vueuse/nuxt', 'motion-v/nuxt', '@comark/nuxt'],
   app: {
@@ -22,11 +20,6 @@ export default defineNuxtConfig({
         { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap' },
       ],
     },
-  },
-  nitro: {
-    publicAssets: [
-      { dir: fileURLToPath(new URL('./skills', import.meta.url)), baseURL: '/.well-known/skills' },
-    ],
   },
   css: ['~/assets/css/main.css'],
   colorMode: { preference: 'system' },
