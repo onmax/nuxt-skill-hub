@@ -6,10 +6,12 @@
 
 ```ts
 // server/api/webhooks/billing.post.ts
+import { z } from 'zod'
+
 const BillingEvent = z.object({ type: z.string(), data: z.object({ id: z.string() }) })
 
 export default defineEventHandler(async (event) => {
-  // Wrong: const payload = (await readBody(event)) as BillingEvent
+  // Wrong: const payload = (await readBody(event)) as z.infer<typeof BillingEvent>
   const result = BillingEvent.safeParse(await readBody(event))
   if (!result.success)
     throw createError({ status: 422, statusText: 'Invalid Payload', data: result.error.flatten() })

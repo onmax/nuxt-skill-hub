@@ -5,24 +5,29 @@
 **Skip when:** the issue is intentionally scoped to one surface.
 
 ```vue
-<!-- app/error.vue: full-page errors (404s, fatal errors, server createError) -->
+<!-- app/error.vue (next to app/app.vue): full-page errors (404s, fatal errors, server createError) -->
 <script setup lang="ts">
 import type { NuxtError } from '#app'
 defineProps<{ error: NuxtError }>()
 </script>
+
 <template>
   <h1>{{ error.status }}</h1>
   <button @click="clearError({ redirect: '/' })">Home</button>
 </template>
+```
 
-<!-- Local: a failing widget should not take down the page -->
-<NuxtErrorBoundary>
-  <RevenueChart />
-  <template #error="{ error, clearError }">
-    <p>{{ error.message }}</p>
-    <button @click="clearError">Retry</button>
-  </template>
-</NuxtErrorBoundary>
+```vue
+<!-- app/pages/dashboard.vue: a failing widget should not take down the page -->
+<template>
+  <NuxtErrorBoundary>
+    <RevenueChart />
+    <template #error="{ error, clearError }">
+      <p>{{ error.message }}</p>
+      <button @click="clearError">Retry</button>
+    </template>
+  </NuxtErrorBoundary>
+</template>
 ```
 
 **Why:** Nuxt error handling is often multi-surface. Fixing only `app/error.vue` or only one `<NuxtErrorBoundary>` when the flow needs both is a recurring failure.
@@ -37,8 +42,10 @@ defineProps<{ error: NuxtError }>()
 showFallback.value = false
 await navigateTo('/')
 
-// Right: drive the error lifecycle through Nuxt
+// Right: enter the error state through Nuxt...
 showError({ status: 503, statusText: 'Service Unavailable' })
+
+// ...and leave it later, e.g. from the retry button in app/error.vue
 await clearError({ redirect: '/' })
 // inside <NuxtErrorBoundary>, call the slot's clearError() instead
 ```
