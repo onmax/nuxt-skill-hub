@@ -66,7 +66,9 @@ onMounted(() => {
         <nav class="flex flex-col gap-1">
           <a
             v-for="item in navItems" :key="item.to" :href="item.to"
-            class="rounded-lg px-3 py-2.5 font-mono text-sm text-muted transition-colors hover:bg-elevated hover:text-highlighted"
+            class="rounded-lg px-3 py-2.5 font-mono text-sm transition-colors hover:bg-elevated hover:text-highlighted"
+            :class="activeSection === item.to ? 'bg-elevated text-highlighted' : 'text-muted'"
+            :aria-current="activeSection === item.to ? 'location' : undefined"
             @click="mobileMenuOpen = false"
           >
             {{ item.label }}
