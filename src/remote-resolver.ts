@@ -4,7 +4,7 @@ import { dirname, join } from 'pathe'
 import { findPackageOverride } from './package-overrides'
 import { fetchGitHubDefaultBranch, fetchGitHubFileText, listGitHubDirectory, parseGitHubRepo } from './remote-fetch'
 import { resolveViaWellKnown, type WellKnownResolutionLimits } from './well-known-resolver'
-import { createMetadataRouterSkillFiles, resolveMetadataRouterSkillName } from './render-content'
+import { createMetadataRouterSkillFiles, resolveMetadataRouterSkillName } from '../shared/skill-render'
 import type { ResolvedContribution, SkillManifestSkipped, SkillSourceKind, ValidationIssue } from './types'
 import { createValidationIssue, ensureDir, normalizeContribution, parseAgentSkillDeclarations, pathExists, sanitizeSegment } from './internal'
 

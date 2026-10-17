@@ -7,22 +7,23 @@ export type SkillTrustLevel = 'official' | 'community'
 export interface NuxtPackMetadata {
   id: string
   title: string
-  focus: string
-  triggers: string[]
   relativePath: string
+  /** Routing table cell describing the task shape. Packs without a route are linked from the loading rules instead. */
+  route?: string
+  /** A user request that should land on this pack. */
+  example?: string
+  /** Only route to this pack when module authoring is enabled. */
+  moduleAuthoring?: boolean
+  /** Only route to this pack when one of these packages is installed. */
+  packages?: string[]
 }
 
 export interface NuxtContentMetadata {
   id: string
   version: string
-  experimental: boolean
   description: string
-  packIds: string[]
   packs: NuxtPackMetadata[]
 }
-
-export type CorePackMetadata = NuxtPackMetadata
-export type CoreContentMetadata = NuxtContentMetadata
 
 export interface SkillModuleRenderEntry {
   packageName: string
@@ -56,178 +57,123 @@ export interface SkillFrontmatter {
   description?: string
 }
 
+// Single source of truth for Nuxt rule packs. Every file in `nuxt-best-practices/rules/`
+// needs an entry here, and the order is the routing table order.
 export const DEFAULT_NUXT_CONTENT_METADATA: NuxtContentMetadata = {
   id: 'nuxt-best-practices',
   version: PACKAGE_VERSION,
-  experimental: true,
   description: 'Nuxt-native decision packs and best-practice rule packs for AI execution. Complements docs, not a replacement.',
-  packIds: [
-    'abstraction-disambiguation',
-    'page-meta-head-layout',
-    'error-surfaces-recovery',
-    'verification-finish',
-    'data-fetching-ssr',
-    'hydration-consistency',
-    'architecture-boundaries',
-    'server-routes-runtime-config',
-    'nitro-h3-patterns',
-    'plugins',
-    'performance-rendering',
-    'module-authoring',
-    'migrations',
-  ],
   packs: [
     {
       id: 'abstraction-disambiguation',
       title: 'Abstraction Disambiguation',
-      focus: 'Choose Nuxt-owned abstractions before generic Vue, raw HTML, or ad hoc glue code.',
-      triggers: ['A generic Vue or HTML fix looks plausible', 'You need to decide whether Nuxt, Nuxt Content, or Nuxt UI already owns the surface'],
       relativePath: 'rules/abstraction-disambiguation.md',
-    },
-    {
-      id: 'page-meta-head-layout',
-      title: 'Page Meta, Head, and Layout',
-      focus: 'Separate page behavior, document metadata, and layout structure before editing.',
-      triggers: ['Pages, layouts, middleware, or page options', 'Title, meta tags, canonical URLs, or OG metadata'],
-      relativePath: 'rules/page-meta-head-layout.md',
-    },
-    {
-      id: 'error-surfaces-recovery',
-      title: 'Error Surfaces and Recovery',
-      focus: 'Cover both global and local error boundaries and use the right recovery utilities.',
-      triggers: ['Global error pages or local error boundaries', 'Recovery flows, clearError, showError, or fallback UI'],
-      relativePath: 'rules/error-surfaces-recovery.md',
-    },
-    {
-      id: 'verification-finish',
-      title: 'Verification and Finish',
-      focus: 'Verify the intended framework behavior and re-check paired surfaces before concluding work.',
-      triggers: ['The fix spans more than one surface', 'You are about to finish a Nuxt change and need to confirm the right abstraction'],
-      relativePath: 'rules/verification-finish.md',
-    },
-    {
-      id: 'data-fetching-ssr',
-      title: 'Data Fetching and SSR',
-      focus: 'Deduplication, payload correctness, and request-safe loading.',
-      triggers: ['Pages, layouts, or composables fetching initial data', 'SSR-visible content or hydration-sensitive state'],
-      relativePath: 'rules/data-fetching-ssr.md',
-    },
-    {
-      id: 'hydration-consistency',
-      title: 'Hydration and SSR Consistency',
-      focus: 'SSR/CSR determinism, client-only boundaries, and mismatch prevention.',
-      triggers: ['Hydration warnings or client-only rendering', 'State that differs between server and browser'],
-      relativePath: 'rules/hydration-consistency.md',
-    },
-    {
-      id: 'architecture-boundaries',
-      title: 'Architecture Boundaries',
-      focus: 'Server-only secrets, request isolation, and safe shared abstractions.',
-      triggers: ['Crossing server/client boundaries', 'Composable or utility architecture changes'],
-      relativePath: 'rules/architecture-boundaries.md',
-    },
-    {
-      id: 'server-routes-runtime-config',
-      title: 'Server Routes and Runtime Config',
-      focus: 'Runtime config exposure, env handling, and route-level contracts.',
-      triggers: ['nuxt.config, runtime config, or env wiring', 'Server route config and public/private config exposure'],
-      relativePath: 'rules/server-routes-runtime-config.md',
-    },
-    {
-      id: 'nitro-h3-patterns',
-      title: 'Nitro and h3 Server Patterns',
-      focus: 'Handler contracts, caching, and edge-safe server behavior.',
-      triggers: ['Server routes, middleware, Nitro plugins, or h3 handlers', 'API behavior, caching, or edge runtime concerns'],
-      relativePath: 'rules/nitro-h3-patterns.md',
-    },
-    {
-      id: 'plugins',
-      title: 'Plugins and Runtime Boot',
-      focus: 'Plugin ordering, startup cost, and app/runtime initialization.',
-      triggers: ['Plugins, app boot logic, or injected runtime helpers', 'Global runtime behavior changes'],
-      relativePath: 'rules/plugins.md',
-    },
-    {
-      id: 'performance-rendering',
-      title: 'Performance and Rendering',
-      focus: 'Rendering strategy, payload cost, and lazy loading tradeoffs.',
-      triggers: ['Performance regressions or rendering strategy changes', 'Link, asset, and bundle cost decisions'],
-      relativePath: 'rules/performance-rendering.md',
     },
     {
       id: 'module-authoring',
       title: 'Module Authoring Conventions',
-      focus: 'Nuxt Kit patterns, module lifecycle, and ecosystem-safe authoring.',
-      triggers: ['Writing or refactoring a Nuxt module', 'Module install/setup conventions'],
       relativePath: 'rules/module-authoring.md',
+      route: 'Writing or refactoring a Nuxt module (`defineNuxtModule`, hooks, public APIs)',
+      example: 'Add a Nuxt module option, hook, or runtime extension',
+      moduleAuthoring: true,
+    },
+    {
+      id: 'nuxt-ui-primitives',
+      title: 'Nuxt UI Primitives',
+      relativePath: 'rules/nuxt-ui-primitives.md',
+      route: 'Tables, forms, modals, dropdowns, page shells, or other UI that Nuxt UI already ships',
+      example: 'This modal/table/dropdown was hand-built in raw HTML',
+      packages: ['@nuxt/ui', '@nuxt/ui-pro'],
+    },
+    {
+      id: 'content-modeling-navigation',
+      title: 'Content Modeling and Navigation',
+      relativePath: 'rules/content-modeling-navigation.md',
+      route: 'Nuxt Content collections, structured data records, or navigation built from content',
+      example: 'Build the docs sidebar from the content folder',
+      packages: ['@nuxt/content'],
+    },
+    {
+      id: 'data-fetching-ssr',
+      title: 'Data Fetching and SSR',
+      relativePath: 'rules/data-fetching-ssr.md',
+      route: 'SSR, initial page load, route params, or data fetched for first render',
+      example: 'This page fetches twice on first load',
+    },
+    {
+      id: 'hydration-consistency',
+      title: 'Hydration and SSR Consistency',
+      relativePath: 'rules/hydration-consistency.md',
+      route: 'Hydration warnings, `ClientOnly`, browser-only APIs, time/randomness, or SSR/CSR mismatch',
+      example: 'Why do I get a hydration mismatch from Date.now()?',
+    },
+    {
+      id: 'page-meta-head-layout',
+      title: 'Page Meta, Head, and Layout',
+      relativePath: 'rules/page-meta-head-layout.md',
+      route: 'Page options, middleware, layout selection, title, meta tags, canonical URLs, or OG data',
+      example: 'Change canonical URL and OG tags',
+    },
+    {
+      id: 'error-surfaces-recovery',
+      title: 'Error Surfaces and Recovery',
+      relativePath: 'rules/error-surfaces-recovery.md',
+      route: 'Global/local errors, `clearError`, `showError`, or recovery flows',
+      example: '`clearError` is not behaving as expected',
+    },
+    {
+      id: 'server-routes-runtime-config',
+      title: 'Server Routes, h3 Patterns, and Runtime Config',
+      relativePath: 'rules/server-routes-runtime-config.md',
+      route: '`nuxt.config.*`, `runtimeConfig`, env wiring, or public/private config exposure',
+      example: 'Expose only the public runtimeConfig key',
+    },
+    {
+      id: 'nitro-h3-patterns',
+      title: 'Nitro and h3 Server Patterns',
+      relativePath: 'rules/nitro-h3-patterns.md',
+      route: '`server/api/**`, `server/routes/**`, `defineEventHandler`, route rules, caching, or Nitro plugins',
+      example: 'This server/api handler cache or route rule is wrong',
+    },
+    {
+      id: 'architecture-boundaries',
+      title: 'Architecture Boundaries',
+      relativePath: 'rules/architecture-boundaries.md',
+      route: 'Secrets, privileged API calls, request isolation, or server/client boundary confusion',
+      example: 'Should this secret live in runtime config or client code?',
+    },
+    {
+      id: 'plugins',
+      title: 'Plugins and Runtime Boot',
+      relativePath: 'rules/plugins.md',
+      route: 'Plugins, injections, app boot logic, or global runtime initialization',
+      example: 'Register a global helper when the app starts',
+    },
+    {
+      id: 'performance-rendering',
+      title: 'Performance and Rendering',
+      relativePath: 'rules/performance-rendering.md',
+      route: 'Performance regressions, rendering strategy, lazy loading, or payload/bundle cost',
+      example: 'This page ships too much JavaScript',
     },
     {
       id: 'migrations',
       title: 'Migrations and Compatibility',
-      focus: 'Incremental upgrades, compatibility boundaries, and rollout safety.',
-      triggers: ['Upgrades, deprecations, or breaking behavior changes', 'Compatibility fixes across Nuxt versions'],
       relativePath: 'rules/migrations.md',
+      route: 'Upgrades, deprecations, compatibility fixes, or version-boundary work',
+      example: 'Upgrade this app from Nuxt 3 to Nuxt 4',
+    },
+    {
+      id: 'verification-finish',
+      title: 'Verification and Finish',
+      relativePath: 'rules/verification-finish.md',
     },
   ],
 }
 
-export const DEFAULT_CORE_CONTENT_METADATA = DEFAULT_NUXT_CONTENT_METADATA
-
 function yamlString(value: string): string {
   return JSON.stringify(value)
 }
-
-function cleanList(values: unknown): string[] {
-  return Array.isArray(values)
-    ? values.filter((value): value is string => typeof value === 'string' && value.trim().length > 0).map(value => value.trim())
-    : []
-}
-
-function normalizeNuxtPackMetadata(raw: unknown, fallback: NuxtPackMetadata): NuxtPackMetadata {
-  if (!raw || typeof raw !== 'object') {
-    return fallback
-  }
-
-  const entry = raw as Partial<NuxtPackMetadata>
-  return {
-    id: typeof entry.id === 'string' && entry.id.trim() ? entry.id.trim() : fallback.id,
-    title: typeof entry.title === 'string' && entry.title.trim() ? entry.title.trim() : fallback.title,
-    focus: typeof entry.focus === 'string' && entry.focus.trim() ? entry.focus.trim() : fallback.focus,
-    triggers: cleanList(entry.triggers).length ? cleanList(entry.triggers) : fallback.triggers,
-    relativePath: typeof entry.relativePath === 'string' && entry.relativePath.trim() ? entry.relativePath.trim() : fallback.relativePath,
-  }
-}
-
-export function normalizeNuxtContentMetadata(raw: unknown): NuxtContentMetadata {
-  if (!raw || typeof raw !== 'object') {
-    return DEFAULT_NUXT_CONTENT_METADATA
-  }
-
-  const metadata = raw as Partial<NuxtContentMetadata>
-  const fallbackPacksById = new Map(DEFAULT_NUXT_CONTENT_METADATA.packs.map(pack => [pack.id, pack]))
-  const rawPacks = Array.isArray(metadata.packs) ? metadata.packs : []
-  const packs = rawPacks.length
-    ? rawPacks.map((pack) => {
-        const packId = pack && typeof pack === 'object' && typeof (pack as { id?: unknown }).id === 'string'
-          ? (pack as { id: string }).id
-          : ''
-        return normalizeNuxtPackMetadata(pack, fallbackPacksById.get(packId) || DEFAULT_NUXT_CONTENT_METADATA.packs[0]!)
-      })
-    : DEFAULT_NUXT_CONTENT_METADATA.packs
-
-  return {
-    id: typeof metadata.id === 'string' && metadata.id.trim() ? metadata.id.trim() : DEFAULT_NUXT_CONTENT_METADATA.id,
-    version: typeof metadata.version === 'string' && metadata.version.trim() ? metadata.version.trim() : DEFAULT_NUXT_CONTENT_METADATA.version,
-    experimental: typeof metadata.experimental === 'boolean' ? metadata.experimental : DEFAULT_NUXT_CONTENT_METADATA.experimental,
-    description: typeof metadata.description === 'string' && metadata.description.trim()
-      ? metadata.description.trim()
-      : DEFAULT_NUXT_CONTENT_METADATA.description,
-    packIds: cleanList(metadata.packIds).length ? cleanList(metadata.packIds) : DEFAULT_NUXT_CONTENT_METADATA.packIds,
-    packs,
-  }
-}
-
-export const normalizeCoreContentMetadata = normalizeNuxtContentMetadata
 
 function parseFrontmatterValue(raw: string): string {
   const value = raw.trim()
@@ -498,124 +444,89 @@ function packLink(metadata: NuxtContentMetadata, id: string): string {
   return `[${pack.title}](./references/nuxt/${pack.relativePath})`
 }
 
-function createRoutingTable(metadata: NuxtContentMetadata, includeModuleAuthoring = false, includeModuleGuidance = false): string {
-  const rows: Array<[string, string]> = [
-    ...(includeModuleAuthoring
-      ? [[
-          'Writing or refactoring a Nuxt module (`defineNuxtModule`, hooks, public APIs)',
-          packLink(metadata, 'module-authoring'),
-        ] as [string, string]]
-      : []),
-    ...(includeModuleGuidance
-      ? [[
-          'Installed module APIs such as Nuxt Content, Nuxt Studio, Nuxt UI, VueUse, or NuxtHub',
-          '[Module guide index](./references/modules/index.md)',
-        ] as [string, string]]
-      : []),
-    [
-      'SSR, initial page load, route params, or data fetched for first render',
-      packLink(metadata, 'data-fetching-ssr'),
-    ],
-    [
-      'Hydration warnings, `ClientOnly`, browser-only APIs, time/randomness, or SSR/CSR mismatch',
-      packLink(metadata, 'hydration-consistency'),
-    ],
-    [
-      'Page options, middleware, layout selection, title, meta tags, canonical URLs, or OG data',
-      packLink(metadata, 'page-meta-head-layout'),
-    ],
-    [
-      '`nuxt.config.*`, `runtimeConfig`, env wiring, or public/private config exposure',
-      packLink(metadata, 'server-routes-runtime-config'),
-    ],
-    [
-      '`server/api/**`, `server/routes/**`, `defineEventHandler`, route rules, caching, or Nitro plugins',
-      packLink(metadata, 'nitro-h3-patterns'),
-    ],
-    [
-      'Plugins, injections, app boot logic, or global runtime initialization',
-      packLink(metadata, 'plugins'),
-    ],
-    [
-      'Secrets, privileged API calls, request isolation, or server/client boundary confusion',
-      packLink(metadata, 'architecture-boundaries'),
-    ],
-    [
-      'Performance regressions, rendering strategy, lazy loading, or payload/bundle cost',
-      packLink(metadata, 'performance-rendering'),
-    ],
-    [
-      'Upgrades, deprecations, compatibility fixes, or version-boundary work',
-      packLink(metadata, 'migrations'),
-    ],
-    [
-      'A generic Vue or raw HTML fix looks plausible',
-      packLink(metadata, 'abstraction-disambiguation'),
-    ],
-    [
-      'The remaining work is mostly components, composables, reactivity, props/emits, or SFC structure',
-      '[Vue Best Practices](./references/vue/SKILL.md)',
-    ],
-    [
-      'Global/local errors, `clearError`, `showError`, or recovery flows',
-      packLink(metadata, 'error-surfaces-recovery'),
-    ],
-  ]
+export interface SkillEntrypointOptions {
+  /** Restrict the skill to this subtree of a monorepo. */
+  monorepoScopePath?: string
+  /** Route module-authoring work to the module authoring pack. */
+  moduleAuthoring?: boolean
+  /** Installed package names. Packs gated by `packages` are routed only when one of them is installed. */
+  installedPackages?: string[]
+  entries?: SkillModuleRenderEntry[]
+  skipped?: SkillSkippedRenderEntry[]
+}
+
+export function selectRoutedPacks(metadata: NuxtContentMetadata, options: SkillEntrypointOptions = {}): NuxtPackMetadata[] {
+  const installed = new Set([
+    ...(options.installedPackages || []),
+    ...(options.entries || []).map(entry => entry.packageName),
+  ])
+
+  return metadata.packs.filter((pack) => {
+    if (!pack.route) {
+      return false
+    }
+    if (pack.moduleAuthoring && !options.moduleAuthoring) {
+      return false
+    }
+    if (pack.packages && !pack.packages.some(name => installed.has(name))) {
+      return false
+    }
+    return true
+  })
+}
+
+function formatModuleNames(entries: SkillModuleRenderEntry[], skipped: SkillSkippedRenderEntry[]): string {
+  const names = Array.from(new Set([...entries, ...skipped].map(entry => entry.packageName))).sort()
+  const shown = names.slice(0, 5).map(name => `\`${name}\``).join(', ')
+  return names.length > 5 ? `${shown}, and ${names.length - 5} more` : shown
+}
+
+function createRoutingTable(metadata: NuxtContentMetadata, options: SkillEntrypointOptions): string {
+  const entries = options.entries || []
+  const skipped = options.skipped || []
+  const rows: Array<[string, string, string]> = selectRoutedPacks(metadata, options)
+    .map(pack => [pack.route!, pack.example ? `"${pack.example}"` : '', packLink(metadata, pack.id)])
+
+  if (hasModuleGuidance(entries, skipped)) {
+    rows.unshift([
+      `Installed module APIs, options, components, or composables: ${formatModuleNames(entries, skipped)}`,
+      '"Which props does this module component take?"',
+      '[Module guide index](./references/modules/index.md)',
+    ])
+  }
+
+  rows.push([
+    'The remaining work is components, composables, reactivity, props/emits, or SFC structure',
+    '"Split this component and keep the props typed"',
+    '[Vue Best Practices](./references/vue/SKILL.md)',
+  ])
 
   return [
-    '| Task shape or symptom | Open first |',
-    '| --- | --- |',
-    ...rows.map(([symptom, target]) => `| ${symptom} | ${target} |`),
+    '| Task shape or symptom | Example request | Open first |',
+    '| --- | --- | --- |',
+    ...rows.map(([symptom, example, target]) => `| ${symptom} | ${example} | ${target} |`),
   ].join('\n')
-}
-
-function createRoutingExamples(metadata: NuxtContentMetadata, includeModuleAuthoring = false): string {
-  const lines = [
-    `- "This page fetches twice on first load" → ${packLink(metadata, 'data-fetching-ssr')}`,
-    `- "Why do I get a hydration mismatch from Date.now()?" → ${packLink(metadata, 'hydration-consistency')}`,
-    `- "Change canonical URL and OG tags" → ${packLink(metadata, 'page-meta-head-layout')}`,
-    `- "Expose only the public runtimeConfig key" → ${packLink(metadata, 'server-routes-runtime-config')}`,
-    `- "This server/api handler cache or route rule is wrong" → ${packLink(metadata, 'nitro-h3-patterns')}`,
-    `- "This modal/table/dropdown was hand-built in raw HTML" → ${packLink(metadata, 'abstraction-disambiguation')}`,
-    `- "\`clearError\` is not behaving as expected" → ${packLink(metadata, 'error-surfaces-recovery')}`,
-    `- "Should this secret live in runtime config or client code?" → ${packLink(metadata, 'architecture-boundaries')}`,
-    ...(includeModuleAuthoring
-      ? [`- "Add a Nuxt module option, hook, or runtime extension" → ${packLink(metadata, 'module-authoring')}`]
-      : []),
-  ]
-
-  return `## Routing examples
-${lines.join('\n')}`
-}
-
-function createSkillMapSections(
-  metadata: NuxtContentMetadata,
-  entries: SkillModuleRenderEntry[],
-  skipped: SkillSkippedRenderEntry[] = [],
-  includeModuleAuthoring = false,
-): string {
-  return [
-    '## Routing',
-    'Load one matching guide first. Open more guides only when the first guide points you there or the task clearly crosses boundaries.',
-    createRoutingTable(metadata, includeModuleAuthoring, hasModuleGuidance(entries, skipped)),
-    createRoutingExamples(metadata, includeModuleAuthoring),
-    renderModuleSummary(entries, skipped),
-  ].filter(Boolean).join('\n\n')
 }
 
 export function createSkillEntrypoint(
   skillName: string,
   metadata: NuxtContentMetadata,
-  monorepoScopePath?: string,
-  includeModuleAuthoring = false,
-  entries: SkillModuleRenderEntry[] = [],
-  skipped: SkillSkippedRenderEntry[] = [],
+  options: SkillEntrypointOptions = {},
 ): string {
-  const description = 'Routes Nuxt work to the smallest relevant guide. Use for `useFetch`/`useAsyncData`, SSR, hydration mismatches, `definePageMeta`, `useHead`/`useSeoMeta`, `runtimeConfig`, Nitro/h3 server routes, plugins, Nuxt UI, Nuxt Content, Nuxt Studio, VueUse, or Nuxt module authoring.'
-  const monorepoScopeSection = monorepoScopePath
-    ? `## Monorepo scope
-This skill applies only to \`${monorepoScopePath}\`. Treat files and tasks outside that subtree as out of scope unless the user explicitly redirects you there.`
+  const entries = options.entries || []
+  const skipped = options.skipped || []
+  const description = 'Use before changing Nuxt code. Routes to the smallest relevant guide for `useFetch`/`useAsyncData`, SSR and hydration, `definePageMeta`/`useSeoMeta`, `runtimeConfig`, Nitro server routes, plugins, errors, Nuxt UI, Nuxt Content, installed Nuxt modules, or module authoring.'
+  const monorepoScopeSection = options.monorepoScopePath
+    ? `\n## Monorepo scope
+This skill applies only to \`${options.monorepoScopePath}\`. Treat files and tasks outside that subtree as out of scope unless the user explicitly redirects you there.\n`
     : ''
+  const sections = [
+    `## Routing
+Open one guide that matches the task. Open more only when that guide points you there or the task clearly crosses boundaries.
+
+${createRoutingTable(metadata, options)}`,
+    renderModuleSummary(entries, skipped),
+  ].filter(Boolean).join('\n\n')
 
   return `---
 name: ${yamlString(skillName)}
@@ -624,21 +535,21 @@ description: ${yamlString(description)}
 
 # Nuxt Skill Router
 
-Use this skill to make the Nuxt ownership decision first, then route to the smallest relevant Nuxt, Vue, or module guide.
-${monorepoScopeSection ? `\n${monorepoScopeSection}\n` : '\n'}## Loading rules
+Decide what Nuxt owns before editing, then open the smallest relevant Nuxt, Vue, or module guide.
+${monorepoScopeSection}
+## Loading rules
 1. Repository-global instructions and required workflows win first.
-2. Inspect the exact owned surface first: page, layout, component, server handler, collection, config file, or module-owned file.
-3. Load one matching guide from the routing table below.
+2. Inspect the exact surface you are changing: page, layout, component, composable, server handler, plugin, config file, or module-owned file.
+3. If a generic Vue or raw HTML fix looks plausible, read ${packLink(metadata, 'abstraction-disambiguation')} first. Most Nuxt mistakes are the right behavior built on the wrong primitive.
 4. Switch to [Vue Best Practices](./references/vue/SKILL.md) only when Nuxt no longer owns the abstraction.
-5. Use module entries only inside module-owned APIs, config, runtime behavior, and files.
-6. Open additional guides only when the first guide points you there or the task clearly crosses boundaries.
+5. Use module guides only for module-owned APIs, config, runtime behavior, and files.
 
-${createSkillMapSections(metadata, entries, skipped, includeModuleAuthoring)}
+${sections}
 
 ## Finish
-For multi-surface changes or final verification, open ${packLink(metadata, 'verification-finish')}.
+Before concluding a change that touches more than one surface, read ${packLink(metadata, 'verification-finish')}.
 
-- Verify paired surfaces when relevant: page/head, server/client, global/local.
+- Check paired surfaces: page and head, server and client, global and local errors.
 - Verify framework behavior, not only visible output.
 - Keep module guidance scoped to the owning module.
 

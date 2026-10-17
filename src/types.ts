@@ -1,5 +1,5 @@
 import type { SkillHubTarget } from './agents'
-import type { SkillSourceKind, SkillResolverKind, SkillTrustLevel } from './render-content'
+import type { SkillSourceKind, SkillResolverKind, SkillTrustLevel } from '../shared/skill-render'
 
 export type { SkillSourceKind, SkillResolverKind, SkillTrustLevel }
 

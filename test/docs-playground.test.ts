@@ -5,7 +5,7 @@ import {
   createMetadataRouterSkillFiles,
   createModuleWrapperContent,
   createSkillEntrypoint,
-  DEFAULT_CORE_CONTENT_METADATA,
+  DEFAULT_NUXT_CONTENT_METADATA,
   resolveMetadataRouterSkillName,
 } from '../shared/skill-render'
 
@@ -33,7 +33,7 @@ describe('docs playground metadata routing', () => {
   })
 
   it('renders additive module-author preview content when enabled', () => {
-    const entry = createSkillEntrypoint('nuxt', DEFAULT_CORE_CONTENT_METADATA, undefined, true)
+    const entry = createSkillEntrypoint('nuxt', DEFAULT_NUXT_CONTENT_METADATA, { moduleAuthoring: true })
 
     expect(entry).toContain('# Nuxt Skill Router')
     expect(entry).toContain('Writing or refactoring a Nuxt module (`defineNuxtModule`, hooks, public APIs)')
@@ -68,7 +68,7 @@ describe('docs playground metadata routing', () => {
   })
 
   it('keeps resolved preview module details out of the root skill', () => {
-    const entry = createSkillEntrypoint('nuxt', DEFAULT_CORE_CONTENT_METADATA, undefined, false, [
+    const entry = createSkillEntrypoint('nuxt', DEFAULT_NUXT_CONTENT_METADATA, { entries: [
       {
         packageName: '@nuxthub/core',
         version: undefined,
@@ -84,7 +84,7 @@ describe('docs playground metadata routing', () => {
         resolver: 'agentsField' as const,
         wrapperPath: 'references/modules/nuxthub/nuxthub.md',
       },
-    ])
+    ] })
 
     expect(entry).toContain('## Module guides')
     expect(entry).toContain('[Module guide index](./references/modules/index.md)')
