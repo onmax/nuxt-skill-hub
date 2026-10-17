@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { MotionConfig } from 'motion-v'
+
 const mobileMenuOpen = ref(false)
 
 const navItems = [
@@ -8,6 +10,22 @@ const navItems = [
   { label: 'Playground', to: '#playground' },
   { label: 'Docs', to: '#docs' },
 ]
+
+// Highlight the nav item for the section that crosses the upper third of the viewport.
+const activeSection = ref('')
+onMounted(() => {
+  const sections = navItems
+    .map(item => document.querySelector<HTMLElement>(item.to))
+    .filter((section): section is HTMLElement => Boolean(section))
+  const observer = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      if (entry.isIntersecting) activeSection.value = `#${entry.target.id}`
+      else if (activeSection.value === `#${entry.target.id}`) activeSection.value = ''
+    }
+  }, { rootMargin: '-30% 0px -65% 0px' })
+  sections.forEach(section => observer.observe(section))
+  onBeforeUnmount(() => observer.disconnect())
+})
 </script>
 
 <template>
@@ -23,7 +41,9 @@ const navItems = [
           <nav class="hidden items-center gap-6 md:flex">
             <a
               v-for="item in navItems" :key="item.to" :href="item.to"
-              class="font-mono text-xs text-muted transition-colors hover:text-highlighted"
+              class="font-mono text-xs transition-colors hover:text-highlighted"
+              :class="activeSection === item.to ? 'text-highlighted' : 'text-muted'"
+              :aria-current="activeSection === item.to ? 'location' : undefined"
             >
               {{ item.label }}
             </a>
@@ -46,7 +66,9 @@ const navItems = [
         <nav class="flex flex-col gap-1">
           <a
             v-for="item in navItems" :key="item.to" :href="item.to"
-            class="rounded-lg px-3 py-2.5 font-mono text-sm text-muted transition-colors hover:bg-elevated hover:text-highlighted"
+            class="rounded-lg px-3 py-2.5 font-mono text-sm transition-colors hover:bg-elevated hover:text-highlighted"
+            :class="activeSection === item.to ? 'bg-elevated text-highlighted' : 'text-muted'"
+            :aria-current="activeSection === item.to ? 'location' : undefined"
             @click="mobileMenuOpen = false"
           >
             {{ item.label }}
@@ -60,6 +82,8 @@ const navItems = [
       </template>
     </UDrawer>
 
-    <NuxtPage />
+    <MotionConfig reduced-motion="user">
+      <NuxtPage />
+    </MotionConfig>
   </UApp>
 </template>

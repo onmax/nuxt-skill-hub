@@ -47,10 +47,21 @@ function moduleIconUrl(icon: string) {
 
 const colorCache = new Map<string, string>()
 
-function extractDominantColor(iconUrl: string): Promise<string | undefined> {
+function extractDominantColor(iconUrl: string, signal: AbortSignal): Promise<string | undefined> {
   if (colorCache.has(iconUrl)) return Promise.resolve(colorCache.get(iconUrl))
   return new Promise((resolve) => {
+    if (signal.aborted) return resolve(undefined)
     const img = new Image()
+    const settle = (color?: string) => {
+      signal.removeEventListener('abort', onAbort)
+      img.onload = img.onerror = null
+      resolve(color)
+    }
+    const onAbort = () => {
+      img.src = ''
+      settle()
+    }
+    signal.addEventListener('abort', onAbort, { once: true })
     img.crossOrigin = 'anonymous'
     img.onload = () => {
       const canvas = document.createElement('canvas')
@@ -68,15 +79,39 @@ function extractDominantColor(iconUrl: string): Promise<string | undefined> {
         if (max - min < 20) continue // skip grays
         rSum += r; gSum += g; bSum += b; count++
       }
-      if (count < 10) { resolve(undefined); return }
+      if (count < 10) { settle(); return }
       const color = `rgb(${Math.round(rSum / count)}, ${Math.round(gSum / count)}, ${Math.round(bSum / count)})`
       colorCache.set(iconUrl, color)
-      resolve(color)
+      settle(color)
     }
-    img.onerror = () => resolve(undefined)
+    img.onerror = () => settle()
     img.src = iconUrl
   })
 }
+
+// Ordered: the mobile list shows the first few.
+const FEATURED_MODULES = [
+  '@nuxt/ui',
+  '@nuxt/content',
+  '@nuxt/image',
+  '@nuxtjs/i18n',
+  '@pinia/nuxt',
+  '@vueuse/nuxt',
+  '@nuxt/fonts',
+  '@nuxt/icon',
+  '@nuxtjs/color-mode',
+  '@nuxt/eslint',
+  '@nuxthub/core',
+  '@nuxtjs/seo',
+  '@nuxt/scripts',
+  '@nuxtjs/supabase',
+  '@sidebase/nuxt-auth',
+  '@nuxt/test-utils',
+  '@nuxtjs/sitemap',
+  'nuxt-og-image',
+  '@nuxtjs/mdc',
+  '@nuxt/a11y',
+]
 
 // Fetch modules from API
 const { data: apiData } = await useFetch('/api/nuxt-modules')
@@ -84,11 +119,14 @@ const { data: apiData } = await useFetch('/api/nuxt-modules')
 const modulePool = computed<ModuleNode[]>(() => {
   const modules = apiData.value?.modules
   if (!modules?.length) return []
+  // Well-known modules only: api.nuxt.com has stats for few modules, so ranking by
+  // stars or downloads mostly surfaced obscure ones.
   return modules
-    .filter((m: NuxtModuleResult) => m.icon)
+    .filter((m: NuxtModuleResult) => m.icon && FEATURED_MODULES.includes(m.npm))
+    .sort((a: NuxtModuleResult, b: NuxtModuleResult) => FEATURED_MODULES.indexOf(a.npm) - FEATURED_MODULES.indexOf(b.npm))
     .map((m: NuxtModuleResult) => ({
       id: m.npm,
-      label: m.name,
+      label: m.npm,
       icon: m.icon,
       iconUrl: moduleIconUrl(m.icon),
       command: `npx nuxt module add ${m.npm}`,
@@ -149,18 +187,30 @@ function generateSlots(count: number): SlotPosition[] {
   return result
 }
 
-function delay(ms: number) {
-  return new Promise(resolve => setTimeout(resolve, ms))
+// Every wait in the demo rejects on abort, so unmounting stops all pending work.
+function delay(ms: number, signal: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    if (signal.aborted) return reject(signal.reason)
+    const onAbort = () => {
+      clearTimeout(id)
+      reject(signal.reason)
+    }
+    const id = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+    signal.addEventListener('abort', onAbort, { once: true })
+  })
 }
 
-async function typeInto(idx: number, text: string) {
+async function typeInto(idx: number, text: string, signal: AbortSignal) {
   for (let i = 1; i <= text.length; i++) {
     states.value[idx]!.typedText = text.slice(0, i)
-    await delay(35)
+    await delay(35, signal)
   }
 }
 
-async function growLine(idx: number) {
+async function growLine(idx: number, signal: AbortSignal) {
   const duration = 700
   const frames = 42
   const interval = duration / frames
@@ -168,24 +218,27 @@ async function growLine(idx: number) {
     let t = i / frames
     t = t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2
     states.value[idx]!.lineProgress = t
-    await delay(interval)
+    await delay(interval, signal)
   }
   states.value[idx]!.lineProgress = 1
 }
 
-async function typeCenterCommand() {
+async function typeCenterCommand(signal: AbortSignal) {
   for (let i = 1; i <= centerCommand.length; i++) {
     centerTypedText.value = centerCommand.slice(0, i)
-    await delay(35)
+    await delay(35, signal)
   }
 }
 
 let abortController: AbortController | null = null
+let showingStaticFrame = false
 
 async function runAnimation() {
+  if (unmounted) return
   abortController?.abort()
   const ac = new AbortController()
   abortController = ac
+  showingStaticFrame = false
 
   // Reset state
   centerPhase.value = 'hidden'
@@ -197,9 +250,15 @@ async function runAnimation() {
   const pool = modulePool.value
   if (!pool.length) return
 
-  const count = randomModuleCount()
+  const count = Math.min(randomModuleCount(), pool.length)
   const selected = weightedSample(pool, count)
   const generatedSlots = generateSlots(count)
+
+  if (reduceMotion.value) {
+    showStaticFrame(selected, generatedSlots)
+    showingStaticFrame = true
+    return
+  }
 
   slots.value = generatedSlots
   states.value = generatedSlots.map((_, i) => ({
@@ -209,25 +268,24 @@ async function runAnimation() {
     lineProgress: 0,
   }))
 
-  const wait = (ms: number) => new Promise<void>((resolve, reject) => {
-    const id = setTimeout(resolve, ms)
-    ac.signal.addEventListener('abort', () => { clearTimeout(id); reject(new Error('aborted')) })
-  })
+  const { signal } = ac
+  const wait = (ms: number) => delay(ms, signal)
 
   try {
     await wait(800)
     centerPhase.value = 'typing'
     await wait(400)
-    await typeCenterCommand()
+    await typeCenterCommand(signal)
     await wait(500)
     centerPhase.value = 'revealed'
     await wait(800)
 
     // Pre-extract colors for all selected modules
     await Promise.all(states.value.map(async (s) => {
-      const color = await extractDominantColor(s.mod.iconUrl)
-      if (color) s.color = color
+      const color = await extractDominantColor(s.mod.iconUrl, signal)
+      if (color && !signal.aborted) s.color = color
     }))
+    if (signal.aborted) return
 
     const STAGGER = 1800
     const order = [...Array(selected.length).keys()].sort(() => Math.random() - 0.5)
@@ -237,12 +295,12 @@ async function runAnimation() {
       s.phase = 'pill-appear'
       await wait(400)
       s.phase = 'typing'
-      await typeInto(idx, s.mod.command)
+      await typeInto(idx, s.mod.command, signal)
       await wait(300)
       s.phase = 'morph'
       await wait(500)
       s.phase = 'line'
-      await growLine(idx)
+      await growLine(idx, signal)
       s.phase = 'connected'
       connectedIcons.value = [...connectedIcons.value, { iconUrl: s.mod.iconUrl }]
       centerPulse.value = true
@@ -251,7 +309,7 @@ async function runAnimation() {
     })())
     await Promise.all(promises)
 
-    // Pause then fade out and restart
+    // Pause, fade out, and restart. Going off screen aborts the cycle; the watcher restarts it.
     await wait(2500)
     containerOpacity.value = 0
     await wait(900)
@@ -260,7 +318,43 @@ async function runAnimation() {
   catch { /* aborted */ }
 }
 
-onMounted(runAnimation)
+// Observe the desktop stage itself: it is display:none on mobile, so the loop never runs there.
+const stage = useTemplateRef<HTMLElement>('stage')
+const isOnScreen = useElementVisibility(stage)
+const documentVisibility = useDocumentVisibility()
+const isActive = computed(() => isOnScreen.value && documentVisibility.value === 'visible')
+const prefersReducedMotion = usePreferredReducedMotion()
+const reduceMotion = computed(() => prefersReducedMotion.value === 'reduce')
+
+function showStaticFrame(selected: ModuleNode[], generatedSlots: SlotPosition[]) {
+  slots.value = generatedSlots
+  states.value = generatedSlots.map((_, i) => ({
+    mod: selected[i]!,
+    phase: 'connected' as Phase,
+    typedText: selected[i]!.command,
+    lineProgress: 1,
+  }))
+  centerPhase.value = 'revealed'
+  centerTypedText.value = centerCommand
+  connectedIcons.value = selected.map(mod => ({ iconUrl: mod.iconUrl }))
+}
+
+// Run only while the stage is visible. Hiding it aborts the current cycle; showing it again
+// or changing the motion preference starts a fresh one.
+let unmounted = false
+watch([isActive, reduceMotion], ([active], [wasActive]) => {
+  if (!active) {
+    abortController?.abort()
+    return
+  }
+  // Keep the same static frame when it scrolls back into view.
+  if (showingStaticFrame && reduceMotion.value && wasActive === false) return
+  runAnimation()
+})
+onBeforeUnmount(() => {
+  unmounted = true
+  abortController?.abort()
+})
 
 function curvePath(slot: SlotPosition) {
   const fx = slot.x * 10
@@ -295,7 +389,7 @@ function moduleLinkLabel(mod: ModuleNode) {
             :initial="{ opacity: 0, y: 12 }"
             :animate="{ opacity: 1, y: 0 }"
             :transition="{ duration: 0.45 }"
-            class="inline-flex max-w-full items-center gap-2 rounded-full border border-primary/25 bg-default px-4 py-3 shadow-[0_0_30px_color-mix(in_srgb,var(--ui-primary)_12%,transparent)]"
+            class="motion-reduce:opacity-100! motion-reduce:transform-none! inline-flex max-w-full items-center gap-2 rounded-full border border-primary/25 bg-default px-4 py-3 shadow-[0_0_30px_color-mix(in_srgb,var(--ui-primary)_12%,transparent)]"
           >
             <span class="font-mono text-sm font-semibold tracking-tight text-highlighted">SKILL.md</span>
             <div class="flex items-center">
@@ -323,7 +417,7 @@ function moduleLinkLabel(mod: ModuleNode) {
               :initial="{ opacity: 0, x: -8 }"
               :animate="{ opacity: 1, x: 0 }"
               :transition="{ duration: 0.35, delay: 0.08 * index }"
-              class="group relative mb-3 flex min-h-12 items-center justify-between gap-3 rounded-2xl border border-default bg-default/95 px-3 py-3 shadow-[0_10px_30px_rgba(15,23,42,0.05)] transition-colors hover:border-primary/25 hover:bg-elevated last:mb-0"
+              class="motion-reduce:opacity-100! motion-reduce:transform-none! group relative mb-3 flex min-h-12 items-center justify-between gap-3 rounded-2xl border border-default bg-default/95 px-3 py-3 shadow-[0_10px_30px_rgba(15,23,42,0.05)] transition-colors hover:border-primary/25 hover:bg-elevated last:mb-0"
             >
               <span class="absolute -left-4 top-1/2 h-px w-4 -translate-y-1/2 bg-primary/20" />
 
@@ -344,9 +438,10 @@ function moduleLinkLabel(mod: ModuleNode) {
       </div>
     </div>
 
-    <!-- Desktop: animated effect -->
+    <!-- Desktop: animated effect. Rendered only on the client, so reduceMotion can drive `initial` directly. -->
     <div
-      class="relative hidden md:block transition-opacity duration-[800ms]"
+      ref="stage"
+      class="relative hidden md:block transition-opacity duration-[800ms] motion-reduce:transition-none"
       :style="{ opacity: containerOpacity, aspectRatio: '10/6' }"
     >
       <!-- SVG layer: lines + glow -->
@@ -365,7 +460,7 @@ function moduleLinkLabel(mod: ModuleNode) {
           :cy="center.y * 6"
           r="90"
           fill="url(#cg)"
-          class="transition-opacity duration-700"
+          class="transition-opacity duration-700 motion-reduce:transition-none"
         />
 
         <!-- Connection lines -->
@@ -405,7 +500,7 @@ function moduleLinkLabel(mod: ModuleNode) {
       >
         <motion.div
           layout
-          :initial="{ opacity: 0, scale: 0.95 }"
+          :initial="reduceMotion ? false : { opacity: 0, scale: 0.95 }"
           :animate="{ opacity: 1, scale: 1 }"
           :transition="{ type: 'spring', stiffness: 300, damping: 22, layout: { type: 'spring', stiffness: 300, damping: 25 } }"
           class="flex items-center overflow-hidden rounded-full border-2 px-4 py-2.5"
@@ -431,14 +526,14 @@ function moduleLinkLabel(mod: ModuleNode) {
             <motion.span
               v-else
               key="center-skills"
-              :initial="{ opacity: 0 }"
+              :initial="reduceMotion ? false : { opacity: 0 }"
               :animate="{ opacity: 1 }"
               :transition="{ duration: 0.25 }"
               class="flex items-center gap-2"
             >
               <span class="font-mono text-sm font-semibold tracking-tight text-highlighted">SKILL.md</span>
               <TransitionGroup
-                enter-active-class="transition-all duration-300 ease-out"
+                enter-active-class="transition-all duration-300 ease-out motion-reduce:transition-none"
                 enter-from-class="opacity-0 scale-0 !-ml-6"
                 enter-to-class="opacity-100 scale-100"
                 tag="div"
@@ -475,7 +570,7 @@ function moduleLinkLabel(mod: ModuleNode) {
           class="group block focus:outline-none"
         >
           <motion.div
-            :initial="{ opacity: 0, scale: 0.95 }"
+            :initial="reduceMotion ? false : { opacity: 0, scale: 0.95 }"
             :animate="{ opacity: 1, scale: 1 }"
             :transition="{ type: 'spring', stiffness: 350, damping: 24 }"
             class="flex h-8 w-[16.5rem] max-w-[16.5rem] items-center overflow-hidden rounded-full border bg-muted transition-colors group-hover:border-primary/25 group-hover:bg-default group-focus-visible:border-primary/25 group-focus-visible:bg-default"

@@ -5,3 +5,14 @@
   --font-sans: "Geist", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
 }
+
+html {
+  /* Keep anchored sections clear of the fixed 48px header. */
+  scroll-padding-top: 3.5rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}

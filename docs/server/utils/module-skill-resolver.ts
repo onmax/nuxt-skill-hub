@@ -1,6 +1,5 @@
 import { promises as fsp } from 'node:fs'
-import { fileURLToPath } from 'node:url'
-import { join, relative } from 'pathe'
+import { join, relative, resolve } from 'pathe'
 import { readPackageJSON, resolvePackageJSON } from 'pkg-types'
 import { validateResolvedContributions } from '../../../src/internal'
 import { resolveRemoteContributionsForPackage, slugCandidates, type InstalledPackageInfo } from '../../../src/remote-resolver'
@@ -8,9 +7,11 @@ import type { ResolvedContribution, SkillResolverKind, SkillSourceKind } from '.
 
 const CACHE_TTL = 1000 * 60 * 60
 const EXCLUDED_DIRS = new Set(['scripts', 'node_modules', '.git'])
-const projectRoot = fileURLToPath(new URL('../../../', import.meta.url))
-const docsRoot = join(projectRoot, 'docs')
-const cacheRoot = join(projectRoot, 'docs', '.nuxt', 'skill-hub-preview-cache')
+// Resolve from cwd like the other docs server utils: import.meta.url points at the bundled
+// Nitro chunk during prerender, which made these paths resolve to `/docs`.
+const docsRoot = resolve(process.cwd())
+const projectRoot = resolve(docsRoot, '..')
+const cacheRoot = join(docsRoot, 'node_modules', '.cache', 'skill-hub-preview-cache')
 
 export interface ModuleSkillPreviewMeta {
   packageName: string

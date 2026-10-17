@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import { motion } from 'motion-v'
-
 defineOptions({
   name: 'DocsHeroSection',
 })
@@ -35,11 +33,8 @@ defineOptions({
     >
       <template #header>
         <div class="flex flex-col items-start sm:items-center">
-          <motion.div
-            :initial="{ opacity: 0, y: 20 }"
-            :animate="{ opacity: 1, y: 0 }"
-            :transition="{ duration: 0.5 }"
-            class="mb-6 flex flex-col items-start gap-3 sm:items-center"
+          <div
+            class="hero-rise [--rise-delay:0ms] mb-6 flex items-start sm:justify-center"
           >
             <UBadge
               color="neutral"
@@ -53,38 +48,26 @@ defineOptions({
               />
               Experimental
             </UBadge>
-            <p class="font-mono text-xs font-medium uppercase tracking-[0.34em] text-primary">
-              nuxt-skill-hub
-            </p>
-          </motion.div>
+          </div>
 
-          <motion.h1
-            :initial="{ opacity: 0, y: 20 }"
-            :animate="{ opacity: 1, y: 0 }"
-            :transition="{ duration: 0.5, delay: 0.1 }"
-            class="max-w-4xl text-left text-5xl font-bold leading-[0.92] tracking-tight text-highlighted text-balance sm:text-center sm:text-7xl"
+          <h1
+            class="hero-rise [--rise-delay:100ms] max-w-4xl text-left text-5xl font-bold leading-[0.92] tracking-tight text-highlighted text-balance sm:text-center sm:text-7xl"
           >
             Teach your AI agent<br>
             <span class="text-primary">The Nuxt way.</span>
-          </motion.h1>
+          </h1>
 
-          <motion.p
-            :initial="{ opacity: 0, y: 20 }"
-            :animate="{ opacity: 1, y: 0 }"
-            :transition="{ duration: 0.5, delay: 0.2 }"
-            class="mt-6 max-w-2xl text-left text-lg leading-relaxed text-muted sm:text-center sm:text-xl"
+          <p
+            class="hero-rise [--rise-delay:200ms] mt-6 max-w-2xl text-left text-lg leading-relaxed text-muted sm:text-center sm:text-xl"
           >
             Install one skill or module. Your agent gets Nuxt best practices, module APIs, and project-specific guidance before it changes your code.
-          </motion.p>
+          </p>
         </div>
       </template>
 
       <template #footer>
-        <motion.div
-          :initial="{ opacity: 0, y: 20 }"
-          :animate="{ opacity: 1, y: 0 }"
-          :transition="{ duration: 0.5, delay: 0.3 }"
-          class="flex w-full flex-col items-start gap-3 sm:items-center"
+        <div
+          class="hero-rise [--rise-delay:300ms] flex w-full flex-col items-start gap-3 sm:items-center"
         >
           <InstallCommand />
           <UButton
@@ -98,19 +81,37 @@ defineOptions({
           >
             Check AI-written Nuxt changes with Doctor.
           </UButton>
-        </motion.div>
+        </div>
 
         <AgentLogos />
       </template>
 
-      <motion.div
-        :initial="{ opacity: 0, y: 24 }"
-        :animate="{ opacity: 1, y: 0 }"
-        :transition="{ duration: 0.8, delay: 0.5 }"
-        class="mx-auto w-full max-w-4xl"
+      <div
+        class="hero-rise [--rise-delay:500ms] mx-auto w-full max-w-4xl"
       >
         <GeminiEffect />
-      </motion.div>
+      </div>
     </UPageHero>
   </section>
 </template>
+
+<style scoped>
+/* CSS instead of JS-driven entry animations: the hero must be visible before hydration. */
+.hero-rise {
+  animation: hero-rise 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--rise-delay, 0ms);
+}
+
+@keyframes hero-rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-rise {
+    animation: none;
+  }
+}
+</style>
