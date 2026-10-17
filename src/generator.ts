@@ -2,8 +2,7 @@ import { promises as fsp } from 'node:fs'
 import { performance } from 'node:perf_hooks'
 import { join, relative, resolve } from 'pathe'
 import type { Nuxt } from '@nuxt/schema'
-import { PACKAGE_VERSION } from './package-info'
-import { loadNuxtMetadata } from './nuxt-content'
+import { PACKAGE_VERSION } from '../shared/package-info'
 import {
   collectInstalledModulePackages,
   copySkillTree,
@@ -17,8 +16,6 @@ import {
   ensureDir,
   getTargetSkillRoot,
   mapWithConcurrency,
-  pathExists,
-  renderAutomdTemplate,
   resolveContributions,
   resolveMonorepoScopePath,
   sortAndDedupeContributions,
@@ -32,9 +29,10 @@ import {
   createSkillEntrypoint,
   createStableSkillWrapper,
   createModuleIndex,
+  DEFAULT_NUXT_CONTENT_METADATA,
   getSourceLabel,
   getTrustLevel,
-} from './render-content'
+} from '../shared/skill-render'
 import { createGenerationFingerprint } from './generation/fingerprint'
 import {
   collectWorkspaceDiscoverySources,
@@ -454,13 +452,6 @@ export async function generateSkillTree(input: {
     await writeFileIfChanged(file.path, file.contents)
   }
 
-  const nuxtIndexTemplatePath = join(nuxtRoot, 'index.template.md')
-  const nuxtIndexTemplate = await pathExists(nuxtIndexTemplatePath)
-    ? await fsp.readFile(nuxtIndexTemplatePath, 'utf8')
-    : ''
-  const nuxtIndexContent = await renderAutomdTemplate(nuxtIndexTemplate, nuxtRoot)
-  await writeFileIfChanged(join(nuxtRoot, 'index.md'), nuxtIndexContent)
-
   logger.start('Fetching Vue best-practices content...')
   const vueTemplateFiles = await buildVueTemplateFiles(vueRoot, remoteCacheRoot)
   for (const file of vueTemplateFiles) {
@@ -502,15 +493,13 @@ export async function generateSkillTree(input: {
     await writeFileIfChanged(join(modulesRoot, 'index.md'), moduleIndex)
   }
 
-  const nuxtMetadata = await loadNuxtMetadata()
-  await writeFileIfChanged(join(generatedSkillRoot, 'SKILL.md'), createSkillEntrypoint(
-    skillName,
-    nuxtMetadata,
+  await writeFileIfChanged(join(generatedSkillRoot, 'SKILL.md'), createSkillEntrypoint(skillName, DEFAULT_NUXT_CONTENT_METADATA, {
     monorepoScopePath,
-    Boolean(options.moduleAuthoring),
-    generatedEntries,
+    moduleAuthoring: Boolean(options.moduleAuthoring),
+    installedPackages: installedPackages.map(pkg => pkg.packageName),
+    entries: generatedEntries,
     skipped,
-  ))
+  }))
   await writeGenerationState(generatedSkillRoot, fingerprint)
   await copySkillTree(generatedSkillRoot, cachedGeneratedSkillRoot, true)
 

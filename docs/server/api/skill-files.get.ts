@@ -1,13 +1,13 @@
-import { loadNuxtMetadata, loadNuxtRuleFiles } from '../utils/nuxt-content'
+import { loadNuxtRuleFiles } from '../utils/nuxt-content'
 import { loadVueSkillFiles } from '../utils/vue-content'
 import { discoverModuleSkills } from '../utils/skill-discovery'
-import { createSkillEntrypoint } from '~~/shared/skill-preview'
+import { createSkillEntrypoint, DEFAULT_NUXT_CONTENT_METADATA } from '~~/shared/skill-preview'
 
 export default defineEventHandler(async () => {
-  const [nuxtFilesRaw, vueFilesRaw, metadata, discovery] = await Promise.all([
+  const metadata = DEFAULT_NUXT_CONTENT_METADATA
+  const [nuxtFilesRaw, vueFilesRaw, discovery] = await Promise.all([
     loadNuxtRuleFiles(),
     loadVueSkillFiles(),
-    loadNuxtMetadata(),
     discoverModuleSkills(),
   ])
 

@@ -85,3 +85,6 @@ Temporary Items
 
 playground/.data
 .vercel
+
+# Agent worktrees
+.claude/worktrees

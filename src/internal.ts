@@ -3,7 +3,6 @@ import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'pathe'
 import matter from 'gray-matter'
 import { findWorkspaceDir, readPackageJSON, resolvePackageJSON } from 'pkg-types'
-import { transform } from 'automd'
 import type {
   AgentSkillDeclaration,
   ResolvedContribution,
@@ -12,7 +11,7 @@ import type {
   ValidationIssue,
   ValidatedContribution,
 } from './types'
-import { loadNuxtIndexTemplate, loadNuxtRuleFiles } from './nuxt-content'
+import { loadNuxtRuleFiles } from './nuxt-content'
 import { loadVueSkillFiles } from './vue-content'
 import type { InvalidTarget, SkillHubTarget } from './agents'
 import { detectInstalledTargets, resolveAgentTargetConfig, validateTargets } from './agents'
@@ -644,19 +643,11 @@ export function resolveTargets(
 
 export async function buildNuxtTemplateFiles(nuxtDir: string): Promise<Array<{ path: string, contents: string }>> {
   const nuxtRuleFiles = await loadNuxtRuleFiles()
-  const nuxtIndexTemplate = await loadNuxtIndexTemplate()
 
-  const files = Object.entries(nuxtRuleFiles).map(([name, contents]) => ({
+  return Object.entries(nuxtRuleFiles).map(([name, contents]) => ({
     path: join(nuxtDir, name),
     contents,
   }))
-
-  files.push({
-    path: join(nuxtDir, 'index.template.md'),
-    contents: nuxtIndexTemplate,
-  })
-
-  return files
 }
 
 export async function buildVueTemplateFiles(vueDir: string, cacheRoot: string): Promise<Array<{ path: string, contents: string }>> {
@@ -666,11 +657,6 @@ export async function buildVueTemplateFiles(vueDir: string, cacheRoot: string): 
     path: join(vueDir, name),
     contents,
   }))
-}
-
-export async function renderAutomdTemplate(contents: string, dir: string): Promise<string> {
-  const result = await transform(contents, { dir })
-  return result.contents
 }
 
 export function createModuleDestination(baseModulesDir: string, contribution: SkillHubContribution): string {

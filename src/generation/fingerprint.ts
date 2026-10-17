@@ -6,6 +6,8 @@ import { resolveLockfile } from 'pkg-types'
 import { normalizeGenerationMode, normalizeRemoteOptions } from '../types'
 import type { ModuleOptions } from '../types'
 import type { LocalSourceFingerprint } from './sources'
+import { createSkillEntrypoint, DEFAULT_NUXT_CONTENT_METADATA, type NuxtContentMetadata } from '../../shared/skill-render'
+import { loadNuxtRuleFiles } from '../nuxt-content'
 
 export interface LockfileInfo {
   path: string
@@ -31,6 +33,19 @@ export async function resolveLockfileInfo(exportRoot: string): Promise<LockfileI
   }
 }
 
+/**
+ * Hash of the content this package bundles: the rule packs and the router template.
+ * Keeps the cache honest when that content changes without a version bump (local
+ * development, linked checkouts).
+ */
+export function hashBuiltInContent(ruleFiles: Record<string, string>, metadata: NuxtContentMetadata = DEFAULT_NUXT_CONTENT_METADATA): string {
+  const router = createSkillEntrypoint('fingerprint', metadata, {
+    moduleAuthoring: true,
+    installedPackages: metadata.packs.flatMap(pack => pack.packages || []),
+  })
+  return ohash({ ruleFiles, metadata, router })
+}
+
 export async function createGenerationFingerprint(input: {
   packageVersion: string
   rootDir: string
@@ -40,7 +55,10 @@ export async function createGenerationFingerprint(input: {
   options: ModuleOptions
   installedPackages: Array<{ packageName: string, version?: string }>
   localSources: LocalSourceFingerprint[]
+  /** Defaults to hashing the bundled rule packs and router. */
+  builtInContentHash?: string
 }): Promise<string> {
+  const builtInContentHash = input.builtInContentHash ?? hashBuiltInContent(await loadNuxtRuleFiles())
   const rootPackageHash = await hashFileIfExists(join(input.rootDir, 'package.json'))
   const lockfile = await resolveLockfileInfo(input.exportRoot)
   const modules = [...input.installedPackages]
@@ -55,6 +73,7 @@ export async function createGenerationFingerprint(input: {
 
   return ohash({
     packageVersion: input.packageVersion,
+    builtInContentHash,
     skillName: input.skillName,
     rootDir: input.rootDir,
     buildDir: input.buildDir,

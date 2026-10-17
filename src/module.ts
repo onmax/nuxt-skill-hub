@@ -2,7 +2,7 @@ import { defineNuxtModule, useLogger } from '@nuxt/kit'
 import { isCI, isTest } from 'std-env'
 import { ensureStableSkillWrappers, generateSkillTree } from './generator'
 import { resolveExportRoot, deriveSkillName, detectConflictingSkills, formatConflictWarning, isValidSkillName, resolveTargets } from './internal'
-import { PACKAGE_VERSION } from './package-info'
+import { PACKAGE_VERSION } from '../shared/package-info'
 import { runInstallWizard } from './install'
 import { DEFAULT_SKILL_HUB_GENERATION_MODE, normalizeGenerationMode } from './types'
 import type {

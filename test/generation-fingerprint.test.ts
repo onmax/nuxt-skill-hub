@@ -2,7 +2,8 @@ import { promises as fsp } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { createGenerationFingerprint, resolveLockfileInfo } from '../src/generation/fingerprint'
+import { createGenerationFingerprint, hashBuiltInContent, resolveLockfileInfo } from '../src/generation/fingerprint'
+import { DEFAULT_NUXT_CONTENT_METADATA } from '../shared/skill-render'
 import { getGenerationStatePath, isGeneratedSkillFreshWithOptions } from '../src/generation/state'
 
 describe('resolveLockfileInfo', () => {
@@ -182,6 +183,39 @@ describe('createGenerationFingerprint', () => {
     })
 
     expect(enabled).not.toBe(disabled)
+  })
+})
+
+describe('built-in content in the fingerprint', () => {
+  it('changes the fingerprint when bundled content changes at the same package version', async () => {
+    const root = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-fingerprint-content-'))
+    const common = {
+      packageVersion: '0.0.4',
+      rootDir: root,
+      buildDir: join(root, '.nuxt'),
+      exportRoot: root,
+      skillName: 'nuxt-fingerprint-fixture',
+      options: {},
+      installedPackages: [],
+      localSources: [],
+    }
+
+    const before = await createGenerationFingerprint({ ...common, builtInContentHash: 'a' })
+    const after = await createGenerationFingerprint({ ...common, builtInContentHash: 'b' })
+
+    expect(before).not.toBe(after)
+  })
+
+  it('hashes rule text and pack metadata', () => {
+    const rules = { 'rules/data-fetching-ssr.md': '## Data Fetching and SSR\n' }
+    const base = hashBuiltInContent(rules)
+
+    expect(hashBuiltInContent({ ...rules })).toBe(base)
+    expect(hashBuiltInContent({ 'rules/data-fetching-ssr.md': '## Data Fetching and SSR\nchanged\n' })).not.toBe(base)
+    expect(hashBuiltInContent(rules, {
+      ...DEFAULT_NUXT_CONTENT_METADATA,
+      packs: DEFAULT_NUXT_CONTENT_METADATA.packs.map(pack => ({ ...pack, example: `${pack.example || ''}!` })),
+    })).not.toBe(base)
   })
 })
 

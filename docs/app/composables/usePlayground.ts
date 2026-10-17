@@ -264,7 +264,7 @@ export function usePlayground() {
       name: 'SKILL.md',
       path: 'SKILL.md',
       language: 'markdown',
-      content: createSkillEntrypoint('nuxt', metadata, undefined, moduleAuthorMode.value, moduleEntries),
+      content: createSkillEntrypoint('nuxt', metadata, { moduleAuthoring: moduleAuthorMode.value, entries: moduleEntries }),
       sourceHref: repoSource(`${generatedSkillRoot}/SKILL.md`),
     }
 

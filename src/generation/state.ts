@@ -1,7 +1,7 @@
 import { promises as fsp } from 'node:fs'
 import { join } from 'pathe'
 import { writeFileIfChanged, pathExists } from '../internal'
-import { PACKAGE_VERSION } from '../package-info'
+import { PACKAGE_VERSION } from '../../shared/package-info'
 
 const GENERATION_STATE_FILE = '.state.json'
 
