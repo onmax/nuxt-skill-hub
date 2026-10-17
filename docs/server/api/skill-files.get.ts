@@ -1,7 +1,7 @@
 import { loadNuxtRuleFiles } from '../utils/nuxt-content'
 import { loadVueSkillFiles } from '../utils/vue-content'
 import { discoverModuleSkills } from '../utils/skill-discovery'
-import { createSkillEntrypoint, DEFAULT_NUXT_CONTENT_METADATA } from '~~/shared/skill-preview'
+import { createSkillEntrypoint, DEFAULT_NUXT_CONTENT_METADATA, UPSTREAM_VUE_GUIDE_URL } from '~~/shared/skill-preview'
 
 export default defineEventHandler(async () => {
   const metadata = DEFAULT_NUXT_CONTENT_METADATA
@@ -20,7 +20,9 @@ export default defineEventHandler(async () => {
 
   return {
     metadata,
-    skillEntrypoint: createSkillEntrypoint('nuxt', metadata),
+    skillEntrypoint: createSkillEntrypoint('nuxt', metadata, {
+      vueGuideHref: vueFiles['SKILL.md'] ? undefined : UPSTREAM_VUE_GUIDE_URL,
+    }),
     nuxtFiles,
     vueFiles,
     moduleSkills: discovery.moduleSkills,

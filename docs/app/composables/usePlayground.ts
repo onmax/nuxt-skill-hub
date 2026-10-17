@@ -16,6 +16,7 @@ import {
   parseSkillFrontmatter,
   type SkillResolverKind,
   type SkillSourceKind,
+  UPSTREAM_VUE_GUIDE_URL,
 } from '~~/shared/skill-preview'
 
 const repoBlobBase = 'https://github.com/onmax/nuxt-skill-hub/blob/main'
@@ -264,7 +265,11 @@ export function usePlayground() {
       name: 'SKILL.md',
       path: 'SKILL.md',
       language: 'markdown',
-      content: createSkillEntrypoint('nuxt', metadata, { moduleAuthoring: moduleAuthorMode.value, entries: moduleEntries }),
+      content: createSkillEntrypoint('nuxt', metadata, {
+        moduleAuthoring: moduleAuthorMode.value,
+        entries: moduleEntries,
+        vueGuideHref: d.vueFiles?.['SKILL.md'] ? undefined : UPSTREAM_VUE_GUIDE_URL,
+      }),
       sourceHref: repoSource(`${generatedSkillRoot}/SKILL.md`),
     }
 
