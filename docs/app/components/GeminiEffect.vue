@@ -47,10 +47,21 @@ function moduleIconUrl(icon: string) {
 
 const colorCache = new Map<string, string>()
 
-function extractDominantColor(iconUrl: string): Promise<string | undefined> {
+function extractDominantColor(iconUrl: string, signal: AbortSignal): Promise<string | undefined> {
   if (colorCache.has(iconUrl)) return Promise.resolve(colorCache.get(iconUrl))
   return new Promise((resolve) => {
+    if (signal.aborted) return resolve(undefined)
     const img = new Image()
+    const settle = (color?: string) => {
+      signal.removeEventListener('abort', onAbort)
+      img.onload = img.onerror = null
+      resolve(color)
+    }
+    const onAbort = () => {
+      img.src = ''
+      settle()
+    }
+    signal.addEventListener('abort', onAbort, { once: true })
     img.crossOrigin = 'anonymous'
     img.onload = () => {
       const canvas = document.createElement('canvas')
@@ -68,12 +79,12 @@ function extractDominantColor(iconUrl: string): Promise<string | undefined> {
         if (max - min < 20) continue // skip grays
         rSum += r; gSum += g; bSum += b; count++
       }
-      if (count < 10) { resolve(undefined); return }
+      if (count < 10) { settle(); return }
       const color = `rgb(${Math.round(rSum / count)}, ${Math.round(gSum / count)}, ${Math.round(bSum / count)})`
       colorCache.set(iconUrl, color)
-      resolve(color)
+      settle(color)
     }
-    img.onerror = () => resolve(undefined)
+    img.onerror = () => settle()
     img.src = iconUrl
   })
 }
@@ -192,24 +203,6 @@ function delay(ms: number, signal: AbortSignal) {
   })
 }
 
-function waitUntilActive(signal: AbortSignal) {
-  return new Promise<void>((resolve, reject) => {
-    if (signal.aborted) return reject(signal.reason)
-    if (isActive.value) return resolve()
-    const onAbort = () => {
-      stop()
-      reject(signal.reason)
-    }
-    const stop = watch(isActive, (active) => {
-      if (!active) return
-      stop()
-      signal.removeEventListener('abort', onAbort)
-      resolve()
-    })
-    signal.addEventListener('abort', onAbort, { once: true })
-  })
-}
-
 async function typeInto(idx: number, text: string, signal: AbortSignal) {
   for (let i = 1; i <= text.length; i++) {
     states.value[idx]!.typedText = text.slice(0, i)
@@ -238,12 +231,14 @@ async function typeCenterCommand(signal: AbortSignal) {
 }
 
 let abortController: AbortController | null = null
+let showingStaticFrame = false
 
 async function runAnimation() {
-  if (lifecycle.signal.aborted) return
+  if (unmounted) return
   abortController?.abort()
   const ac = new AbortController()
   abortController = ac
+  showingStaticFrame = false
 
   // Reset state
   centerPhase.value = 'hidden'
@@ -259,8 +254,9 @@ async function runAnimation() {
   const selected = weightedSample(pool, count)
   const generatedSlots = generateSlots(count)
 
-  if (prefersReducedMotion.value === 'reduce') {
+  if (reduceMotion.value) {
     showStaticFrame(selected, generatedSlots)
+    showingStaticFrame = true
     return
   }
 
@@ -286,7 +282,7 @@ async function runAnimation() {
 
     // Pre-extract colors for all selected modules
     await Promise.all(states.value.map(async (s) => {
-      const color = await extractDominantColor(s.mod.iconUrl)
+      const color = await extractDominantColor(s.mod.iconUrl, signal)
       if (color && !signal.aborted) s.color = color
     }))
     if (signal.aborted) return
@@ -313,21 +309,22 @@ async function runAnimation() {
     })())
     await Promise.all(promises)
 
-    // Pause then fade out and restart, but only once the demo is on screen again
+    // Pause, fade out, and restart. Going off screen aborts the cycle; the watcher restarts it.
     await wait(2500)
     containerOpacity.value = 0
     await wait(900)
-    await waitUntilActive(signal)
     runAnimation()
   }
   catch { /* aborted */ }
 }
 
-const root = useTemplateRef<HTMLElement>('root')
-const isOnScreen = useElementVisibility(root)
+// Observe the desktop stage itself: it is display:none on mobile, so the loop never runs there.
+const stage = useTemplateRef<HTMLElement>('stage')
+const isOnScreen = useElementVisibility(stage)
 const documentVisibility = useDocumentVisibility()
 const isActive = computed(() => isOnScreen.value && documentVisibility.value === 'visible')
 const prefersReducedMotion = usePreferredReducedMotion()
+const reduceMotion = computed(() => prefersReducedMotion.value === 'reduce')
 
 function showStaticFrame(selected: ModuleNode[], generatedSlots: SlotPosition[]) {
   slots.value = generatedSlots
@@ -342,14 +339,20 @@ function showStaticFrame(selected: ModuleNode[], generatedSlots: SlotPosition[])
   connectedIcons.value = selected.map(mod => ({ iconUrl: mod.iconUrl }))
 }
 
-// Aborted on unmount; covers the wait before the first run and every run after it.
-const lifecycle = new AbortController()
-
-onMounted(() => {
-  waitUntilActive(lifecycle.signal).then(runAnimation, () => {})
+// Run only while the stage is visible. Hiding it aborts the current cycle; showing it again
+// or changing the motion preference starts a fresh one.
+let unmounted = false
+watch([isActive, reduceMotion], ([active], [wasActive]) => {
+  if (!active) {
+    abortController?.abort()
+    return
+  }
+  // Keep the same static frame when it scrolls back into view.
+  if (showingStaticFrame && reduceMotion.value && wasActive === false) return
+  runAnimation()
 })
 onBeforeUnmount(() => {
-  lifecycle.abort()
+  unmounted = true
   abortController?.abort()
 })
 
@@ -369,7 +372,7 @@ function moduleLinkLabel(mod: ModuleNode) {
 </script>
 
 <template>
-  <div ref="root" class="mx-auto w-full max-w-4xl">
+  <div class="mx-auto w-full max-w-4xl">
     <!-- Mobile: static list using first 6 from API -->
     <div class="md:hidden">
       <div class="relative overflow-hidden rounded-[2rem] border border-default/80 bg-default/90 p-4 shadow-[0_20px_60px_rgba(15,23,42,0.08)]">
@@ -386,7 +389,7 @@ function moduleLinkLabel(mod: ModuleNode) {
             :initial="{ opacity: 0, y: 12 }"
             :animate="{ opacity: 1, y: 0 }"
             :transition="{ duration: 0.45 }"
-            class="inline-flex max-w-full items-center gap-2 rounded-full border border-primary/25 bg-default px-4 py-3 shadow-[0_0_30px_color-mix(in_srgb,var(--ui-primary)_12%,transparent)]"
+            class="motion-reduce:opacity-100! motion-reduce:transform-none! inline-flex max-w-full items-center gap-2 rounded-full border border-primary/25 bg-default px-4 py-3 shadow-[0_0_30px_color-mix(in_srgb,var(--ui-primary)_12%,transparent)]"
           >
             <span class="font-mono text-sm font-semibold tracking-tight text-highlighted">SKILL.md</span>
             <div class="flex items-center">
@@ -414,7 +417,7 @@ function moduleLinkLabel(mod: ModuleNode) {
               :initial="{ opacity: 0, x: -8 }"
               :animate="{ opacity: 1, x: 0 }"
               :transition="{ duration: 0.35, delay: 0.08 * index }"
-              class="group relative mb-3 flex min-h-12 items-center justify-between gap-3 rounded-2xl border border-default bg-default/95 px-3 py-3 shadow-[0_10px_30px_rgba(15,23,42,0.05)] transition-colors hover:border-primary/25 hover:bg-elevated last:mb-0"
+              class="motion-reduce:opacity-100! motion-reduce:transform-none! group relative mb-3 flex min-h-12 items-center justify-between gap-3 rounded-2xl border border-default bg-default/95 px-3 py-3 shadow-[0_10px_30px_rgba(15,23,42,0.05)] transition-colors hover:border-primary/25 hover:bg-elevated last:mb-0"
             >
               <span class="absolute -left-4 top-1/2 h-px w-4 -translate-y-1/2 bg-primary/20" />
 
@@ -435,9 +438,10 @@ function moduleLinkLabel(mod: ModuleNode) {
       </div>
     </div>
 
-    <!-- Desktop: animated effect -->
+    <!-- Desktop: animated effect. Rendered only on the client, so reduceMotion can drive `initial` directly. -->
     <div
-      class="relative hidden md:block transition-opacity duration-[800ms]"
+      ref="stage"
+      class="relative hidden md:block transition-opacity duration-[800ms] motion-reduce:transition-none"
       :style="{ opacity: containerOpacity, aspectRatio: '10/6' }"
     >
       <!-- SVG layer: lines + glow -->
@@ -456,7 +460,7 @@ function moduleLinkLabel(mod: ModuleNode) {
           :cy="center.y * 6"
           r="90"
           fill="url(#cg)"
-          class="transition-opacity duration-700"
+          class="transition-opacity duration-700 motion-reduce:transition-none"
         />
 
         <!-- Connection lines -->
@@ -496,7 +500,7 @@ function moduleLinkLabel(mod: ModuleNode) {
       >
         <motion.div
           layout
-          :initial="{ opacity: 0, scale: 0.95 }"
+          :initial="reduceMotion ? false : { opacity: 0, scale: 0.95 }"
           :animate="{ opacity: 1, scale: 1 }"
           :transition="{ type: 'spring', stiffness: 300, damping: 22, layout: { type: 'spring', stiffness: 300, damping: 25 } }"
           class="flex items-center overflow-hidden rounded-full border-2 px-4 py-2.5"
@@ -522,14 +526,14 @@ function moduleLinkLabel(mod: ModuleNode) {
             <motion.span
               v-else
               key="center-skills"
-              :initial="{ opacity: 0 }"
+              :initial="reduceMotion ? false : { opacity: 0 }"
               :animate="{ opacity: 1 }"
               :transition="{ duration: 0.25 }"
               class="flex items-center gap-2"
             >
               <span class="font-mono text-sm font-semibold tracking-tight text-highlighted">SKILL.md</span>
               <TransitionGroup
-                enter-active-class="transition-all duration-300 ease-out"
+                enter-active-class="transition-all duration-300 ease-out motion-reduce:transition-none"
                 enter-from-class="opacity-0 scale-0 !-ml-6"
                 enter-to-class="opacity-100 scale-100"
                 tag="div"
@@ -566,7 +570,7 @@ function moduleLinkLabel(mod: ModuleNode) {
           class="group block focus:outline-none"
         >
           <motion.div
-            :initial="{ opacity: 0, scale: 0.95 }"
+            :initial="reduceMotion ? false : { opacity: 0, scale: 0.95 }"
             :animate="{ opacity: 1, scale: 1 }"
             :transition="{ type: 'spring', stiffness: 350, damping: 24 }"
             class="flex h-8 w-[16.5rem] max-w-[16.5rem] items-center overflow-hidden rounded-full border bg-muted transition-colors group-hover:border-primary/25 group-hover:bg-default group-focus-visible:border-primary/25 group-focus-visible:bg-default"
