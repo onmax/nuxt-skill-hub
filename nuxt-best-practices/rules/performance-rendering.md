@@ -7,7 +7,9 @@
 ```vue
 <!-- Wrong: full page reload, no prefetch -->
 <a href="/pricing">Pricing</a>
+```
 
+```vue
 <!-- Right -->
 <NuxtLink to="/pricing">Pricing</NuxtLink>
 <NuxtLink to="/reports" prefetch-on="interaction">Reports</NuxtLink>

@@ -35,7 +35,9 @@ export default defineContentConfig({
 const { data: pages } = await useAsyncData('docs', () => queryCollection('docs').all())
 const tree = computed(() => buildTree(pages.value)) // groups by path segments
 </script>
+```
 
+```vue
 <!-- Right -->
 <script setup lang="ts">
 const { data: navigation } = await useAsyncData('docs-nav', () => queryCollectionNavigation('docs'))

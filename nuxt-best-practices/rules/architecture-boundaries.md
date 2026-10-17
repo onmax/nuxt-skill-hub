@@ -10,7 +10,9 @@ export function useReports() {
   const { reportsToken } = useRuntimeConfig().public
   return useFetch('https://reports.internal/api', { headers: { 'x-token': reportsToken } })
 }
+```
 
+```ts
 // Right: server/api/reports.get.ts
 export default defineEventHandler(async (event) => {
   await requireUser(event) // server/utils/auth.ts
@@ -30,7 +32,9 @@ export default defineEventHandler(async (event) => {
 // Wrong: module scope is shared by every SSR request
 const currentUser = ref<User | null>(null)
 export const useCurrentUser = () => currentUser
+```
 
+```ts
 // Right: per-request state, serialized to the client
 export const useCurrentUser = () => useState<User | null>('current-user', () => null)
 ```
@@ -50,7 +54,9 @@ const { data } = await useFetch('https://crm.example.com/contacts', {
   headers: { Authorization: `Bearer ${token.value}` },
 })
 </script>
+```
 
+```vue
 <!-- Right: browser calls a constrained internal endpoint -->
 <script setup lang="ts">
 const { data } = await useFetch('/api/contacts')

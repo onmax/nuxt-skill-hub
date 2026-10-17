@@ -13,7 +13,9 @@ watch(() => route.params.slug, async (slug) => {
   post.value = await $fetch(`/api/posts/${slug}`)
 }, { immediate: true })
 </script>
+```
 
+```vue
 <!-- Right: Nuxt owns route-reactive data loading -->
 <script setup lang="ts">
 const route = useRoute()

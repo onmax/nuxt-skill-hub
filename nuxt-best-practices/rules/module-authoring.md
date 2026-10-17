@@ -6,18 +6,24 @@
 
 ```ts
 // Wrong: every dev start waits for the download inside setup
-async setup(options) {
-  const icons = await downloadIconSet(options.set)
-  addTemplate({ filename: 'icons.mjs', getContents: () => serialize(icons) })
-}
+export default defineNuxtModule({
+  async setup(options) {
+    const icons = await downloadIconSet(options.set)
+    addTemplate({ filename: 'icons.mjs', getContents: () => serialize(icons) })
+  },
+})
+```
 
+```ts
 // Right: setup only registers; the work runs when the template is generated
-setup(options) {
-  addTemplate({
-    filename: 'icons.mjs',
-    getContents: async () => serialize(await downloadIconSet(options.set)),
-  })
-}
+export default defineNuxtModule({
+  setup(options) {
+    addTemplate({
+      filename: 'icons.mjs',
+      getContents: async () => serialize(await downloadIconSet(options.set)),
+    })
+  },
+})
 ```
 
 **Why:** Nuxt warns when module setup is slow, and slow setup delays dev server and build startup. Move heavy work to hooks, templates, or runtime.
@@ -28,12 +34,14 @@ setup(options) {
 **Skip when:** a backward-compatibility policy requires legacy unprefixed aliases.
 
 ```ts
-setup() {
-  const { resolve } = createResolver(import.meta.url)
-  addImports({ name: 'useFooData', from: resolve('./runtime/composables') }) // not useData
-  addComponentsDir({ path: resolve('./runtime/components'), prefix: 'Foo' }) // <FooButton>
-  addServerHandler({ route: '/api/_foo/session', handler: resolve('./runtime/server/session') }) // not /api/auth
-}
+export default defineNuxtModule({
+  setup() {
+    const { resolve } = createResolver(import.meta.url)
+    addImports({ name: 'useFooData', from: resolve('./runtime/composables') }) // not useData
+    addComponentsDir({ path: resolve('./runtime/components'), prefix: 'Foo' }) // <FooButton>
+    addServerHandler({ route: '/api/_foo/session', handler: resolve('./runtime/server/session') }) // not /api/auth
+  },
+})
 ```
 
 **Why:** unprefixed module routes and components collide with app code and other modules.
@@ -45,8 +53,7 @@ setup() {
 
 ```ts
 // Wrong: deep imports like 'nuxt/dist/...', underscored nuxt.options fields, undocumented hooks
-
-// Right
+// Right:
 import { addPlugin, createResolver, defineNuxtModule } from '@nuxt/kit'
 
 export default defineNuxtModule({

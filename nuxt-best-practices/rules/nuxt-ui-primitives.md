@@ -8,7 +8,9 @@
 <!-- Wrong: hand-built dropdown with custom keyboard and focus handling -->
 <button @click="open = !open">Actions</button>
 <ul v-if="open" @keydown.esc="open = false">...</ul>
+```
 
+```vue
 <!-- Right -->
 <UDropdownMenu :items="[
   { label: 'Edit', icon: 'i-lucide-pencil', onSelect: edit },
@@ -29,7 +31,9 @@
 <!-- Wrong: older or lookalike API -->
 <UModal v-model="open"><UCard>...</UCard></UModal>
 <UTable :rows="users" :columns="[{ key: 'email', label: 'Email' }]" />
+```
 
+```vue
 <!-- Right: current API -->
 <UModal v-model:open="open" title="Invite user">
   <template #body>...</template>
@@ -46,8 +50,7 @@
 
 ```vue
 <!-- Wrong: <div class="grid ..."><header><h1>{{ page.title }}</h1></header>...</div> -->
-
-<!-- Right -->
+<!-- Right: -->
 <UPage>
   <UPageHeader :title="page.title" :description="page.description" />
   <UPageBody><ContentRenderer :value="page" /></UPageBody>

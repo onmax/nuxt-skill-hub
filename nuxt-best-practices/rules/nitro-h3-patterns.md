@@ -61,7 +61,9 @@ export default defineCachedEventHandler((event) => {
 ```ts
 // Wrong: internal detail in message (which API routes do not send to the client anyway)
 throw new Error(`DB lookup failed for ${email}: ${err.stack}`)
+```
 
+```ts
 // Right
 throw createError({ status: 409, statusText: 'Email Taken', data: { field: 'email' } })
 ```

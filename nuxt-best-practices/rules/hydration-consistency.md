@@ -9,7 +9,9 @@
 <script setup lang="ts">
 const theme = ref(localStorage.getItem('theme') ?? 'light')
 </script>
+```
 
+```vue
 <!-- Right: cookies are readable on server and client -->
 <script setup lang="ts">
 const theme = useCookie('theme', { default: () => 'light' })
@@ -26,8 +28,12 @@ const theme = useCookie('theme', { default: () => 'light' })
 
 ```vue
 <!-- Wrong: server and client compute different values -->
-<p>Generated {{ new Date().toLocaleString() }} · #{{ Math.random() }}</p>
+<template>
+  <p>Generated {{ new Date().toLocaleString() }} · #{{ Math.random() }}</p>
+</template>
+```
 
+```vue
 <!-- Right: compute once on the server, reuse on hydration -->
 <script setup lang="ts">
 const seed = useState('seed', () => Math.random())
@@ -50,7 +56,9 @@ const builtAt = useState('built-at', () => new Date().toISOString())
 <script setup lang="ts">
 if (import.meta.client) initCarousel('#hero')
 </script>
+```
 
+```vue
 <!-- Right: init after mount; SSR renders a static fallback -->
 <script setup lang="ts">
 const hero = useTemplateRef('hero')

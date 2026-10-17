@@ -41,7 +41,9 @@ defineProps<{ error: NuxtError }>()
 // Wrong: local flag + navigation; Nuxt's error state stays set
 showFallback.value = false
 await navigateTo('/')
+```
 
+```ts
 // Right: enter the error state through Nuxt...
 showError({ status: 503, statusText: 'Service Unavailable' })
 

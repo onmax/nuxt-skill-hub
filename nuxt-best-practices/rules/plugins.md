@@ -7,7 +7,9 @@
 ```ts
 // Wrong: app/plugins/format.ts runs on every boot just to inject a helper
 export default defineNuxtPlugin(() => ({ provide: { formatPrice } }))
+```
 
+```ts
 // Right: app/utils/format-price.ts, auto-imported where used
 export const formatPrice = (cents: number) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100)
@@ -27,7 +29,9 @@ export default defineNuxtPlugin({
   parallel: true, // later plugins do not wait for this one
   async setup() { await initAnalytics() },
 })
+```
 
+```ts
 // app/plugins/flags.ts: needs the auth plugin's result
 export default defineNuxtPlugin({
   name: 'flags',
@@ -46,7 +50,9 @@ export default defineNuxtPlugin({
 ```ts
 // Wrong: magic numbers to win a race
 export default defineNuxtPlugin({ order: -40, setup() { /* ... */ } })
+```
 
+```ts
 // Right: name the dependency
 export default defineNuxtPlugin({ name: 'i18n-sync', dependsOn: ['i18n'], setup() { /* ... */ } })
 ```

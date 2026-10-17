@@ -9,7 +9,9 @@
 <script setup lang="ts">
 const posts = await $fetch('/api/posts')
 </script>
+```
 
+```vue
 <!-- Right: payload-backed, no second request on hydration -->
 <script setup lang="ts">
 const { data: posts } = await useFetch('/api/posts')
@@ -28,7 +30,9 @@ const { data: posts } = await useFetch('/api/posts')
 // so every caller shares one entry whatever the id
 export const useUser = (id: Ref<string>) =>
   useAsyncData(() => $fetch(`/api/users/${id.value}`))
+```
 
+```ts
 // Right: explicit key derived from the input
 export const useUser = (id: Ref<string>) =>
   useAsyncData(() => `user:${id.value}`, () => $fetch(`/api/users/${id.value}`))
@@ -50,7 +54,9 @@ const { data } = await useAsyncData('user', async () => {
   return user
 })
 </script>
+```
 
+```vue
 <!-- Right: one-time bootstrap through callOnce -->
 <script setup lang="ts">
 await callOnce('user', () => store.fetchUser())
