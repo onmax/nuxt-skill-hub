@@ -180,18 +180,48 @@ function generateSlots(count: number): SlotPosition[] {
   return result
 }
 
-function delay(ms: number) {
-  return new Promise(resolve => setTimeout(resolve, ms))
+// Every wait in the demo rejects on abort, so unmounting stops all pending work.
+function delay(ms: number, signal: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    if (signal.aborted) return reject(signal.reason)
+    const onAbort = () => {
+      clearTimeout(id)
+      reject(signal.reason)
+    }
+    const id = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+    signal.addEventListener('abort', onAbort, { once: true })
+  })
 }
 
-async function typeInto(idx: number, text: string) {
+function waitUntilActive(signal: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    if (signal.aborted) return reject(signal.reason)
+    if (isActive.value) return resolve()
+    const onAbort = () => {
+      stop()
+      reject(signal.reason)
+    }
+    const stop = watch(isActive, (active) => {
+      if (!active) return
+      stop()
+      signal.removeEventListener('abort', onAbort)
+      resolve()
+    })
+    signal.addEventListener('abort', onAbort, { once: true })
+  })
+}
+
+async function typeInto(idx: number, text: string, signal: AbortSignal) {
   for (let i = 1; i <= text.length; i++) {
     states.value[idx]!.typedText = text.slice(0, i)
-    await delay(35)
+    await delay(35, signal)
   }
 }
 
-async function growLine(idx: number) {
+async function growLine(idx: number, signal: AbortSignal) {
   const duration = 700
   const frames = 42
   const interval = duration / frames
@@ -199,21 +229,22 @@ async function growLine(idx: number) {
     let t = i / frames
     t = t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2
     states.value[idx]!.lineProgress = t
-    await delay(interval)
+    await delay(interval, signal)
   }
   states.value[idx]!.lineProgress = 1
 }
 
-async function typeCenterCommand() {
+async function typeCenterCommand(signal: AbortSignal) {
   for (let i = 1; i <= centerCommand.length; i++) {
     centerTypedText.value = centerCommand.slice(0, i)
-    await delay(35)
+    await delay(35, signal)
   }
 }
 
 let abortController: AbortController | null = null
 
 async function runAnimation() {
+  if (lifecycle.signal.aborted) return
   abortController?.abort()
   const ac = new AbortController()
   abortController = ac
@@ -245,16 +276,14 @@ async function runAnimation() {
     lineProgress: 0,
   }))
 
-  const wait = (ms: number) => new Promise<void>((resolve, reject) => {
-    const id = setTimeout(resolve, ms)
-    ac.signal.addEventListener('abort', () => { clearTimeout(id); reject(new Error('aborted')) })
-  })
+  const { signal } = ac
+  const wait = (ms: number) => delay(ms, signal)
 
   try {
     await wait(800)
     centerPhase.value = 'typing'
     await wait(400)
-    await typeCenterCommand()
+    await typeCenterCommand(signal)
     await wait(500)
     centerPhase.value = 'revealed'
     await wait(800)
@@ -262,8 +291,9 @@ async function runAnimation() {
     // Pre-extract colors for all selected modules
     await Promise.all(states.value.map(async (s) => {
       const color = await extractDominantColor(s.mod.iconUrl)
-      if (color) s.color = color
+      if (color && !signal.aborted) s.color = color
     }))
+    if (signal.aborted) return
 
     const STAGGER = 1800
     const order = [...Array(selected.length).keys()].sort(() => Math.random() - 0.5)
@@ -273,12 +303,12 @@ async function runAnimation() {
       s.phase = 'pill-appear'
       await wait(400)
       s.phase = 'typing'
-      await typeInto(idx, s.mod.command)
+      await typeInto(idx, s.mod.command, signal)
       await wait(300)
       s.phase = 'morph'
       await wait(500)
       s.phase = 'line'
-      await growLine(idx)
+      await growLine(idx, signal)
       s.phase = 'connected'
       connectedIcons.value = [...connectedIcons.value, { iconUrl: s.mod.iconUrl }]
       centerPulse.value = true
@@ -291,8 +321,8 @@ async function runAnimation() {
     await wait(2500)
     containerOpacity.value = 0
     await wait(900)
-    await until(isActive).toBe(true)
-    if (!ac.signal.aborted) runAnimation()
+    await waitUntilActive(signal)
+    runAnimation()
   }
   catch { /* aborted */ }
 }
@@ -316,11 +346,16 @@ function showStaticFrame(selected: ModuleNode[], generatedSlots: SlotPosition[])
   connectedIcons.value = selected.map(mod => ({ iconUrl: mod.iconUrl }))
 }
 
-onMounted(async () => {
-  await until(isActive).toBe(true)
-  runAnimation()
+// Aborted on unmount; covers the wait before the first run and every run after it.
+const lifecycle = new AbortController()
+
+onMounted(() => {
+  waitUntilActive(lifecycle.signal).then(runAnimation, () => {})
 })
-onBeforeUnmount(() => abortController?.abort())
+onBeforeUnmount(() => {
+  lifecycle.abort()
+  abortController?.abort()
+})
 
 function curvePath(slot: SlotPosition) {
   const fx = slot.x * 10
