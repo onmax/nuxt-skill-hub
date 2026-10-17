@@ -51,10 +51,9 @@ my-app/
     ├── SKILL.md                  # router: picks the smallest relevant guide
     └── references/
         ├── nuxt/
-        │   ├── index.md
         │   └── rules/            # data-fetching-ssr.md, hydration-consistency.md, plugins.md, ...
         ├── vue/                  # Vue best practices (vuejs-ai/skills)
-        └── modules/
+        └── modules/              # only when there are module skills or skipped packages
             ├── index.md
             └── <package>/<skill>/SKILL.md
 ```
