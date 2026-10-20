@@ -59,6 +59,11 @@ export function resolveAgentTargetConfig(target: SkillHubTarget): ResolvedAgentT
   }
 }
 
+/** Agents that load a skill folder with references. The rest load every file in a rules directory. */
+export function loadsSkillFolders(target: SkillHubTarget): boolean {
+  return resolveAgentTargetConfig(target)?.skillsDir === 'skills'
+}
+
 export function validateTargets(targets: SkillHubTarget[]): { valid: SkillHubTarget[], invalid: InvalidTarget[] } {
   const uniqueTargets = Array.from(new Set(targets.map(target => target.trim()).filter(Boolean)))
   const valid: SkillHubTarget[] = []
