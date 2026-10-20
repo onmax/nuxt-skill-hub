@@ -6,6 +6,8 @@
 
 ```ts
 // Wrong: every dev start waits for the download inside setup
+import { addTemplate, defineNuxtModule } from '@nuxt/kit'
+
 export default defineNuxtModule({
   async setup(options) {
     const icons = await downloadIconSet(options.set)
@@ -16,6 +18,8 @@ export default defineNuxtModule({
 
 ```ts
 // Right: setup only registers; the work runs when the template is generated
+import { addTemplate, defineNuxtModule } from '@nuxt/kit'
+
 export default defineNuxtModule({
   setup(options) {
     addTemplate({
@@ -34,6 +38,8 @@ export default defineNuxtModule({
 **Skip when:** a backward-compatibility policy requires legacy unprefixed aliases.
 
 ```ts
+import { addComponentsDir, addImports, addServerHandler, createResolver, defineNuxtModule } from '@nuxt/kit'
+
 export default defineNuxtModule({
   setup() {
     const { resolve } = createResolver(import.meta.url)

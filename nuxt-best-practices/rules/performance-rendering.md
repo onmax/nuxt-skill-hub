@@ -15,7 +15,7 @@
 <NuxtLink to="/reports" prefetch-on="interaction">Reports</NuxtLink>
 ```
 
-**Why:** `NuxtLink` does client-side navigation with route-aware prefetching (on `visible` by default, or on `interaction`).
+**Why:** `NuxtLink` does client-side navigation with route-aware prefetching (`prefetchOn: 'visibility'` by default, or `'interaction'`).
 **Verify:** internal links in pages, layouts, and components use `NuxtLink` and keep their semantics and accessibility.
 
 ### `perf-match-route-rules-to-content-volatility`: Use route rules to match rendering strategy to content volatility
