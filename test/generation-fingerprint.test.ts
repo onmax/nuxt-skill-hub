@@ -24,7 +24,6 @@ describe('createGenerationFingerprint', () => {
     const common = {
       packageVersion: '0.0.4',
       rootDir: root,
-      buildDir: join(root, '.nuxt'),
       exportRoot: root,
       skillName: 'nuxt-fingerprint-fixture',
       options: {
@@ -103,7 +102,6 @@ describe('createGenerationFingerprint', () => {
     const common = {
       packageVersion: '0.0.4',
       rootDir: root,
-      buildDir: join(root, '.nuxt'),
       exportRoot: root,
       skillName: 'nuxt-fingerprint-flags',
       options: {
@@ -157,7 +155,6 @@ describe('createGenerationFingerprint', () => {
     const common = {
       packageVersion: '0.0.4',
       rootDir: root,
-      buildDir: join(root, '.nuxt'),
       exportRoot: root,
       skillName: 'nuxt-fingerprint-remote',
       installedPackages: [],
@@ -192,7 +189,6 @@ describe('built-in content in the fingerprint', () => {
     const common = {
       packageVersion: '0.0.4',
       rootDir: root,
-      buildDir: join(root, '.nuxt'),
       exportRoot: root,
       skillName: 'nuxt-fingerprint-fixture',
       options: {},

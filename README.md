@@ -38,16 +38,12 @@ Use [Doctor](https://vite-doctor.onmax.me/) to check AI-written Nuxt changes for
 
 ## How it works
 
-The module writes two things.
-
-1. A small wrapper skill in each agent's project-local skills directory (for Cursor, its rules directory). It only points to the generated tree, so its content barely changes and you can commit it.
-2. The full generated skill tree in the Nuxt build directory, at `<buildDir>/skill-hub/<skillName>/` (`.nuxt/skill-hub/<skillName>/` by default, also during `nuxt build`). It stays out of git.
+On `nuxt prepare`, the module writes the full skill into each agent's project-local skills directory. Agents load it like any other skill, and the router's relative links resolve from there.
 
 ```
 my-app/
-├── .claude/skills/nuxt-my-app/
-│   └── SKILL.md                  # wrapper, commit this
-└── .nuxt/skill-hub/nuxt-my-app/
+└── .claude/skills/nuxt-my-app/
+    ├── .gitignore                # "*": the folder keeps itself out of git
     ├── SKILL.md                  # router: picks the smallest relevant guide
     └── references/
         ├── nuxt/
@@ -58,15 +54,19 @@ my-app/
             └── <package>/<skill>/SKILL.md
 ```
 
-The wrapper is written every time Nuxt starts. The generated tree is written during `nuxt prepare`, which also runs on `postinstall` in most Nuxt projects. Both steps are skipped in CI (unless tests are running), during `nuxi typecheck`, and when no agent target is detected. Results are cached in `node_modules/.cache/nuxt-skill-hub`. A later `nuxt prepare` restores the cached tree if the inputs (options, module versions, local skill files) are unchanged and the cache is younger than `remote.cacheTtlMs`. If the tree is missing when `nuxt dev` or `nuxt build` starts, for example after `rm -rf .nuxt`, the module copies the cached tree back when the inputs match, whatever its age. It never resolves or regenerates outside `nuxt prepare`.
+The skill is written during `nuxt prepare`, which also runs on `postinstall` in most Nuxt projects. `nuxt dev`, `nuxt build` and deleting `.nuxt` don't touch it. Generation is skipped in CI (unless tests are running), during `nuxi typecheck`, and when no agent target is detected. Each run builds the tree in a staging folder and swaps it in when complete, so a failed run keeps the previous skill. Results are cached in `node_modules/.cache/nuxt-skill-hub`. A later `nuxt prepare` reuses the cached tree if the inputs (options, module versions, local skill files) are unchanged and the cache is younger than `remote.cacheTtlMs`.
 
-The router links only the Nuxt packs that apply: the Nuxt UI and Nuxt Content packs need their module installed, and the module authoring pack needs `moduleAuthoring`. Only linked packs are copied. When the generated entry is missing, the wrapper tells the agent where to run `npx nuxt prepare` and, if the package is installed, points it to the rule packs in `node_modules/nuxt-skill-hub/nuxt-best-practices/rules/`.
+The router links only the Nuxt packs that apply: the Nuxt UI and Nuxt Content packs need their module installed, and the module authoring pack needs `moduleAuthoring`. Only linked packs are copied.
 
-**Agents.** With no `targets` set, the module writes a wrapper for every agent whose config directory exists in your home directory, such as `~/.claude` or `~/.codex`. The agent running the command (detected from its environment) is skipped, so set `targets` to include it. The agent list comes from [unagent](https://github.com/onmax/unagent). The wrapper path mirrors that config directory inside the project: `.claude/skills/<name>/` for Claude Code, `.codex/skills/<name>/` for Codex, `.cursor/rules/<name>/` for Cursor. If no agent is detected, nothing is written and the module logs a warning.
+**Agents.** With no `targets` set, the module writes a skill for every agent whose config directory exists in your home directory, such as `~/.claude` or `~/.codex`. The agent running the command (detected from its environment) is skipped, so set `targets` to include it. The agent list comes from [unagent](https://github.com/onmax/unagent), and the skill path mirrors that config directory inside the project: `.claude/skills/<name>/` for Claude Code, `.codex/skills/<name>/` for Codex. Agents that load every file in a rules directory as a rule, such as Cursor (`.cursor/rules/<name>/`), get one `SKILL.md` that points to the generated tree in `node_modules/.cache/nuxt-skill-hub/generated/<name>/`, plus where to run `npx nuxt prepare` when it's missing. If no agent is detected, nothing is written and the module logs a warning.
+
+The module only replaces a skill folder it wrote. If `<name>` already holds a skill it didn't write, it logs a warning and leaves it alone.
+
+**Upgrading from 0.2.** The skill no longer lives in `.nuxt/skill-hub`, and the committed wrapper is gone. If you committed the wrapper, untrack it with `git rm --cached -r .claude/skills/<name>` (and the same for other agents). Project `.gitignore` entries for these folders are no longer needed. The old `.nuxt/skill-hub` folder is deleted on the next `nuxt prepare`.
 
 **Skill name.** The default is `nuxt-<package name>` from your `package.json` (scope removed), or `nuxt` if there is no name.
 
-**Monorepos.** Wrappers go to the workspace root (the nearest folder with `pnpm-workspace.yaml` or a `workspaces` field in `package.json`), so agents find them when opened at the repo root. The generated router then gets a "Monorepo scope" section that limits it to the app's path, for example `apps/web`. Each app gets its own skill name from its own `package.json`.
+**Monorepos.** Skills go to the workspace root (the nearest folder with `pnpm-workspace.yaml` or a `workspaces` field in `package.json`), so agents find them when opened at the repo root. The generated router then gets a "Monorepo scope" section that limits it to the app's path, for example `apps/web`. Each app gets its own skill name from its own `package.json`.
 
 ## Configuration
 
@@ -88,9 +88,9 @@ export default defineNuxtConfig({
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| `skillName` | `string` | `nuxt-<package name>` | Name of the wrapper and generated skill. Lowercase, hyphen-case, up to 64 characters. Invalid values fall back to the default. |
+| `skillName` | `string` | `nuxt-<package name>` | Name of the generated skill. Lowercase, hyphen-case, up to 64 characters. Invalid values fall back to the default. |
 | `targets` | `string[]` | `[]` (auto-detect) | Agent ids from unagent, such as `claude-code`, `codex`, `cursor`. Setting this turns off detection. Unknown ids are skipped with a warning. |
-| `generationMode` | `'prepare' \| 'manual'` | `'prepare'` | `prepare` builds the tree during `nuxt prepare`. `manual` writes only the wrapper, which tells the agent that generation is off. |
+| `generationMode` | `'prepare' \| 'manual'` | `'prepare'` | `prepare` writes the skill during `nuxt prepare`. `manual` writes nothing. |
 | `moduleAuthoring` | `boolean` | `false` | Adds the module authoring guide to the router. Enable it when the project is a Nuxt module. |
 | `remote` | `boolean \| object` | `true` | Remote lookup of module skills. `false` limits sources to installed packages, the `skill-hub:contribute` hook, and generated metadata routers. |
 

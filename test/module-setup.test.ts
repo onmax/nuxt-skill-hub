@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mockEnsureStableSkillWrappers = vi.fn(async () => {})
 const mockGenerateSkillTree = vi.fn(async () => {})
 const mockLogger = {
   info: vi.fn(),
@@ -25,7 +24,6 @@ vi.mock('std-env', () => ({
 }))
 
 vi.mock('../src/generator', () => ({
-  ensureStableSkillWrappers: mockEnsureStableSkillWrappers,
   generateSkillTree: mockGenerateSkillTree,
 }))
 
@@ -72,9 +70,6 @@ describe('module setup', () => {
       targets: ['claude'],
     }, nuxt)
 
-    expect(mockEnsureStableSkillWrappers).toHaveBeenCalledWith(expect.objectContaining({
-      generationMode: 'prepare',
-    }))
     expect(mockLogger.warn).toHaveBeenCalledWith('Invalid skillHub.generationMode "manul". Falling back to "prepare".')
 
     const runGeneration = prepareHooks.get('prepare:types')
@@ -83,28 +78,25 @@ describe('module setup', () => {
     await runGeneration?.()
 
     expect(mockGenerateSkillTree).toHaveBeenCalledWith(expect.objectContaining({
-      generationMode: 'prepare',
-      restoreOnly: false,
+      skillName: 'nuxt-test',
+      targets: ['claude'],
     }))
   })
 
-  it('only restores the cached tree outside prepare, and never fails the build', async () => {
+  it('does nothing outside nuxt prepare', async () => {
     vi.resetModules()
     const { default: importedModule } = await import('../src/module')
     const moduleDefinition = importedModule as unknown as {
       setup: (options: Record<string, unknown>, nuxt: unknown) => Promise<void>
     }
 
-    const hooks = new Map<string, () => Promise<void>>()
     const nuxt = {
       options: {
         rootDir: '/repo',
         buildDir: '/repo/.nuxt',
         _prepare: false,
       },
-      hook: vi.fn((name: string, handler: () => Promise<void>) => {
-        hooks.set(name, handler)
-      }),
+      hook: vi.fn(),
     }
 
     await moduleDefinition.setup({
@@ -113,16 +105,9 @@ describe('module setup', () => {
       targets: ['claude'],
     }, nuxt)
 
-    expect(hooks.has('prepare:types')).toBe(false)
-    const restore = hooks.get('build:before')
-    expect(restore).toBeTypeOf('function')
-
-    await restore?.()
-    expect(mockGenerateSkillTree).toHaveBeenCalledWith(expect.objectContaining({ restoreOnly: true }))
-
-    mockGenerateSkillTree.mockRejectedValueOnce(new Error('disk full'))
-    await expect(restore?.()).resolves.toBeUndefined()
-    expect(mockLogger.warn).toHaveBeenCalledWith('Could not restore the cached nuxt-test skill: disk full')
+    expect(nuxt.hook).not.toHaveBeenCalled()
+    expect(mockResolveTargets).not.toHaveBeenCalled()
+    expect(mockLogger.warn).not.toHaveBeenCalled()
   })
 
   it('skips generation entirely during typecheck', async () => {
@@ -155,7 +140,6 @@ describe('module setup', () => {
       }, nuxt)
 
       expect(mockLogger.info).toHaveBeenCalledWith('Skipping skill generation during typecheck')
-      expect(mockEnsureStableSkillWrappers).not.toHaveBeenCalled()
       expect(mockGenerateSkillTree).not.toHaveBeenCalled()
       expect(prepareHooks.has('prepare:types')).toBe(false)
     }

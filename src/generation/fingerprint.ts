@@ -49,7 +49,6 @@ export function hashBuiltInContent(ruleFiles: Record<string, string>, metadata: 
 export async function createGenerationFingerprint(input: {
   packageVersion: string
   rootDir: string
-  buildDir: string
   exportRoot: string
   skillName: string
   options: ModuleOptions
@@ -76,7 +75,6 @@ export async function createGenerationFingerprint(input: {
     builtInContentHash,
     skillName: input.skillName,
     rootDir: input.rootDir,
-    buildDir: input.buildDir,
     rootPackageHash,
     lockfile,
     modules,

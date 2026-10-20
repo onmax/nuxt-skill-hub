@@ -3,7 +3,7 @@ import { execSync } from 'node:child_process'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { expectCopiedPacksMatchRouterLinks, resolveGeneratedSkillRoot } from './utils'
+import { expectCopiedPacksMatchRouterLinks } from './utils'
 
 const rootDir = fileURLToPath(new URL('./fixtures/with-modules', import.meta.url))
 const workspaceRoot = resolve(rootDir, '../../..')
@@ -129,14 +129,10 @@ describe('module-expanded generation', () => {
     execSync('pnpm exec nuxt prepare', { cwd: rootDir, encoding: 'utf8', stdio: 'pipe' })
 
     const skillRoot = join(workspaceRoot, '.claude', 'skills', 'nuxt-with-modules-fixture')
-    const wrapper = await fsp.readFile(join(skillRoot, 'SKILL.md'), 'utf8')
-    const generatedSkillRoot = resolveGeneratedSkillRoot(skillRoot, wrapper)
+    const generatedSkillRoot = skillRoot
     const entry = await fsp.readFile(join(generatedSkillRoot, 'SKILL.md'), 'utf8')
     const moduleIndex = await fsp.readFile(join(generatedSkillRoot, 'references/modules/index.md'), 'utf8')
     const metadataSkill = await fsp.readFile(join(generatedSkillRoot, 'references/modules/test-meta-router/test-meta-router/SKILL.md'), 'utf8')
-
-    expect(wrapper).toContain('# Nuxt Skill Wrapper')
-    expect(wrapper).toContain('run `npx nuxt prepare` in `test/fixtures/with-modules`')
     await expectCopiedPacksMatchRouterLinks(generatedSkillRoot, entry)
     expect(entry).toContain('## Module guides')
     expect(entry).toContain('[Module guide index](./references/modules/index.md)')

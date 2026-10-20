@@ -3,7 +3,7 @@ import { execSync } from 'node:child_process'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { expectCopiedPacksMatchRouterLinks, resolveGeneratedSkillRoot } from './utils'
+import { expectCopiedPacksMatchRouterLinks } from './utils'
 
 const rootDir = fileURLToPath(new URL('./fixtures/module-author', import.meta.url))
 const workspaceRoot = resolve(rootDir, '../../..')
@@ -13,12 +13,8 @@ describe('module-author generation', () => {
     execSync('pnpm exec nuxt prepare', { cwd: rootDir, encoding: 'utf8', stdio: 'pipe' })
 
     const skillRoot = join(workspaceRoot, '.claude', 'skills', 'nuxt-module-author-fixture')
-    const wrapper = await fsp.readFile(join(skillRoot, 'SKILL.md'), 'utf8')
-    const generatedSkillRoot = resolveGeneratedSkillRoot(skillRoot, wrapper)
+    const generatedSkillRoot = skillRoot
     const entry = await fsp.readFile(join(generatedSkillRoot, 'SKILL.md'), 'utf8')
-
-    expect(wrapper).toContain('# Nuxt Skill Wrapper')
-    expect(wrapper).toContain('run `npx nuxt prepare` in `test/fixtures/module-author`')
     await expectCopiedPacksMatchRouterLinks(generatedSkillRoot, entry)
     expect(entry).toContain('Module Authoring Conventions')
     expect(entry).toContain('Writing or refactoring a Nuxt module (`defineNuxtModule`, hooks, public APIs)')
