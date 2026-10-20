@@ -5,7 +5,7 @@
 **Skip when:** the issue is intentionally scoped to one surface.
 
 ```vue
-<!-- app/error.vue (next to app/app.vue): full-page errors (404s, fatal errors, server createError) -->
+<!-- app/error.vue (next to app/app.vue): full-page errors (404s, fatal errors, createError during render or navigation, and any error on an HTML request; JSON requests get Nitro's JSON error) -->
 <script setup lang="ts">
 import type { NuxtError } from '#app'
 defineProps<{ error: NuxtError }>()
