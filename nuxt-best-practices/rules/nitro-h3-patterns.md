@@ -59,7 +59,7 @@ export default defineCachedEventHandler((event) => {
 **Skip when:** the upstream error contract cannot be mapped safely; document the gap.
 
 ```ts
-// Wrong: internal detail in the message (stripped in production, but exposed in dev and debug responses)
+// Wrong: internal detail in the message (redacted for unhandled errors in production, but shown in development and by custom error handlers)
 throw new Error(`DB lookup failed for ${email}: ${err.stack}`)
 ```
 
@@ -68,7 +68,7 @@ throw new Error(`DB lookup failed for ${email}: ${err.stack}`)
 throw createError({ status: 409, statusText: 'Email Taken', data: { field: 'email' } })
 ```
 
-**Why:** in API routes, a short `statusText` reaches the client, while `message` is only exposed in dev or debug responses; put structured payload in `data` and keep sensitive detail and raw user input out of both.
+**Why:** in API routes, a short `statusText` reaches the client, while `message` can surface in development or through custom error handlers; put structured payload in `data` and keep sensitive detail and raw user input out of both.
 **Verify:** thrown errors use a consistent status and `statusText` contract with no leaked internals.
 
 ### `nitro-runtime-config-from-event`: Prefer `useRuntimeConfig(event)` in server routes
