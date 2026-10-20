@@ -95,10 +95,11 @@ export function detectCurrentTarget(): SkillHubTarget | undefined {
   return skillsDir ? current.id : undefined
 }
 
+/** Agents with a config dir in the home directory, plus the agent running this process. */
 export function detectInstalledTargets(): SkillHubTarget[] {
   return Array.from(new Set(
     detectUnagentInstalledAgents()
-      .filter(agent => agent.detected === 'config' && resolveSkillsDir(agent.id, agent.config))
+      .filter(agent => resolveSkillsDir(agent.id, agent.config))
       .map(agent => agent.id),
   )).sort((a, b) => a.localeCompare(b))
 }
