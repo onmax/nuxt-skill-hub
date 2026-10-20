@@ -17,9 +17,11 @@ import {
   getTargetSkillRoot,
   mapWithConcurrency,
   pathExists,
+  replaceSkillTree,
   resolveContributions,
   resolveMonorepoScopePath,
   sortAndDedupeContributions,
+  swapDir,
   validateResolvedContributions,
   writeFileIfChanged,
   type GeneratedModuleEntry,
@@ -270,7 +272,9 @@ export async function generateSkillTree(input: {
   if (restoreOnly && await pathExists(join(generatedSkillRoot, 'SKILL.md'))) {
     return
   }
-  const referencesRoot = join(generatedSkillRoot, 'references')
+  // Built here, then swapped in, so a failed run keeps the previous tree.
+  const stagingRoot = `${generatedSkillRoot}.staging`
+  const referencesRoot = join(stagingRoot, 'references')
   const nuxtRoot = join(referencesRoot, 'nuxt')
   const vueRoot = join(referencesRoot, 'vue')
   const modulesRoot = join(referencesRoot, 'modules')
@@ -328,7 +332,7 @@ export async function generateSkillTree(input: {
   // a cached tree built from the same inputs beats an empty build dir.
   const freshnessOptions = restoreOnly ? {} : { refresh: remoteOptions.refresh, cacheTtlMs: remoteOptions.cacheTtlMs }
   if (generationMode === 'prepare' && await isGeneratedSkillFreshWithOptions(cachedGeneratedSkillRoot, fingerprint, freshnessOptions)) {
-    await copySkillTree(cachedGeneratedSkillRoot, generatedSkillRoot, true)
+    await replaceSkillTree(cachedGeneratedSkillRoot, generatedSkillRoot)
     logger.info(`Restored cached ${skillName} skill from ${cachedGeneratedSkillRoot}`)
     return
   }
@@ -468,68 +472,74 @@ export async function generateSkillTree(input: {
     logger.warn(`[validation] ${issue.packageName}/${issue.skillName}: ${issue.reason}`)
   }
 
-  await emptyDir(generatedSkillRoot)
-  await ensureDir(nuxtRoot)
-  await ensureDir(vueRoot)
-  await ensureDir(modulesRoot)
+  await emptyDir(stagingRoot)
+  try {
+    await ensureDir(nuxtRoot)
+    await ensureDir(vueRoot)
+    await ensureDir(modulesRoot)
 
-  logger.start('Fetching Vue best-practices content...')
-  const vueTemplateFiles = await buildVueTemplateFiles(vueRoot, remoteCacheRoot)
-  for (const file of vueTemplateFiles) {
-    await writeFileIfChanged(file.path, file.contents)
+    logger.start('Fetching Vue best-practices content...')
+    const vueTemplateFiles = await buildVueTemplateFiles(vueRoot, remoteCacheRoot)
+    for (const file of vueTemplateFiles) {
+      await writeFileIfChanged(file.path, file.contents)
+    }
+
+    const generatedEntries: GeneratedModuleEntry[] = []
+
+    for (const contribution of contributions) {
+      const includeScripts = contribution.forceIncludeScripts
+      const destination = createModuleDestination(modulesRoot, contribution)
+      await copySkillTree(contribution.sourceDir, destination, includeScripts)
+      const entryPath = relative(stagingRoot, join(destination, 'SKILL.md')).replaceAll('\\', '/')
+
+      generatedEntries.push({
+        packageName: contribution.packageName,
+        version: contribution.version,
+        skillName: contribution.skillName,
+        entryPath,
+        sourceDir: contribution.sourceDir,
+        destination: relative(stagingRoot, destination).replaceAll('\\', '/'),
+        scriptsIncluded: includeScripts,
+        description: contribution.description,
+        sourceKind: contribution.sourceKind,
+        sourceLabel: getSourceLabel(contribution.sourceKind),
+        sourceRepo: contribution.sourceRepo,
+        sourceRef: contribution.sourceRef,
+        sourcePath: contribution.sourcePath,
+        repoUrl: contribution.repoUrl,
+        docsUrl: contribution.docsUrl,
+        official: contribution.official,
+        trustLevel: getTrustLevel(contribution.official),
+        resolver: contribution.resolver,
+      })
+    }
+
+    const moduleIndex = createModuleIndex(generatedEntries, skipped)
+    if (moduleIndex) {
+      await writeFileIfChanged(join(modulesRoot, 'index.md'), moduleIndex)
+    }
+
+    const entrypointOptions: SkillEntrypointOptions = {
+      monorepoScopePath,
+      moduleAuthoring: Boolean(options.moduleAuthoring),
+      installedPackages: installedPackages.map(pkg => pkg.packageName),
+      entries: generatedEntries,
+      skipped,
+    }
+    // Copy only the packs the router links, so no pack sits in the tree unreachable.
+    const nuxtTemplateFiles = await buildNuxtTemplateFiles(nuxtRoot, selectLinkedPacks(DEFAULT_NUXT_CONTENT_METADATA, entrypointOptions))
+    for (const file of nuxtTemplateFiles) {
+      await writeFileIfChanged(file.path, file.contents)
+    }
+
+    await writeFileIfChanged(join(stagingRoot, 'SKILL.md'), createSkillEntrypoint(skillName, DEFAULT_NUXT_CONTENT_METADATA, entrypointOptions))
+    await writeGenerationState(stagingRoot, fingerprint)
+    await swapDir(stagingRoot, generatedSkillRoot)
   }
-
-  const generatedEntries: GeneratedModuleEntry[] = []
-
-  for (const contribution of contributions) {
-    const includeScripts = contribution.forceIncludeScripts
-    const destination = createModuleDestination(modulesRoot, contribution)
-    await copySkillTree(contribution.sourceDir, destination, includeScripts)
-    const entryPath = relative(generatedSkillRoot, join(destination, 'SKILL.md')).replaceAll('\\', '/')
-
-    generatedEntries.push({
-      packageName: contribution.packageName,
-      version: contribution.version,
-      skillName: contribution.skillName,
-      entryPath,
-      sourceDir: contribution.sourceDir,
-      destination: relative(generatedSkillRoot, destination).replaceAll('\\', '/'),
-      scriptsIncluded: includeScripts,
-      description: contribution.description,
-      sourceKind: contribution.sourceKind,
-      sourceLabel: getSourceLabel(contribution.sourceKind),
-      sourceRepo: contribution.sourceRepo,
-      sourceRef: contribution.sourceRef,
-      sourcePath: contribution.sourcePath,
-      repoUrl: contribution.repoUrl,
-      docsUrl: contribution.docsUrl,
-      official: contribution.official,
-      trustLevel: getTrustLevel(contribution.official),
-      resolver: contribution.resolver,
-    })
+  finally {
+    await fsp.rm(stagingRoot, { recursive: true, force: true })
   }
-
-  const moduleIndex = createModuleIndex(generatedEntries, skipped)
-  if (moduleIndex) {
-    await writeFileIfChanged(join(modulesRoot, 'index.md'), moduleIndex)
-  }
-
-  const entrypointOptions: SkillEntrypointOptions = {
-    monorepoScopePath,
-    moduleAuthoring: Boolean(options.moduleAuthoring),
-    installedPackages: installedPackages.map(pkg => pkg.packageName),
-    entries: generatedEntries,
-    skipped,
-  }
-  // Copy only the packs the router links, so no pack sits in the tree unreachable.
-  const nuxtTemplateFiles = await buildNuxtTemplateFiles(nuxtRoot, selectLinkedPacks(DEFAULT_NUXT_CONTENT_METADATA, entrypointOptions))
-  for (const file of nuxtTemplateFiles) {
-    await writeFileIfChanged(file.path, file.contents)
-  }
-
-  await writeFileIfChanged(join(generatedSkillRoot, 'SKILL.md'), createSkillEntrypoint(skillName, DEFAULT_NUXT_CONTENT_METADATA, entrypointOptions))
-  await writeGenerationState(generatedSkillRoot, fingerprint)
-  await copySkillTree(generatedSkillRoot, cachedGeneratedSkillRoot, true)
+  await replaceSkillTree(generatedSkillRoot, cachedGeneratedSkillRoot)
 
   logger.success(`Generated ${skillName} skill at ${generatedSkillRoot}`)
 }

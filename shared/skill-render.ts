@@ -444,6 +444,9 @@ function packLink(metadata: NuxtContentMetadata, id: string): string {
   return `[${pack.title}](./references/nuxt/${pack.relativePath})`
 }
 
+/** Agents pick a skill by its description, so the wrapper and the router share this one. */
+export const SKILL_DESCRIPTION = 'Use before changing Nuxt code. Routes to the smallest relevant guide for `useFetch`/`useAsyncData`, SSR and hydration, `definePageMeta`/`useSeoMeta`, `runtimeConfig`, Nitro server routes, plugins, errors, Nuxt UI, Nuxt Content, installed Nuxt modules, or module authoring.'
+
 const DEFAULT_VUE_GUIDE_HREF = './references/vue/SKILL.md'
 /** Link to use when the Vue guide isn't bundled with the skill. */
 export const UPSTREAM_VUE_GUIDE_URL = 'https://github.com/vuejs-ai/skills/blob/main/skills/vue-best-practices/SKILL.md'
@@ -528,7 +531,6 @@ export function createSkillEntrypoint(
 ): string {
   const entries = options.entries || []
   const skipped = options.skipped || []
-  const description = 'Use before changing Nuxt code. Routes to the smallest relevant guide for `useFetch`/`useAsyncData`, SSR and hydration, `definePageMeta`/`useSeoMeta`, `runtimeConfig`, Nitro server routes, plugins, errors, Nuxt UI, Nuxt Content, installed Nuxt modules, or module authoring.'
   const monorepoScopeSection = options.monorepoScopePath
     ? `\n## Monorepo scope
 This skill applies only to \`${options.monorepoScopePath}\`. Treat files and tasks outside that subtree as out of scope unless the user explicitly redirects you there.\n`
@@ -544,7 +546,7 @@ ${createRoutingTable(metadata, options)}`,
 
   return `---
 name: ${yamlString(skillName)}
-description: ${yamlString(description)}
+description: ${yamlString(SKILL_DESCRIPTION)}
 ---
 
 # Nuxt Skill Router
@@ -587,7 +589,6 @@ export function createStableSkillWrapper(
   generationMode: 'prepare' | 'manual',
   options: StableSkillWrapperOptions = {},
 ): string {
-  const description = 'Stable entrypoint for generated Nuxt guidance in this repository. Use for Nuxt SSR, hydration, pages, `runtimeConfig`, Nitro/h3, plugins, Nuxt UI, Nuxt Content, or Nuxt module work. If generated content is missing, regenerate it with `nuxt prepare`.'
   const location = options.projectPath ? `in \`${options.projectPath}\`` : 'from the repository root'
   const recoverySteps = generationMode === 'manual'
     ? [
@@ -602,7 +603,7 @@ export function createStableSkillWrapper(
 
   return `---
 name: ${yamlString(skillName)}
-description: ${yamlString(description)}
+description: ${yamlString(SKILL_DESCRIPTION)}
 ---
 
 # Nuxt Skill Wrapper

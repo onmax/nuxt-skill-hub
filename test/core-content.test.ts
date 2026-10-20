@@ -11,6 +11,7 @@ import {
   createStableSkillWrapper,
   DEFAULT_NUXT_CONTENT_METADATA,
   selectLinkedPacks,
+  SKILL_DESCRIPTION,
   type SkillEntrypointOptions,
 } from '../shared/skill-render'
 
@@ -255,7 +256,7 @@ describe('createStableSkillWrapper', () => {
     expect(entry).toContain('[../../../apps/web/.nuxt/skill-hub/nuxt/SKILL.md](../../../apps/web/.nuxt/skill-hub/nuxt/SKILL.md)')
     expect(entry).toContain('run `npx nuxt prepare` in `apps/web`, then open it.')
     expect(entry).toContain('It goes missing when `.nuxt` is deleted, and only `nuxt prepare` regenerates it')
-    expect(entry).toContain('Use for Nuxt SSR, hydration, pages, `runtimeConfig`, Nitro/h3, plugins, Nuxt UI, Nuxt Content, or Nuxt module work.')
+    expect(entry).toContain(`description: ${JSON.stringify(SKILL_DESCRIPTION)}`)
     expect(entry).not.toContain('core Nuxt rule packs')
   })
 
