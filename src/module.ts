@@ -1,6 +1,6 @@
 import { defineNuxtModule, useLogger } from '@nuxt/kit'
 import { isCI, isTest } from 'std-env'
-import { ensureStableSkillWrappers, generateSkillTree } from './generator'
+import { generateSkillTree } from './generator'
 import { resolveExportRoot, deriveSkillName, detectConflictingSkills, formatConflictWarning, isValidSkillName, resolveTargets } from './internal'
 import { PACKAGE_VERSION } from '../shared/package-info'
 import { runInstallWizard } from './install'
@@ -44,6 +44,11 @@ export default defineNuxtModule<ModuleOptions>({
       return
     }
 
+    // Skills are written on `nuxt prepare` only, which also runs on postinstall in most projects.
+    if (!nuxt.options._prepare) {
+      return
+    }
+
     const configuredSkillName = options.skillName?.trim()
     let resolvedSkillName: string
 
@@ -78,55 +83,23 @@ export default defineNuxtModule<ModuleOptions>({
       return
     }
 
-    await ensureStableSkillWrappers({
-      rootDir: nuxt.options.rootDir,
-      exportRoot,
-      buildDir: nuxt.options.buildDir,
-      skillName: resolvedSkillName,
-      targets,
-      generationMode,
-    })
-
     for (const conflict of detectConflictingSkills(targets, resolvedSkillName)) {
       logger.warn(formatConflictWarning(conflict))
     }
 
     if (generationMode === 'manual') {
+      logger.info('Skipping skill generation: skillHub.generationMode is \'manual\'')
       return
     }
 
-    const runGeneration = async (restoreOnly = false) => {
-      await generateSkillTree({
-        nuxt,
-        logger,
-        options,
-        skillName: resolvedSkillName,
-        exportRoot,
-        generationMode,
-        restoreOnly,
-      })
-    }
-
-    if (generationMode !== 'prepare') {
-      return
-    }
-
-    if (!nuxt.options._prepare) {
-      // Only `nuxt prepare` generates. When `.nuxt` was deleted or cleared since (`rm -rf .nuxt`,
-      // `nuxi cleanup`, `nuxt dev` after a Nuxt upgrade), put the cached tree back. `build:before`
-      // runs after `nuxt dev` clears the build dir.
-      nuxt.hook('build:before', async () => {
-        try {
-          await runGeneration(true)
-        }
-        catch (error) {
-          logger.warn(`Could not restore the cached ${resolvedSkillName} skill: ${error instanceof Error ? error.message : String(error)}`)
-        }
-      })
-      return
-    }
-
-    nuxt.hook('prepare:types', () => runGeneration())
+    nuxt.hook('prepare:types', () => generateSkillTree({
+      nuxt,
+      logger,
+      options,
+      skillName: resolvedSkillName,
+      exportRoot,
+      targets,
+    }))
   },
 })
 

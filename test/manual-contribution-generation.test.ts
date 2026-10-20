@@ -3,7 +3,6 @@ import { execSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { join, resolve } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
-import { resolveGeneratedSkillRoot } from './utils'
 
 const rootDir = fileURLToPath(new URL('./fixtures/manual-contribution', import.meta.url))
 const workspaceRoot = resolve(rootDir, '../../..')
@@ -35,8 +34,7 @@ describe('manual contribution generation', () => {
     execSync('pnpm exec nuxt prepare', { cwd: rootDir, encoding: 'utf8', stdio: 'pipe' })
 
     const skillRoot = join(workspaceRoot, '.claude', 'skills', 'nuxt-manual-contribution-fixture')
-    const wrapper = await fsp.readFile(join(skillRoot, 'SKILL.md'), 'utf8')
-    const generatedSkillRoot = resolveGeneratedSkillRoot(skillRoot, wrapper)
+    const generatedSkillRoot = skillRoot
     const generatedManualSkillPath = join(
       generatedSkillRoot,
       'references/modules/test-manual-contribution/manual-skill/SKILL.md',
