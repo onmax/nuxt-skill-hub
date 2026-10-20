@@ -10,6 +10,9 @@ import {
   createSkillEntrypoint,
   createStableSkillWrapper,
   DEFAULT_NUXT_CONTENT_METADATA,
+  selectLinkedPacks,
+  SKILL_DESCRIPTION,
+  type SkillEntrypointOptions,
 } from '../shared/skill-render'
 
 const testCacheRoot = join(tmpdir(), 'skill-hub-test-vue')
@@ -97,6 +100,28 @@ describe('createSkillEntrypoint', () => {
 
     expect(entry).toContain('[Nuxt UI Primitives](./references/nuxt/rules/nuxt-ui-primitives.md)')
     expect(entry).toContain('[Content Modeling and Navigation](./references/nuxt/rules/content-modeling-navigation.md)')
+  })
+
+  it.each([
+    ['a plain app', {}],
+    ['module authoring', { moduleAuthoring: true }],
+    ['Nuxt UI', { installedPackages: ['@nuxt/ui'] }],
+    ['a module skill for Nuxt Content', { entries: [{ packageName: '@nuxt/content', skillName: 'nuxt-content', scriptsIncluded: false, sourceKind: 'dist', official: true, resolver: 'agentsField' }] }],
+    ['every gated pack', { moduleAuthoring: true, installedPackages: DEFAULT_NUXT_CONTENT_METADATA.packs.flatMap(pack => pack.packages || []) }],
+  ] satisfies Array<[string, SkillEntrypointOptions]>)('links exactly the packs it selects for %s', (_label, options) => {
+    const entry = createSkillEntrypoint('nuxt', DEFAULT_NUXT_CONTENT_METADATA, options)
+    const linked = new Set(Array.from(entry.matchAll(/\]\(\.\/references\/nuxt\/([^)]+)\)/g), match => match[1]))
+
+    expect([...linked].sort()).toEqual(selectLinkedPacks(DEFAULT_NUXT_CONTENT_METADATA, options).map(pack => pack.relativePath).sort())
+  })
+
+  it('links every pack when all gates are open', () => {
+    const packs = selectLinkedPacks(DEFAULT_NUXT_CONTENT_METADATA, {
+      moduleAuthoring: true,
+      installedPackages: DEFAULT_NUXT_CONTENT_METADATA.packs.flatMap(pack => pack.packages || []),
+    })
+
+    expect(packs).toEqual(DEFAULT_NUXT_CONTENT_METADATA.packs)
   })
 
   it('keeps the default skill app-oriented when module authoring is disabled', () => {
@@ -223,20 +248,39 @@ describe('createStableSkillWrapper', () => {
       '../../../apps/web/.nuxt/skill-hub/nuxt/SKILL.md',
       '../../../apps/web/.nuxt/skill-hub/nuxt',
       'prepare',
+      { projectPath: 'apps/web' },
     )
 
     expect(entry).toContain('# Nuxt Skill Wrapper')
     expect(entry).toContain('The full generated skill tree lives in the Nuxt build directory')
     expect(entry).toContain('[../../../apps/web/.nuxt/skill-hub/nuxt/SKILL.md](../../../apps/web/.nuxt/skill-hub/nuxt/SKILL.md)')
-    expect(entry).toContain('Run `nuxt prepare` from this project before continuing.')
-    expect(entry).toContain('Use for Nuxt SSR, hydration, pages, `runtimeConfig`, Nitro/h3, plugins, Nuxt UI, Nuxt Content, or Nuxt module work.')
+    expect(entry).toContain('run `npx nuxt prepare` in `apps/web`, then open it.')
+    expect(entry).toContain('It goes missing when `.nuxt` is deleted, and only `nuxt prepare` regenerates it')
+    expect(entry).toContain(`description: ${JSON.stringify(SKILL_DESCRIPTION)}`)
+    expect(entry).not.toContain('core Nuxt rule packs')
+  })
+
+  it('runs prepare from the repository root for standalone apps', () => {
+    const entry = createStableSkillWrapper('nuxt', '../../../.nuxt/skill-hub/nuxt/SKILL.md', '../../../.nuxt/skill-hub/nuxt', 'prepare')
+
+    expect(entry).toContain('run `npx nuxt prepare` from the repository root, then open it.')
+  })
+
+  it('falls back to the bundled rule packs when prepare cannot run', () => {
+    const rules = '../../../node_modules/nuxt-skill-hub/nuxt-best-practices/rules'
+    const entry = createStableSkillWrapper('nuxt', '../../../.nuxt/skill-hub/nuxt/SKILL.md', '../../../.nuxt/skill-hub/nuxt', 'prepare', {
+      bundledRulesPath: rules,
+    })
+
+    expect(entry).toContain(`3. If it still can't be generated, read the core Nuxt rule packs that ship with the module in [${rules}](${rules}).`)
   })
 
   it('explains manual mode recovery without pretending prepare will regenerate automatically', () => {
     const entry = createStableSkillWrapper('nuxt', './.nuxt/skill-hub/nuxt/SKILL.md', './.nuxt/skill-hub/nuxt', 'manual')
 
-    expect(entry).toContain('Automatic skill generation is currently disabled')
-    expect(entry).toContain('switch `skillHub.generationMode` to `\'prepare\'`')
+    expect(entry).toContain('generation is off (`skillHub.generationMode: \'manual\'`)')
+    expect(entry).toContain('switch it to `\'prepare\'`')
+    expect(entry).not.toContain('restores the tree from cache')
   })
 })
 

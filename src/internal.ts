@@ -11,6 +11,7 @@ import type {
   ValidationIssue,
   ValidatedContribution,
 } from './types'
+import type { NuxtPackMetadata } from '../shared/skill-render'
 import { loadNuxtRuleFiles } from './nuxt-content'
 import { loadVueSkillFiles } from './vue-content'
 import type { InvalidTarget, SkillHubTarget } from './agents'
@@ -624,6 +625,32 @@ export async function copySkillTree(sourceDir: string, destinationDir: string, i
   })
 }
 
+/**
+ * Moves a finished `staging` tree to `target`. Readers see the old tree or the new one, never a
+ * partial one, and a failure before this call leaves `target` untouched.
+ */
+export async function swapDir(staging: string, target: string): Promise<void> {
+  const previous = `${target}.previous`
+  await fsp.rm(previous, { recursive: true, force: true })
+  if (await pathExists(target)) {
+    await fsp.rename(target, previous)
+  }
+  await fsp.rename(staging, target)
+  await fsp.rm(previous, { recursive: true, force: true })
+}
+
+/** Like `copySkillTree`, but the destination switches over only once the copy is complete. */
+export async function replaceSkillTree(sourceDir: string, destinationDir: string): Promise<void> {
+  const staging = `${destinationDir}.staging`
+  try {
+    await copySkillTree(sourceDir, staging, true)
+    await swapDir(staging, destinationDir)
+  }
+  finally {
+    await fsp.rm(staging, { recursive: true, force: true })
+  }
+}
+
 export function resolveTargets(
   explicitTargets: SkillHubTarget[],
 ): { targets: SkillHubTarget[], invalidTargets: InvalidTarget[] } {
@@ -641,13 +668,16 @@ export function resolveTargets(
   }
 }
 
-export async function buildNuxtTemplateFiles(nuxtDir: string): Promise<Array<{ path: string, contents: string }>> {
+export async function buildNuxtTemplateFiles(nuxtDir: string, packs: NuxtPackMetadata[]): Promise<Array<{ path: string, contents: string }>> {
   const nuxtRuleFiles = await loadNuxtRuleFiles()
 
-  return Object.entries(nuxtRuleFiles).map(([name, contents]) => ({
-    path: join(nuxtDir, name),
-    contents,
-  }))
+  return packs.map((pack) => {
+    const contents = nuxtRuleFiles[pack.relativePath]
+    if (contents === undefined) {
+      throw new Error(`Missing Nuxt rule pack ${pack.relativePath}`)
+    }
+    return { path: join(nuxtDir, pack.relativePath), contents }
+  })
 }
 
 export async function buildVueTemplateFiles(vueDir: string, cacheRoot: string): Promise<Array<{ path: string, contents: string }>> {

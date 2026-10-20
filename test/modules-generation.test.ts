@@ -3,7 +3,7 @@ import { execSync } from 'node:child_process'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { resolveGeneratedSkillRoot } from './utils'
+import { expectCopiedPacksMatchRouterLinks, resolveGeneratedSkillRoot } from './utils'
 
 const rootDir = fileURLToPath(new URL('./fixtures/with-modules', import.meta.url))
 const workspaceRoot = resolve(rootDir, '../../..')
@@ -136,7 +136,8 @@ describe('module-expanded generation', () => {
     const metadataSkill = await fsp.readFile(join(generatedSkillRoot, 'references/modules/test-meta-router/test-meta-router/SKILL.md'), 'utf8')
 
     expect(wrapper).toContain('# Nuxt Skill Wrapper')
-    expect(wrapper).toContain('Run `nuxt prepare` from this project before continuing.')
+    expect(wrapper).toContain('run `npx nuxt prepare` in `test/fixtures/with-modules`')
+    await expectCopiedPacksMatchRouterLinks(generatedSkillRoot, entry)
     expect(entry).toContain('## Module guides')
     expect(entry).toContain('[Module guide index](./references/modules/index.md)')
     expect(entry).toContain('2 installed')

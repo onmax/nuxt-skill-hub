@@ -7,10 +7,12 @@ import {
   getTargetSkillRoot,
   isValidSkillName,
   parseAgentSkillDeclarations,
+  replaceSkillTree,
   resolveExportRoot,
   resolveContributions,
   resolveMonorepoScopePath,
   sortAndDedupeContributions,
+  swapDir,
 } from '../src/internal'
 
 describe('parseAgentSkillDeclarations', () => {
@@ -291,5 +293,27 @@ describe('getTargetSkillRoot', () => {
     expect(adminSkill.skillRoot).toBe(join(exportRoot, '.claude', 'skills', 'nuxt-admin'))
     expect(resolveMonorepoScopePath('/tmp/workspace/apps/web', exportRoot)).toBe('apps/web')
     expect(resolveMonorepoScopePath(exportRoot, exportRoot)).toBeUndefined()
+  })
+})
+
+describe('swapDir and replaceSkillTree', () => {
+  it('replaces a tree only once the new one is complete', async () => {
+    const root = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-swap-'))
+    const target = join(root, 'skill')
+    await fsp.mkdir(target)
+    await fsp.writeFile(join(target, 'SKILL.md'), 'old')
+
+    await expect(replaceSkillTree(join(root, 'missing'), target)).rejects.toThrow()
+    await expect(fsp.readFile(join(target, 'SKILL.md'), 'utf8')).resolves.toBe('old')
+    await expect(fsp.access(`${target}.staging`)).rejects.toBeDefined()
+
+    const staging = join(root, 'staging')
+    await fsp.mkdir(staging)
+    await fsp.writeFile(join(staging, 'SKILL.md'), 'new')
+    await swapDir(staging, target)
+
+    await expect(fsp.readFile(join(target, 'SKILL.md'), 'utf8')).resolves.toBe('new')
+    expect((await fsp.readdir(root)).sort()).toEqual(['skill'])
+    await fsp.rm(root, { recursive: true, force: true })
   })
 })

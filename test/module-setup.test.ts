@@ -84,7 +84,45 @@ describe('module setup', () => {
 
     expect(mockGenerateSkillTree).toHaveBeenCalledWith(expect.objectContaining({
       generationMode: 'prepare',
+      restoreOnly: false,
     }))
+  })
+
+  it('only restores the cached tree outside prepare, and never fails the build', async () => {
+    vi.resetModules()
+    const { default: importedModule } = await import('../src/module')
+    const moduleDefinition = importedModule as unknown as {
+      setup: (options: Record<string, unknown>, nuxt: unknown) => Promise<void>
+    }
+
+    const hooks = new Map<string, () => Promise<void>>()
+    const nuxt = {
+      options: {
+        rootDir: '/repo',
+        buildDir: '/repo/.nuxt',
+        _prepare: false,
+      },
+      hook: vi.fn((name: string, handler: () => Promise<void>) => {
+        hooks.set(name, handler)
+      }),
+    }
+
+    await moduleDefinition.setup({
+      skillName: 'nuxt-test',
+      generationMode: 'prepare',
+      targets: ['claude'],
+    }, nuxt)
+
+    expect(hooks.has('prepare:types')).toBe(false)
+    const restore = hooks.get('build:before')
+    expect(restore).toBeTypeOf('function')
+
+    await restore?.()
+    expect(mockGenerateSkillTree).toHaveBeenCalledWith(expect.objectContaining({ restoreOnly: true }))
+
+    mockGenerateSkillTree.mockRejectedValueOnce(new Error('disk full'))
+    await expect(restore?.()).resolves.toBeUndefined()
+    expect(mockLogger.warn).toHaveBeenCalledWith('Could not restore the cached nuxt-test skill: disk full')
   })
 
   it('skips generation entirely during typecheck', async () => {

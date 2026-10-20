@@ -1,7 +1,7 @@
 import { promises as fsp } from 'node:fs'
 import { defineNuxtModule } from 'nuxt/kit'
 import { dirname, join } from 'pathe'
-import { createSkillEntrypoint, DEFAULT_NUXT_CONTENT_METADATA, UPSTREAM_VUE_GUIDE_URL } from '../../shared/skill-render'
+import { createSkillEntrypoint, DEFAULT_NUXT_CONTENT_METADATA, selectLinkedPacks, UPSTREAM_VUE_GUIDE_URL, type SkillEntrypointOptions } from '../../shared/skill-render'
 import { loadNuxtRuleFiles } from '../server/utils/nuxt-content'
 import { loadVueSkillFiles } from '../server/utils/vue-content'
 
@@ -26,16 +26,19 @@ export async function buildHostedSkillFiles(docsRoot: string): Promise<Record<st
     console.warn(`[hosted-skill] Vue guide unavailable, linking to ${UPSTREAM_VUE_GUIDE_URL}`)
   }
 
+  const entrypointOptions: SkillEntrypointOptions = {
+    moduleAuthoring: true,
+    installedPackages: DEFAULT_NUXT_CONTENT_METADATA.packs.flatMap(pack => pack.packages || []),
+    extraSections: [projectGuidanceSection],
+    vueGuideHref: hasVueGuide ? undefined : UPSTREAM_VUE_GUIDE_URL,
+  }
   const files: Record<string, string> = {
-    'SKILL.md': createSkillEntrypoint(SKILL_NAME, DEFAULT_NUXT_CONTENT_METADATA, {
-      moduleAuthoring: true,
-      installedPackages: DEFAULT_NUXT_CONTENT_METADATA.packs.flatMap(pack => pack.packages || []),
-      extraSections: [projectGuidanceSection],
-      vueGuideHref: hasVueGuide ? undefined : UPSTREAM_VUE_GUIDE_URL,
-    }),
+    'SKILL.md': createSkillEntrypoint(SKILL_NAME, DEFAULT_NUXT_CONTENT_METADATA, entrypointOptions),
   }
 
-  for (const [path, contents] of Object.entries(nuxtFiles)) files[`references/nuxt/${path}`] = contents
+  for (const pack of selectLinkedPacks(DEFAULT_NUXT_CONTENT_METADATA, entrypointOptions)) {
+    files[`references/nuxt/${pack.relativePath}`] = nuxtFiles[pack.relativePath]!
+  }
   if (hasVueGuide) {
     for (const [path, contents] of Object.entries(vueFiles)) files[`references/vue/${path}`] = contents
   }
