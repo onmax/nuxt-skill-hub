@@ -2,8 +2,10 @@ import { promises as fsp } from 'node:fs'
 import { execSync } from 'node:child_process'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { loadNuxt } from '@nuxt/kit'
 import { describe, expect, it } from 'vitest'
-import { resolveGeneratedSkillRoot } from './utils'
+import { resolveStableSkillBuildDir } from '../src/generator'
+import { expectCopiedPacksMatchRouterLinks, resolveGeneratedSkillRoot } from './utils'
 
 const rootDir = fileURLToPath(new URL('./fixtures/core-only', import.meta.url))
 const workspaceRoot = resolve(rootDir, '../../..')
@@ -24,7 +26,8 @@ describe('core-only generation', () => {
     const vue = await fsp.readFile(join(generatedSkillRoot, 'references/vue/SKILL.md'), 'utf8')
 
     expect(wrapper).toContain('# Nuxt Skill Wrapper')
-    expect(wrapper).toContain('Run `nuxt prepare` from this project before continuing.')
+    expect(wrapper).toContain('run `npx nuxt prepare` in `test/fixtures/core-only`')
+    await expectCopiedPacksMatchRouterLinks(generatedSkillRoot, entry)
     expect(wrapper).toContain('.nuxt/')
     expect(entry).toContain('# Nuxt Skill Router')
     expect(entry).toContain('## Loading rules')
@@ -46,6 +49,9 @@ describe('core-only generation', () => {
     expect(entry).toContain('`test/fixtures/core-only`')
     expect(dataPack).toContain('## Data Fetching and SSR')
     await expect(fsp.access(join(generatedSkillRoot, 'references/nuxt/index.md'))).rejects.toBeDefined()
+    // Gated packs stay out when their module isn't installed and module authoring is off.
+    await expect(fsp.access(join(generatedSkillRoot, 'references/nuxt/rules/nuxt-ui-primitives.md'))).rejects.toBeDefined()
+    await expect(fsp.access(join(generatedSkillRoot, 'references/nuxt/rules/module-authoring.md'))).rejects.toBeDefined()
     expect(vue).toContain('# Vue Best Practices Workflow')
     await expect(fsp.access(join(skillRoot, 'references/index.md'))).rejects.toBeDefined()
     await expect(fsp.access(join(skillRoot, 'references/nuxt'))).rejects.toBeDefined()
@@ -54,4 +60,36 @@ describe('core-only generation', () => {
     await expect(fsp.access(join(skillRoot, 'manifest.json'))).rejects.toBeDefined()
     await expect(fsp.access(join(generatedSkillRoot, '.state.json'))).resolves.toBeUndefined()
   }, 15000)
+
+  // `nuxt dev` loads with `dev: true`. `nuxt build` loads with `dev: false`, and Nuxt then moves
+  // its buildDir to node_modules/.cache/nuxt/.nuxt because `.nuxt` exists.
+  it.each([['nuxt dev', true], ['nuxt build', false]])('%s restores the cached tree after .nuxt/skill-hub is deleted', async (_command, dev) => {
+    const skillRoot = join(workspaceRoot, '.claude', 'skills', 'nuxt-core-only-fixture')
+    const wrapperPath = join(skillRoot, 'SKILL.md')
+    const generatedSkillRoot = resolveGeneratedSkillRoot(skillRoot, await fsp.readFile(wrapperPath, 'utf8'))
+    await fsp.rm(join(rootDir, '.nuxt', 'skill-hub'), { recursive: true, force: true })
+
+    // Not `_prepare`: generation doesn't run, only the restore on `build:before`.
+    const nuxt = await loadNuxt({ cwd: rootDir, dev })
+    try {
+      await nuxt.callHook('build:before')
+    }
+    finally {
+      await nuxt.close()
+    }
+
+    expect(resolveGeneratedSkillRoot(skillRoot, await fsp.readFile(wrapperPath, 'utf8'))).toBe(generatedSkillRoot)
+    expect(generatedSkillRoot).toBe(join(rootDir, '.nuxt', 'skill-hub', 'nuxt-core-only-fixture'))
+    const entry = await fsp.readFile(join(generatedSkillRoot, 'SKILL.md'), 'utf8')
+    expect(entry).toContain('# Nuxt Skill Router')
+    await expectCopiedPacksMatchRouterLinks(generatedSkillRoot, entry)
+  }, 15000)
+})
+
+describe('resolveStableSkillBuildDir', () => {
+  it('keeps the tree in .nuxt when nuxt build uses the build cache dir', () => {
+    expect(resolveStableSkillBuildDir('/app', '/app/.nuxt')).toBe('/app/.nuxt')
+    expect(resolveStableSkillBuildDir('/app', '/app/node_modules/.cache/nuxt/.nuxt')).toBe('/app/.nuxt')
+    expect(resolveStableSkillBuildDir('/app', '/app/custom-build')).toBe('/app/custom-build')
+  })
 })

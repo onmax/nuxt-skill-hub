@@ -11,6 +11,7 @@ import type {
   ValidationIssue,
   ValidatedContribution,
 } from './types'
+import type { NuxtPackMetadata } from '../shared/skill-render'
 import { loadNuxtRuleFiles } from './nuxt-content'
 import { loadVueSkillFiles } from './vue-content'
 import type { InvalidTarget, SkillHubTarget } from './agents'
@@ -641,13 +642,16 @@ export function resolveTargets(
   }
 }
 
-export async function buildNuxtTemplateFiles(nuxtDir: string): Promise<Array<{ path: string, contents: string }>> {
+export async function buildNuxtTemplateFiles(nuxtDir: string, packs: NuxtPackMetadata[]): Promise<Array<{ path: string, contents: string }>> {
   const nuxtRuleFiles = await loadNuxtRuleFiles()
 
-  return Object.entries(nuxtRuleFiles).map(([name, contents]) => ({
-    path: join(nuxtDir, name),
-    contents,
-  }))
+  return packs.map((pack) => {
+    const contents = nuxtRuleFiles[pack.relativePath]
+    if (contents === undefined) {
+      throw new Error(`Missing Nuxt rule pack ${pack.relativePath}`)
+    }
+    return { path: join(nuxtDir, pack.relativePath), contents }
+  })
 }
 
 export async function buildVueTemplateFiles(vueDir: string, cacheRoot: string): Promise<Array<{ path: string, contents: string }>> {

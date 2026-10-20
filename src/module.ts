@@ -95,7 +95,7 @@ export default defineNuxtModule<ModuleOptions>({
       return
     }
 
-    const runGeneration = async () => {
+    const runGeneration = async (restoreOnly = false) => {
       await generateSkillTree({
         nuxt,
         logger,
@@ -103,14 +103,30 @@ export default defineNuxtModule<ModuleOptions>({
         skillName: resolvedSkillName,
         exportRoot,
         generationMode,
+        restoreOnly,
       })
     }
 
-    if (generationMode !== 'prepare' || !nuxt.options._prepare) {
+    if (generationMode !== 'prepare') {
       return
     }
 
-    nuxt.hook('prepare:types', runGeneration)
+    if (!nuxt.options._prepare) {
+      // Only `nuxt prepare` generates. When `.nuxt` was deleted or cleared since (`rm -rf .nuxt`,
+      // `nuxi cleanup`, `nuxt dev` after a Nuxt upgrade), put the cached tree back. `build:before`
+      // runs after `nuxt dev` clears the build dir.
+      nuxt.hook('build:before', async () => {
+        try {
+          await runGeneration(true)
+        }
+        catch (error) {
+          logger.warn(`Could not restore the cached ${resolvedSkillName} skill: ${error instanceof Error ? error.message : String(error)}`)
+        }
+      })
+      return
+    }
+
+    nuxt.hook('prepare:types', () => runGeneration())
   },
 })
 

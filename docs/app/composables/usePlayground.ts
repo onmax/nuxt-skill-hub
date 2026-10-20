@@ -11,7 +11,9 @@ import {
   getSourceLabel,
   getTrustLevel,
   resolveMetadataRouterSkillName,
+  selectLinkedPacks,
   type NuxtContentMetadata,
+  type SkillEntrypointOptions,
   type SkillModuleRenderEntry,
   parseSkillFrontmatter,
   type SkillResolverKind,
@@ -258,7 +260,6 @@ export function usePlayground() {
     if (!d) return {}
 
     const metadata = d.metadata as NuxtContentMetadata
-    const moduleEntries = modulePreviewEntries.value
 
     const files: Record<string, SkillFile> = {}
     files['SKILL.md'] = {
@@ -266,15 +267,15 @@ export function usePlayground() {
       path: 'SKILL.md',
       language: 'markdown',
       content: createSkillEntrypoint('nuxt', metadata, {
-        moduleAuthoring: moduleAuthorMode.value,
-        entries: moduleEntries,
+        ...entrypointOptions.value,
         vueGuideHref: d.vueFiles?.['SKILL.md'] ? undefined : UPSTREAM_VUE_GUIDE_URL,
       }),
       sourceHref: repoSource(`${generatedSkillRoot}/SKILL.md`),
     }
 
     if (d.nuxtFiles) {
-      for (const [relativePath, content] of Object.entries(d.nuxtFiles)) {
+      for (const relativePath of nuxtFileKeys.value) {
+        const content = d.nuxtFiles[relativePath]
         const path = `references/nuxt/${relativePath}`
         files[path] = { name: relativePath.split('/').pop() || relativePath, path, language: 'markdown', content: content as string, sourceHref: repoSource(`nuxt-best-practices/${relativePath}`) }
       }
@@ -347,9 +348,18 @@ export function usePlayground() {
       : [],
   )
 
+  const entrypointOptions = computed<SkillEntrypointOptions>(() => ({
+    moduleAuthoring: moduleAuthorMode.value,
+    entries: modulePreviewEntries.value,
+  }))
+
+  // Same packs the module copies: only the ones the router links.
   const nuxtFileKeys = computed(() => {
     const d = apiData.value
-    return d?.nuxtFiles ? Object.keys(d.nuxtFiles) : []
+    if (!d?.nuxtFiles) return []
+    return selectLinkedPacks(d.metadata as NuxtContentMetadata, entrypointOptions.value)
+      .map(pack => pack.relativePath)
+      .filter(path => path in d.nuxtFiles)
   })
 
   const vueFileKeys = computed(() => {

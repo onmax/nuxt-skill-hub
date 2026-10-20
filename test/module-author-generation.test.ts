@@ -3,7 +3,7 @@ import { execSync } from 'node:child_process'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { resolveGeneratedSkillRoot } from './utils'
+import { expectCopiedPacksMatchRouterLinks, resolveGeneratedSkillRoot } from './utils'
 
 const rootDir = fileURLToPath(new URL('./fixtures/module-author', import.meta.url))
 const workspaceRoot = resolve(rootDir, '../../..')
@@ -18,7 +18,8 @@ describe('module-author generation', () => {
     const entry = await fsp.readFile(join(generatedSkillRoot, 'SKILL.md'), 'utf8')
 
     expect(wrapper).toContain('# Nuxt Skill Wrapper')
-    expect(wrapper).toContain('Run `nuxt prepare` from this project before continuing.')
+    expect(wrapper).toContain('run `npx nuxt prepare` in `test/fixtures/module-author`')
+    await expectCopiedPacksMatchRouterLinks(generatedSkillRoot, entry)
     expect(entry).toContain('Module Authoring Conventions')
     expect(entry).toContain('Writing or refactoring a Nuxt module (`defineNuxtModule`, hooks, public APIs)')
     expect(entry).toContain('Add a Nuxt module option, hook, or runtime extension')
