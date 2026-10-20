@@ -12,7 +12,7 @@ const { detectInstalledAgents, getAgentConfig } = await import('unagent/env') as
 const { detectInstalledTargets, validateTargets } = await import('../src/agents')
 
 describe('detectInstalledTargets', () => {
-  it('uses config-based detection without inferring missing skills dirs', () => {
+  it('includes the running agent and skips agents without a skills dir', () => {
     vi.mocked(detectInstalledAgents).mockReturnValue([
       { id: 'codex', detected: 'config', config: {} },
       { id: 'cursor', detected: 'env', config: { skillsDir: 'rules' } },
@@ -22,7 +22,7 @@ describe('detectInstalledTargets', () => {
     ])
 
     const targets = detectInstalledTargets()
-    expect(targets).toEqual(['codex', 'windsurf'])
+    expect(targets).toEqual(['claude-code', 'codex', 'cursor', 'windsurf'])
   })
 })
 
