@@ -198,6 +198,10 @@ Three more hooks report resolution progress for packages that don't ship their o
 - `skill-hub:resolve:package`: once per package, with `skillName`, `packageName`, `packageIndex` (zero-based), `packageCount`, `durationMs`, `contributionCount`, `skippedCount`, and `resolver`/`sourceKind` when a skill was found.
 - `skill-hub:resolve:done`: the start fields plus `durationMs`, `contributionCount`, `skippedCount`, `issueCount`, and `resolverCounts`.
 
+## Releasing
+
+uppt opens a draft `release/vX.Y.Z` PR from conventional commits on `main`. Merging it runs the CI checks, tags the version, creates the GitHub release, and publishes to npm through OIDC trusted publishing. The npm trusted publisher uses workflow `release.yml` and environment `npm`. If publishing fails after the tag exists, run `gh workflow run release.yml --repo onmax/nuxt-skill-hub --ref vX.Y.Z`.
+
 ## License
 
 MIT

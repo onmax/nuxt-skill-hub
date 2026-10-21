@@ -1,59 +1,167 @@
-name: release
-
-permissions:
-  id-token: write
-  contents: write
-  actions: read
+name: Release
 
 on:
   push:
-    tags:
-      - 'v*'
+    # release/v* picks up hand edits to an open release PR
+    branches: [main, "release/v*"]
+  pull_request:
+    types: [closed]
+    branches: [main]
+  # merged release PRs, publish reruns, and prereleases all arrive here
+  workflow_dispatch:
+    inputs:
+      prerelease:
+        description: "Cut a prerelease instead of a normal release, e.g. `beta`, `rc`, or `0`"
+        required: false
+        default: ""
+      npm-tag:
+        description: "npm dist-tag to publish to. Set by uppt/release for maintenance lines; leave blank otherwise"
+        required: false
+        default: ""
+
+permissions: {}
 
 jobs:
-  ci:
+  pr:
+    if: |
+      !github.event.repository.fork
+      && (
+        (
+          github.event_name == 'push'
+          && (
+            github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+            || startsWith(github.ref, 'refs/heads/release/v')
+          )
+        ) || (
+          github.event_name == 'workflow_dispatch'
+          && !startsWith(github.ref, 'refs/tags/')
+        )
+      )
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
-      - uses: actions/checkout@v6
-      - uses: pnpm/action-setup@v5
-      - uses: actions/setup-node@v6
+      - uses: danielroe/uppt/pr@6ec27140623aa835e362f866d8ab0018ab057f4d # v0.6.11
         with:
-          node-version: 24
-          cache: pnpm
+          token: ${{ secrets.GITHUB_TOKEN }}
+          prerelease: ${{ inputs.prerelease }}
 
-      - run: pnpm install
-      - run: pnpm run dev:prepare
-      - run: pnpm run lint
-      - run: pnpm run typecheck
-      - run: pnpm run test
-      - run: pnpm run prepack
+  # GITHUB_TOKEN release PRs may not trigger PR CI. Recovery dispatches must pass the same checks.
+  verify-release:
+    if: |
+      !github.event.repository.fork
+      && (
+        (
+          github.event_name == 'pull_request'
+          && github.event.pull_request.merged == true
+          && startsWith(github.event.pull_request.head.ref, 'release/v')
+          && github.event.pull_request.head.repo.full_name == github.repository
+        ) || (
+          github.event_name == 'workflow_dispatch'
+          && startsWith(github.ref, 'refs/tags/v')
+        )
+      )
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
 
   release:
-    needs: ci
+    needs: verify-release
+    if: |
+      needs.verify-release.result == 'success'
+      && github.event_name == 'pull_request'
+      && github.event.pull_request.merged == true
+      && startsWith(github.event.pull_request.head.ref, 'release/v')
+      && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
+    concurrency:
+      group: release-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      actions: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: danielroe/uppt/release@6ec27140623aa835e362f866d8ab0018ab057f4d # v0.6.11
         with:
-          fetch-depth: 0
-      - uses: pnpm/action-setup@v5
-      - uses: actions/setup-node@v6
+          token: ${{ secrets.GITHUB_TOKEN }}
+          # The npm trusted publisher is tied to this file name.
+          publish-workflow: release.yml
+
+  pack:
+    needs: verify-release
+    if: github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    concurrency:
+      group: pack-${{ github.ref }}
+      cancel-in-progress: false
+    permissions: {}
+    outputs:
+      files: ${{ steps.pack.outputs.files }}
+    steps:
+      - id: pack
+        # No `packages` input: uppt packs the root package. `pnpm pack` runs `prepack`, which builds dist.
+        uses: danielroe/uppt/pack@6ec27140623aa835e362f866d8ab0018ab057f4d # v0.6.11
+
+  # publish the prebuilt tarball straight to npm through OIDC trusted publishing
+  publish:
+    needs: pack
+    if: |
+      github.event_name == 'workflow_dispatch'
+      && startsWith(github.ref, 'refs/tags/v')
+      && needs.pack.outputs.files != '[]'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: publish-${{ github.ref }}
+      cancel-in-progress: false
+    permissions:
+      id-token: write
+    environment: npm
+    steps:
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
-          cache: pnpm
-          registry-url: 'https://registry.npmjs.org'
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
 
-      - run: pnpm install
-      - run: pnpm run release:check-version
-      - run: pnpm prepack
+      - run: npm install -g npm@latest
 
-      - name: Determine npm tag
-        id: npm-tag
-        run: echo "tag=$(echo "${GITHUB_REF#refs/tags/v}" | grep -oE 'alpha|beta|rc' || echo latest)" >> "$GITHUB_OUTPUT"
-
-      - name: GitHub Release
-        run: pnpm dlx changelogithub
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: uppt-tarball
+          path: ${{ runner.temp }}/tarballs
 
       - name: Publish to npm
-        run: pnpm publish --provenance --access public --tag ${{ steps.npm-tag.outputs.tag }} --no-git-checks
+        env:
+          FILES: ${{ needs.pack.outputs.files }}
+          NPM_TAG: ${{ inputs.npm-tag }}
+          TARBALLS: ${{ runner.temp }}/tarballs
+        run: |
+          set -euo pipefail
+          for file in $(jq -r '.[]' <<<"$FILES"); do
+            tarball="$TARBALLS/$file"
+            manifest=$(tar -xOzf "$tarball" package/package.json)
+            name=$(jq -r .name <<<"$manifest")
+            version=$(jq -r .version <<<"$manifest")
+            # a rerun after a partial publish skips what already went out
+            if [ -n "$(npm view "$name@$version" version 2>/dev/null)" ]; then
+              echo "$name@$version is already on npm"
+              continue
+            fi
+            # uppt's dist-tags: latest when stable, else the prerelease name, or next for a bare number
+            tag=${NPM_TAG:-}
+            if [ -z "$tag" ]; then
+              case $version in
+                *-*)
+                  tag=${version#*-}
+                  tag=${tag%%+*}
+                  if [[ $tag =~ ^(.+)\.[0-9]+$ ]]; then tag=${BASH_REMATCH[1]}; fi
+                  if [[ $tag =~ ^[0-9]+$ ]]; then tag=next; fi
+                  ;;
+                *) tag=latest ;;
+              esac
+            fi
+            npm publish "$tarball" --provenance --ignore-scripts --access public --tag "$tag"
+          done
