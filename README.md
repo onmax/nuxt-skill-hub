@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://nuxt-skill.onmax.me/og-image.png" alt="Nuxt Skill Hub" width="100%">
+  <img src="https://nuxt-skill.onmax.me/og/readme-banner.png" alt="Nuxt Skill Hub: teach your AI agent the Nuxt way" width="100%">
 </p>
 
 <h1 align="center"><img src="https://nuxt-skill.onmax.me/icon.png" alt="" width="32" height="32" style="vertical-align: middle;"> nuxt-skill-hub</h1>
