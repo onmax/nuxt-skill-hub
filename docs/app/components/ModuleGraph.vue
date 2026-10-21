@@ -227,8 +227,14 @@ function moduleLinkLabel(mod: GraphModule) {
       >
         <UIcon name="i-lucide-file-text" class="size-4 shrink-0 text-primary" aria-hidden="true" />
         <span class="font-mono text-sm font-semibold tracking-tight text-highlighted">SKILL.md</span>
-        <span class="ml-auto font-mono text-[11px] text-dimmed tabular-nums">
-          {{ connectedCount }} {{ connectedCount === 1 ? 'module' : 'modules' }}
+        <span class="ml-auto flex items-center gap-1 font-mono text-[11px] text-dimmed">
+          <!-- Old and new digits share one grid cell, so they roll past each other without shifting the label -->
+          <span class="inline-grid overflow-hidden tabular-nums">
+            <Transition name="graph-count">
+              <span :key="connectedCount" class="col-start-1 row-start-1">{{ connectedCount }}</span>
+            </Transition>
+          </span>
+          {{ connectedCount === 1 ? 'module' : 'modules' }}
         </span>
       </div>
       <ul :style="{ padding: `${CARD_PAD}px 0` }">
@@ -243,7 +249,6 @@ function moduleLinkLabel(mod: GraphModule) {
               v-if="mod"
               :key="`${cycle}-${mod.id}`"
               class="absolute inset-x-3 inset-y-0 flex items-center gap-2"
-              :class="SLOTS[k]!.side === 'left' ? 'from-left' : 'from-right'"
             >
               <img :src="mod.iconUrl" alt="" class="size-3.5 shrink-0 rounded-sm">
               <span class="min-w-0 flex-1 truncate font-mono text-xs text-default">{{ mod.label }}</span>
@@ -378,24 +383,38 @@ function moduleLinkLabel(mod: GraphModule) {
 }
 
 .graph-row-leave-active {
-  transition: opacity 200ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition:
+    opacity 200ms cubic-bezier(0.23, 1, 0.32, 1),
+    transform 200ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 
+/* Text rises into its row; the exit is a smaller lift so it stays softer than the entrance */
 .graph-row-enter-from {
   opacity: 0;
   filter: blur(2px);
-}
-
-.graph-row-enter-from.from-left {
-  transform: translateX(-6px);
-}
-
-.graph-row-enter-from.from-right {
-  transform: translateX(6px);
+  transform: translateY(8px);
 }
 
 .graph-row-leave-to {
   opacity: 0;
+  transform: translateY(-4px);
+}
+
+.graph-count-enter-active,
+.graph-count-leave-active {
+  transition:
+    opacity 200ms cubic-bezier(0.23, 1, 0.32, 1),
+    transform 200ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.graph-count-enter-from {
+  opacity: 0;
+  transform: translateY(100%);
+}
+
+.graph-count-leave-to {
+  opacity: 0;
+  transform: translateY(-100%);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -404,7 +423,9 @@ function moduleLinkLabel(mod: GraphModule) {
   .graph-pill,
   .graph-port,
   .graph-row-enter-active,
-  .graph-row-leave-active {
+  .graph-row-leave-active,
+  .graph-count-enter-active,
+  .graph-count-leave-active {
     transition: none;
   }
 
