@@ -44,5 +44,3 @@ catalogs:
     better-auth: ^1.6.13
   cloud:
     '@nuxthub/core': ^0.10.7
-  release:
-    bumpp: ^11.1.0
