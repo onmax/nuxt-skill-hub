@@ -44,8 +44,8 @@ const { copy, copied } = useClipboard({ copiedDuring: 2000 })
     <UContainer>
       <div class="mx-auto mb-16 max-w-2xl text-left sm:text-center">
         <p class="mb-3 font-mono text-xs font-medium uppercase tracking-widest text-primary">Configuration</p>
-        <h2 class="text-3xl font-bold text-highlighted sm:text-4xl">Configure it when you need control</h2>
-        <p class="mt-4 text-lg text-muted leading-relaxed">
+        <h2 class="text-3xl font-bold tracking-tight text-balance text-highlighted sm:text-4xl">Configure it when you need control</h2>
+        <p class="mt-4 text-lg text-pretty text-muted leading-relaxed">
           Most projects work with the defaults. Configure <code class="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-sm text-primary">skillHub</code> in <code class="rounded bg-muted/20 px-1.5 py-0.5 font-mono text-sm text-highlighted">nuxt.config.ts</code> when you need a custom skill name, explicit agent targets, extra module-author guidance, a different generation policy, or remote lookup control.
         </p>
       </div>

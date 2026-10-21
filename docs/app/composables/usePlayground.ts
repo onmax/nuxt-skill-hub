@@ -76,7 +76,6 @@ export function usePlayground() {
   }))
 
   const selectedModulesState = useLocalStorage<SelectedModule[]>('playground-modules-v3', defaults)
-  const moduleAuthorMode = useLocalStorage<boolean>('playground-module-author-mode', false)
 
   const { data: moduleCatalogData } = useFetch<{ modules: NuxtModuleResult[] }>('/api/nuxt-modules', {
     default: () => ({ modules: [] }),
@@ -349,7 +348,6 @@ export function usePlayground() {
   )
 
   const entrypointOptions = computed<SkillEntrypointOptions>(() => ({
-    moduleAuthoring: moduleAuthorMode.value,
     entries: modulePreviewEntries.value,
   }))
 
@@ -426,7 +424,7 @@ export function usePlayground() {
     activeFilePath.value = path
   }
 
-  return { selectedModules, selectedModuleIds, activeFilePath, activeFile, fileTree, moduleAuthorMode, toggleModule, removeModule, addModule, isSelected, selectFile }
+  return { selectedModules, selectedModuleIds, activeFilePath, activeFile, fileTree, toggleModule, removeModule, addModule, isSelected, selectFile }
 }
 
 function realModuleSourceHref(realModuleFiles: ModuleSkillCacheEntry | undefined, filePath: string): string | undefined {

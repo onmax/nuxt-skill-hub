@@ -132,7 +132,7 @@ onUnmounted(() => clearInterval(interval))
           </UButton>
         </div>
         <span class="truncate font-mono text-[11px] text-dimmed">
-          {{ currentAgent.prefix }}/skills/nuxt
+          {{ currentAgent.prefix }}/skills/nuxt-my-app
         </span>
       </div>
 
@@ -249,7 +249,7 @@ onUnmounted(() => clearInterval(interval))
               {{ currentAgent.prefix }}
             </motion.span>
           </AnimatePresence>
-          <span>/skills/nuxt</span>
+          <span>/skills/nuxt-my-app</span>
         </div>
       </div>
       <div class="min-h-0 flex-1 overflow-auto p-2">

@@ -5,9 +5,7 @@ defineOptions({
   name: 'InteractivePlayground',
 })
 
-const { selectedModules, fileTree, activeFile, activeFilePath, moduleAuthorMode, toggleModule, removeModule, addModule, isSelected, selectFile } = usePlayground()
-
-watch(moduleAuthorMode, () => selectFile('SKILL.md'))
+const { selectedModules, fileTree, activeFile, activeFilePath, toggleModule, removeModule, addModule, isSelected, selectFile } = usePlayground()
 </script>
 
 <template>
@@ -20,10 +18,10 @@ watch(moduleAuthorMode, () => selectFile('SKILL.md'))
         <p class="mb-3 font-mono text-xs font-medium uppercase tracking-widest text-primary">
           Playground
         </p>
-        <h2 class="text-3xl font-bold text-highlighted sm:text-4xl">
+        <h2 class="text-3xl font-bold tracking-tight text-balance text-highlighted sm:text-4xl">
           Inspect the generated skill
         </h2>
-        <p class="mt-4 max-w-2xl text-lg text-muted sm:mx-auto">
+        <p class="mt-4 max-w-2xl text-lg text-pretty text-muted sm:mx-auto">
           Toggle modules to see how the skill changes as your stack changes.
         </p>
       </div>
@@ -40,7 +38,6 @@ watch(moduleAuthorMode, () => selectFile('SKILL.md'))
           <ModuleSelector
             :selected-modules="selectedModules"
             :is-selected="isSelected"
-            v-model:module-author-mode="moduleAuthorMode"
             @toggle="toggleModule"
             @remove="removeModule"
             @add="addModule"
