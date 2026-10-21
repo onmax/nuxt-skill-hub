@@ -3,19 +3,28 @@ import { MotionConfig } from 'motion-v'
 
 const mobileMenuOpen = ref(false)
 
+const searchOpen = ref(false)
+
 const repo = 'onmax/nuxt-skill-hub'
-// The repository's stars, read once when the page is generated. ungh caches GitHub's API, so builds on shared runners
-// don't hit its rate limit. If the request fails, the button just says GitHub.
-const { data: stars } = await useAsyncData('github-stars', () =>
-  $fetch<{ repo?: { stars?: number } }>(`https://ungh.cc/repos/${repo}`, { timeout: 5000 })
+// The repository's stars, read when the page is generated. ungh caches GitHub's API, so builds on shared runners
+// rarely hit its rate limit; GitHub itself is the fallback. If both fail, the browser asks again after hydration.
+async function fetchStars(): Promise<number | null> {
+  const fromUngh = await $fetch<{ repo?: { stars?: number } }>(`https://ungh.cc/repos/${repo}`, { timeout: 5000 })
     .then(response => response.repo?.stars ?? null)
-    .catch(() => null))
+    .catch(() => null)
+  if (fromUngh != null) return fromUngh
+  return $fetch<{ stargazers_count?: number }>(`https://api.github.com/repos/${repo}`, { timeout: 5000 })
+    .then(response => response.stargazers_count ?? null)
+    .catch(() => null)
+}
+const { data: stars, refresh: refreshStars } = await useAsyncData('github-stars', fetchStars)
+onMounted(() => {
+  if (stars.value == null) refreshStars()
+})
 const starsLabel = computed(() => stars.value == null ? '' : new Intl.NumberFormat('en', { notation: 'compact' }).format(stars.value))
 
 const navItems = [
   { label: 'How it works', to: '#how-it-works' },
-  { label: 'Doctor', to: '#doctor' },
-  { label: 'Skills', to: '#skills' },
   { label: 'Playground', to: '#playground' },
   { label: 'Docs', to: '#docs' },
 ]
@@ -41,28 +50,44 @@ onMounted(() => {
   <UApp>
     <header class="fixed inset-x-0 top-0 z-50 border-b border-default bg-default/95 backdrop-blur-sm">
       <UContainer>
-        <div class="flex h-12 items-center justify-between">
-          <a href="#hero" class="flex items-center gap-2 text-sm font-semibold text-highlighted">
-            <img src="/icon.png" alt="Nuxt Skill Hub" class="size-6 rounded">
-            Nuxt Skill Hub
-          </a>
-
-          <nav class="hidden items-center gap-6 md:flex">
-            <a
-              v-for="item in navItems" :key="item.to" :href="item.to"
-              class="font-mono text-xs transition-colors hover:text-highlighted"
-              :class="activeSection === item.to ? 'text-highlighted' : 'text-muted'"
-              :aria-current="activeSection === item.to ? 'location' : undefined"
-            >
-              {{ item.label }}
+        <div class="flex h-12 items-center justify-between gap-4 xl:grid xl:grid-cols-[1fr_auto_1fr]">
+          <div class="flex min-w-0 items-center gap-8">
+            <a href="#hero" class="flex shrink-0 items-center gap-2 text-sm font-semibold text-highlighted">
+              <img src="/icon.png" alt="" class="size-6 rounded">
+              Nuxt Skill Hub
             </a>
-          </nav>
+            <nav aria-label="Sections" class="hidden items-center gap-5 lg:flex">
+              <a
+                v-for="item in navItems" :key="item.to" :href="item.to"
+                class="whitespace-nowrap font-mono text-xs transition-colors hover:text-highlighted"
+                :class="activeSection === item.to ? 'text-highlighted' : 'text-muted'"
+                :aria-current="activeSection === item.to ? 'location' : undefined"
+              >
+                {{ item.label }}
+              </a>
+            </nav>
+          </div>
 
-          <div class="flex items-center gap-1.5">
+          <button
+            type="button"
+            class="hidden h-8 w-60 items-center gap-2 rounded-md border border-default bg-elevated/50 px-2.5 text-xs text-muted transition-colors hover:border-accented hover:text-highlighted xl:flex"
+            aria-haspopup="dialog"
+            @click="searchOpen = true"
+          >
+            <UIcon name="i-lucide-search" class="size-3.5" />
+            <span class="flex-1 text-left">Search</span>
+            <span class="flex items-center gap-0.5">
+              <UKbd value="meta" size="sm" />
+              <UKbd value="K" size="sm" />
+            </span>
+          </button>
+
+          <div class="flex items-center justify-end gap-1.5">
+            <UButton icon="i-lucide-search" variant="ghost" color="neutral" size="sm" aria-label="Search" class="xl:hidden" @click="searchOpen = true" />
             <a
               href="https://npmx.dev/package/nuxt-skill-hub"
               target="_blank"
-              class="hidden h-8 items-center gap-1.5 rounded-md px-2 font-mono text-xs text-muted transition-colors hover:bg-elevated hover:text-highlighted lg:inline-flex"
+              class="hidden h-8 items-center gap-1.5 rounded-md px-2 font-mono text-xs text-muted transition-colors hover:bg-elevated hover:text-highlighted xl:inline-flex"
               title="nuxt-skill-hub on npmx"
             >
               <svg viewBox="0 0 153 153" class="size-3.5" aria-hidden="true"><path fill="currentColor" d="M17.6 107.2h24.1v23.7h-24zM119.8.8 116.2 11 69.9 142l-3.6 10.2h15.5l3.6-10.2 11.7-33.2L135.4.8z" /></svg>
@@ -82,9 +107,7 @@ onMounted(() => {
               </span>
             </a>
             <UColorModeButton variant="ghost" color="neutral" size="sm" />
-            <button class="ml-1 flex size-8 items-center justify-center text-muted transition-colors hover:text-highlighted md:hidden" aria-label="Menu" @click="mobileMenuOpen = true">
-              <UIcon name="i-lucide-menu" class="size-4" />
-            </button>
+            <UButton icon="i-lucide-menu" variant="ghost" color="neutral" size="sm" aria-label="Menu" class="lg:hidden" @click="mobileMenuOpen = true" />
           </div>
         </div>
       </UContainer>
@@ -114,6 +137,8 @@ onMounted(() => {
         </div>
       </template>
     </UDrawer>
+
+    <SiteSearch v-model:open="searchOpen" />
 
     <MotionConfig reduced-motion="user">
       <NuxtPage />
