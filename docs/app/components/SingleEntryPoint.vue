@@ -195,7 +195,7 @@ const { stop: stopSectionObserver } = useIntersectionObserver(
           :transition="{ duration: 0.5 }"
         >
           <p class="mb-3 font-mono text-xs font-medium uppercase tracking-widest text-primary">How it works</p>
-          <h2 class="text-3xl font-bold text-highlighted sm:text-4xl">
+          <h2 class="text-3xl font-bold tracking-tight text-balance text-highlighted sm:text-4xl">
             Keep prompting.<br>
             <span class="text-primary">Your agent gets the Nuxt context.</span>
           </h2>

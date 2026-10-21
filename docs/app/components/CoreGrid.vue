@@ -7,8 +7,8 @@ import { coreSkills } from '~/data/core-skills'
     <UContainer>
       <div class="mx-auto mb-16 max-w-2xl text-left sm:text-center">
         <p class="mb-3 font-mono text-xs font-medium uppercase tracking-widest text-primary">What's inside</p>
-        <h2 class="text-3xl font-bold text-highlighted sm:text-4xl">What your agent learns</h2>
-        <p class="mt-4 text-lg text-muted leading-relaxed">
+        <h2 class="text-3xl font-bold tracking-tight text-balance text-highlighted sm:text-4xl">What your agent learns</h2>
+        <p class="mt-4 text-lg text-pretty text-muted leading-relaxed">
           General agents can write Vue, but they still miss Nuxt conventions, module APIs, and common pitfalls.
           Skills package that context into files your agent can read before it edits code.
         </p>
