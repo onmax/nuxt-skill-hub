@@ -71,7 +71,10 @@ const groups = computed(() => [
 ])
 
 defineShortcuts({
-  meta_k: () => (open.value = !open.value),
+  meta_k: {
+    usingInput: true,
+    handler: () => (open.value = !open.value),
+  },
 })
 </script>
 
