@@ -47,18 +47,6 @@ const tree = [
       <div class="grid items-center gap-12 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:gap-14">
         <div class="min-w-0">
           <div class="hero-rise [--rise-delay:0ms] mb-6 flex flex-wrap items-center gap-x-4 gap-y-2">
-            <UBadge
-              color="neutral"
-              variant="outline"
-              size="sm"
-              class="font-mono"
-            >
-              <UIcon
-                name="i-lucide-flask-conical"
-                class="mr-1 size-3"
-              />
-              Experimental
-            </UBadge>
             <ul
               class="flex flex-wrap items-center gap-x-3.5 gap-y-1"
               aria-label="Works with"
