@@ -27,7 +27,7 @@ const footerLinks = [
                 Nuxt Skill Hub
               </p>
               <p class="mt-0.5 text-sm text-pretty text-muted">
-                Experimental. Skills add context, but they don't replace the docs.
+                Nuxt best practices and guidance for your project's modules.
               </p>
             </div>
           </div>

@@ -13,9 +13,6 @@
   <a href="https://nuxt.com"><img src="https://img.shields.io/badge/Nuxt-020420?logo=nuxt.js" alt="Nuxt"></a>
 </p>
 
-> [!NOTE]
-> This module is ready for production use, but the API may still evolve over time.
-
 ## Documentation
 
 **[nuxt-skill.onmax.me](https://nuxt-skill.onmax.me)**
