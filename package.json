@@ -2,7 +2,7 @@
   "name": "nuxt-skill-hub",
   "version": "0.3.0",
   "description": "Teach your AI agent the Nuxt way with best practices and module guidance.",
-  "packageManager": "pnpm@11.2.2",
+  "packageManager": "pnpm@12.15.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/onmax/nuxt-skill-hub.git"
@@ -36,16 +36,16 @@
     "typecheck": "pnpm run test:types && pnpm run docs:typecheck"
   },
   "dependencies": {
-    "@nuxt/kit": "^4.4.6",
+    "@nuxt/kit": "^4.6.2",
     "consola": "^3.4.2",
-    "giget": "^3.2.0",
+    "giget": "^3.3.1",
     "gray-matter": "^4.0.3",
     "mlly": "^1.8.2",
     "ofetch": "^1.5.1",
-    "ohash": "^2.0.11",
+    "ohash": "^2.0.12",
     "pathe": "^2.0.3",
-    "pkg-types": "^2.3.1",
-    "std-env": "^4.1.0",
+    "pkg-types": "^2.4.0",
+    "std-env": "^4.3.0",
     "tinyglobby": "^0.2.17",
     "unagent": "^0.0.8"
   },

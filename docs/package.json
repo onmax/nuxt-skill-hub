@@ -9,17 +9,17 @@
     "typecheck": "nuxt typecheck"
   },
   "dependencies": {
-    "@comark/nuxt": "^0.3.1",
+    "@comark/nuxt": "^0.8.1",
     "@nuxt/ui": "catalog:frontend",
-    "@tiptap/y-tiptap": "^3.0.4",
-    "@vueuse/nuxt": "^14.3.0",
-    "motion-v": "^2.2.1",
+    "@tiptap/y-tiptap": "^3.0.10",
+    "@vueuse/nuxt": "^15.0.0",
+    "motion-v": "^2.8.0",
     "nuxt": "catalog:nuxt",
-    "shiki": "^4.1.0",
+    "shiki": "^4.5.0",
     "tailwindcss": "catalog:frontend"
   },
   "devDependencies": {
-    "@iconify-json/lucide": "^1.2.111",
-    "@iconify-json/simple-icons": "^1.2.84"
+    "@iconify-json/lucide": "^1.2.147",
+    "@iconify-json/simple-icons": "^1.2.100"
   }
 }
