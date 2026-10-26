@@ -6,7 +6,7 @@
   "lockFileMaintenance": {
     "enabled": true,
     "schedule": ["before 5am on monday"],
-    "automerge": true
+    "automerge": false
   },
   "packageRules": [
     {
@@ -30,7 +30,7 @@
     {
       "description": "Keep Nuxt, auth, NuxtHub, and database/runtime-sensitive packages manual.",
       "matchPackageNames": [
-        "auth",
+        "@onmax/nuxt-better-auth",
         "better-auth",
         "/^@better-auth\\//",
         "nuxt",
@@ -45,8 +45,8 @@
       "automerge": false
     },
     {
-      "description": "Update Better Auth and its CLI in one PR. auth pins an exact better-auth, so a lone auth bump installs a second copy.",
-      "matchPackageNames": ["auth", "better-auth", "/^@better-auth\\//"],
+      "description": "Update Better Auth, its Nuxt integration, and its CLI in one PR to keep related dependencies aligned.",
+      "matchPackageNames": ["@onmax/nuxt-better-auth", "better-auth", "/^@better-auth\\//"],
       "groupName": "better-auth monorepo"
     }
   ]
