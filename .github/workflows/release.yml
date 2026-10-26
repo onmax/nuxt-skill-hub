@@ -37,7 +37,7 @@ jobs:
           && !startsWith(github.ref, 'refs/tags/')
         )
       )
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
       pull-requests: write
@@ -76,7 +76,7 @@ jobs:
       && github.event.pull_request.merged == true
       && startsWith(github.event.pull_request.head.ref, 'release/v')
       && github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     concurrency:
       group: release-${{ github.event.pull_request.number }}
       cancel-in-progress: false
@@ -93,7 +93,7 @@ jobs:
   pack:
     needs: verify-release
     if: github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     concurrency:
       group: pack-${{ github.ref }}
       cancel-in-progress: false
@@ -112,7 +112,7 @@ jobs:
       github.event_name == 'workflow_dispatch'
       && startsWith(github.ref, 'refs/tags/v')
       && needs.pack.outputs.files != '[]'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     concurrency:
       group: publish-${{ github.ref }}
       cancel-in-progress: false
