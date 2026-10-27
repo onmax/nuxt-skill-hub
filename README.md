@@ -7,10 +7,10 @@
 <p align="center">Teach your AI agent the Nuxt way with best practices and module guidance.</p>
 
 <p align="center">
-  <a href="https://npmx.dev/package/nuxt-skill-hub"><img src="https://npmx.dev/api/registry/badge/version/nuxt-skill-hub" alt="npm version"></a>
-  <a href="https://npmx.dev/package/nuxt-skill-hub"><img src="https://npmx.dev/api/registry/badge/downloads/nuxt-skill-hub" alt="npm downloads"></a>
-  <a href="https://npmx.dev/package/nuxt-skill-hub"><img src="https://npmx.dev/api/registry/badge/license/nuxt-skill-hub" alt="License"></a>
-  <a href="https://nuxt.com"><img src="https://img.shields.io/badge/Nuxt-020420?logo=nuxt.js" alt="Nuxt"></a>
+  <a href="https://npmx.dev/package/nuxt-skill-hub"><img src="https://comark-ui.onmax.me/badge.svg?source=npm-version&amp;package=nuxt-skill-hub&amp;icon=npm" alt="npm version"></a>
+  <a href="https://npmx.dev/package/nuxt-skill-hub"><img src="https://comark-ui.onmax.me/badge.svg?source=npm-downloads&amp;package=nuxt-skill-hub&amp;period=month&amp;icon=npm" alt="npm downloads"></a>
+  <a href="https://npmx.dev/package/nuxt-skill-hub"><img src="https://comark-ui.onmax.me/badge.svg?label=license&amp;value=MIT" alt="License"></a>
+  <a href="https://nuxt.com"><img src="https://comark-ui.onmax.me/badge.svg?value=Nuxt" alt="Nuxt"></a>
 </p>
 
 ## Documentation
