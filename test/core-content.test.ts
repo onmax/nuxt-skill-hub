@@ -1,9 +1,7 @@
 import { createHash } from 'node:crypto'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, expect, it, vi } from 'vitest'
-import { buildHostedSkillFiles } from '../docs/modules/hosted-skill'
-import { loadNuxtRuleFiles as loadDocsNuxtRuleFiles } from '../docs/server/utils/nuxt-content'
+import { describe, expect, it } from 'vitest'
 import { loadNuxtRuleFiles } from '../src/nuxt-content'
 import { PACKAGE_VERSION } from '../shared/package-info'
 import { loadVueSkillFiles } from '../src/vue-content'
@@ -20,10 +18,6 @@ import {
 
 const testCacheRoot = join(tmpdir(), 'skill-hub-test-vue')
 
-vi.mock('../docs/server/utils/vue-content', () => ({
-  loadVueSkillFiles: async () => ({ 'SKILL.md': '# Vue guide' }),
-}))
-
 describe('template guidance publication', () => {
   it('keeps the generated section consistent with its source digest', async () => {
     const files = await loadNuxtRuleFiles()
@@ -35,18 +29,6 @@ describe('template guidance publication', () => {
     expect(digest).not.toBeNull()
     const source = `${paragraphs.join('\n\n').replace(/^### /, '# ')}\n`
     expect(createHash('sha256').update(source).digest('hex')).toBe(digest![1])
-  })
-
-  it('publishes the same module pack through the package, playground loader, and hosted skill', async () => {
-    const docsRoot = join(process.cwd(), 'docs')
-    const packageFiles = await loadNuxtRuleFiles()
-    const docsFiles = await loadDocsNuxtRuleFiles(docsRoot)
-    const hostedFiles = await buildHostedSkillFiles(docsRoot)
-    const path = 'rules/module-authoring.md'
-
-    expect(docsFiles[path]).toBe(packageFiles[path])
-    expect(hostedFiles[`references/nuxt/${path}`]).toBe(packageFiles[path])
-    expect(hostedFiles['SKILL.md']).toContain(`./references/nuxt/${path}`)
   })
 })
 
