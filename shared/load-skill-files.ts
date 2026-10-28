@@ -5,7 +5,8 @@ export async function loadSkillFilesFromDir(dir: string, skip?: string[]): Promi
   const skipSet = skip ? new Set(skip) : undefined
   const entries: Array<[string, string]> = []
 
-  for await (const relativePath of fsp.glob('**/*', { cwd: dir })) {
+  for await (const globPath of fsp.glob('**/*', { cwd: dir })) {
+    const relativePath = globPath.replaceAll('\\', '/')
     const absolutePath = join(dir, relativePath)
     if (
       (skipSet && skipSet.has(relativePath))
