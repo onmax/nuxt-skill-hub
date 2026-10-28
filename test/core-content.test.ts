@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -16,6 +17,20 @@ import {
 } from '../shared/skill-render'
 
 const testCacheRoot = join(tmpdir(), 'skill-hub-test-vue')
+
+describe('template guidance publication', () => {
+  it('keeps the generated section consistent with its source digest', async () => {
+    const files = await loadNuxtRuleFiles()
+    const pack = files['rules/module-authoring.md']!
+    const section = pack.split('<!-- BEGIN GENERATED TEMPLATE GUIDANCE -->')[1]!.split('<!-- END GENERATED TEMPLATE GUIDANCE -->')[0]!.trim()
+    const [provenance, ...paragraphs] = section.split('\n\n')
+    const digest = provenance!.match(/SHA-256: ([a-f0-9]{64})/)
+
+    expect(digest).not.toBeNull()
+    const source = `${paragraphs.join('\n\n').replace(/^### /, '# ')}\n`
+    expect(createHash('sha256').update(source).digest('hex')).toBe(digest![1])
+  })
+})
 
 describe('createSkillEntrypoint', () => {
   it('stamps core metadata with the package version', () => {

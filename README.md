@@ -195,6 +195,12 @@ Three more hooks report resolution progress for packages that don't ship their o
 - `skill-hub:resolve:package`: once per package, with `skillName`, `packageName`, `packageIndex` (zero-based), `packageCount`, `durationMs`, `contributionCount`, `skippedCount`, and `resolver`/`sourceKind` when a skill was found.
 - `skill-hub:resolve:done`: the start fields plus `durationMs`, `contributionCount`, `skippedCount`, `issueCount`, and `resolverCounts`.
 
+## Template dependency guidance
+
+Template dependency guidance comes from [`onmax/nuxt-skills`](https://github.com/onmax/nuxt-skills/blob/main/skills/nuxt-modules/references/template-dependencies.md). Update it there, then run `pnpm sync:template-guidance` to refresh the generated section of `nuxt-best-practices/rules/module-authoring.md`. The package generator, hosted skill, and playground all load that pack through the existing Nuxt content loader.
+
+For coordinated local changes, run `pnpm sync:template-guidance --source-dir /path/to/nuxt-skills`. Add `--check` to verify without writing. `--ref <branch-or-sha>` selects a remote revision. The checked-in section includes a source digest, so package and docs builds use the same content without a network fetch.
+
 ## Releasing
 
 uppt opens a draft `release/vX.Y.Z` PR from conventional commits on `main`. Merging it runs the CI checks, tags the version, creates the GitHub release, and publishes to npm through OIDC trusted publishing. The npm trusted publisher uses workflow `release.yml` and environment `npm`. If publishing fails after the tag exists, run `gh workflow run release.yml --repo onmax/nuxt-skill-hub --ref vX.Y.Z`.

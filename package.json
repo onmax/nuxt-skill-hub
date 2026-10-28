@@ -22,6 +22,7 @@
     "nuxt-best-practices"
   ],
   "scripts": {
+    "sync:template-guidance": "node scripts/sync-template-guidance.mjs",
     "prepack": "nuxt-module-build build",
     "dev": "pnpm --dir docs dev",
     "dev:build": "nuxt-module-build build --stub --watch",
