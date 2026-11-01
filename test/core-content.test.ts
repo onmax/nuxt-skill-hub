@@ -117,13 +117,13 @@ describe('createSkillEntrypoint', () => {
     expect(entry).toContain('[Content Modeling and Navigation](./references/nuxt/rules/content-modeling-navigation.md)')
   })
 
-  it.each([
+  it.each<[string, SkillEntrypointOptions, string[]]>([
     ['a plain app', {}, []],
     ['module authoring', { moduleAuthoring: true }, ['module-authoring']],
     ['Nuxt UI', { installedPackages: ['@nuxt/ui'] }, ['nuxt-ui-primitives']],
     ['a module skill for Nuxt Content', { entries: [{ packageName: '@nuxt/content', skillName: 'nuxt-content', scriptsIncluded: false, sourceKind: 'dist', official: true, resolver: 'agentsField' }] }, ['content-modeling-navigation']],
     ['every gated pack', { moduleAuthoring: true, installedPackages: ['@nuxt/ui', '@nuxt/content'] }, ['module-authoring', 'nuxt-ui-primitives', 'content-modeling-navigation']],
-  ] satisfies Array<[string, SkillEntrypointOptions, string[]]>)('routes gated packs for %s', (_label, options, expectedPacks) => {
+  ])('routes gated packs for %s', (_label, options, expectedPacks) => {
     const entry = createSkillEntrypoint('nuxt', DEFAULT_NUXT_CONTENT_METADATA, options)
     const linked = new Set(Array.from(entry.matchAll(/\]\(\.\/references\/nuxt\/([^)]+)\)/g), match => match[1]))
 
