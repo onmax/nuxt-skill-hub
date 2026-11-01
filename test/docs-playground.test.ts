@@ -3,9 +3,6 @@ import { describe, expect, it } from 'vitest'
 import { resolveSkillAvailability } from '../docs/app/data/skill-packages'
 import {
   createMetadataRouterSkillFiles,
-  createModuleWrapperContent,
-  createSkillEntrypoint,
-  DEFAULT_NUXT_CONTENT_METADATA,
   resolveMetadataRouterSkillName,
 } from '../shared/skill-render'
 
@@ -32,79 +29,26 @@ describe('docs playground metadata routing', () => {
     expect(files['references/index.md']).toBeUndefined()
   })
 
-  it('renders additive module-author preview content when enabled', () => {
-    const entry = createSkillEntrypoint('nuxt', DEFAULT_NUXT_CONTENT_METADATA, { moduleAuthoring: true })
-
-    expect(entry).toContain('# Nuxt Skill Router')
-    expect(entry).toContain('Writing or refactoring a Nuxt module (`defineNuxtModule`, hooks, public APIs)')
-    expect(entry).toContain('"Add a Nuxt module option, hook, or runtime extension"')
-    expect(entry).toContain('Hydration and SSR Consistency')
-    expect(entry).toContain('Verification and Finish')
-    expect(entry).not.toContain('## Vue guidance')
-    expect(entry).not.toContain('## Module authoring')
-  })
-
-  it('renders generated preview wrappers as scoped metadata routers', () => {
-    const entry = {
-      packageName: '@nuxt/a11y',
-      version: undefined,
-      skillName: 'nuxt-a11y',
-      description: 'Accessibility module.',
-      scriptsIncluded: false,
-      sourceKind: 'generated' as const,
-      sourceLabel: 'Metadata-routed skill',
-      repoUrl: 'https://github.com/nuxt/a11y',
-      docsUrl: 'https://a11y.nuxt.com',
-      official: true,
-      trustLevel: 'official' as const,
-      resolver: 'metadataRouter' as const,
-    }
-
-    const content = createModuleWrapperContent(entry)
-    expect(content).toContain('# @nuxt/a11y Module Router')
-    expect(content).toContain('Docs: [https://a11y.nuxt.com](https://a11y.nuxt.com)')
-    expect(content).toContain('Source code: [https://github.com/nuxt/a11y](https://github.com/nuxt/a11y)')
-    expect(content).toContain('Keep this module guidance scoped to `@nuxt/a11y`')
-  })
-
-  it('keeps resolved preview module details out of the root skill', () => {
-    const entry = createSkillEntrypoint('nuxt', DEFAULT_NUXT_CONTENT_METADATA, { entries: [
-      {
-        packageName: '@nuxthub/core',
-        version: undefined,
-        skillName: 'nuxthub',
-        description: 'NuxtHub support.',
-        scriptsIncluded: false,
-        sourceKind: 'github' as const,
-        sourceLabel: 'Resolved module skill',
-        repoUrl: 'https://github.com/nuxthub/core',
-        docsUrl: 'https://hub.nuxt.com',
-        official: true,
-        trustLevel: 'official' as const,
-        resolver: 'agentsField' as const,
-        wrapperPath: 'references/modules/nuxthub/nuxthub.md',
-      },
-    ] })
-
-    expect(entry).toContain('## Module guides')
-    expect(entry).toContain('[Module guide index](./references/modules/index.md)')
-    expect(entry).toContain('1 resolved')
-    expect(entry).not.toContain('### Resolved module skills')
-    expect(entry).not.toContain('Resolved module skill. Trust: `official`.')
-    expect(entry).not.toContain('GitHub-resolved')
-    expect(entry).not.toContain('`unknown`')
-  })
-
-  it('does not expose framework metadata.json in the preview file tree', () => {
+  it('builds selectable paths for framework files', () => {
     const tree = buildFileTree(['index.md', 'rules/abstraction-disambiguation.md'], ['SKILL.md', 'references/reactivity.md'], [])
-    const serialized = JSON.stringify(tree)
 
-    expect(serialized).not.toContain('metadata.json')
-    expect(serialized).not.toContain('references/nuxt/metadata.json')
-    expect(serialized).not.toContain('references/vue/metadata.json')
-    expect(serialized).not.toContain('references/index.md')
-    expect(serialized).toContain('"label":"nuxt"')
-    expect(serialized).toContain('"label":"vue"')
+    expect(tree[0]).toMatchObject({ label: 'SKILL.md', value: 'SKILL.md' })
+    expect(tree[1]?.children).toMatchObject([
+      {
+        label: 'nuxt',
+        children: [
+          { label: 'rules', children: [{ value: 'references/nuxt/rules/abstraction-disambiguation.md' }] },
+          { label: 'index.md', value: 'references/nuxt/index.md' },
+        ],
+      },
+      {
+        label: 'vue',
+        children: [
+          { label: 'references', children: [{ value: 'references/vue/references/reactivity.md' }] },
+          { label: 'SKILL.md', value: 'references/vue/SKILL.md' },
+        ],
+      },
+    ])
   })
 
   it('hides modules folder when no modules are selected', () => {

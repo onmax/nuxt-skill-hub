@@ -164,99 +164,39 @@ describe('resolveRemoteContributionsForPackage', () => {
     expect(downloadMock.mock.calls).toEqual([])
   })
 
-  it('uses remote package agents.skills before heuristics', async () => {
+  it.each([
+    ['versioned manifest', 'v0.3.0', 'skills/nuxt-module'],
+    ['fallback manifest', 'main', '.agent/skills/nuxt-module'],
+  ])('uses remote package agents.skills from a %s before heuristics', async (_label, sourceRef, sourcePath) => {
     const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
     const downloadMock = mockDownloadTemplate(async (input, destinationDir) => {
-      if (input === 'gh:acme/nuxt-module/skills/nuxt-module#v0.3.0') {
+      if (input === `gh:acme/nuxt-module/${sourcePath}#${sourceRef}`) {
         await createSkillFiles(destinationDir, 'nuxt-module')
+      }
+      else if (input === 'gh:acme/nuxt-module/skills/wrong-heuristic#main') {
+        await createSkillFiles(destinationDir, 'wrong-heuristic')
       }
       else {
         throw new Error('not found')
       }
     })
+    const listGitHubDirectoryMock = vi.fn(async () => ['wrong-heuristic'])
+    const defaultBranchMock = vi.fn(async () => 'main')
 
     vi.resetModules()
-    const defaultBranchMock = vi.fn(async () => 'main')
     vi.doMock('../src/remote-fetch', () => ({
       parseGitHubRepo: vi.fn((input: string) => input || null),
       fetchGitHubDefaultBranch: defaultBranchMock,
-      listGitHubDirectory: vi.fn(async () => []),
-      fetchUrlJson: vi.fn(async () => ({ ok: false, status: 404 })),
-      fetchUrlBytes: vi.fn(async () => ({ ok: false, status: 404 })),
-      fetchGitHubFileText: vi.fn(async () => ({
-        ok: true,
-        status: 200,
-        data: JSON.stringify({
-          agents: {
-            skills: [
-              { name: 'nuxt-module', path: 'skills/nuxt-module' },
-            ],
-          },
-        }),
-      })),
-    }))
-    vi.doMock('giget', () => ({
-      downloadTemplate: downloadMock,
-    }))
-
-    const { resolveRemoteContributionsForPackage } = await import('../src/remote-resolver')
-    const result = await resolveRemoteContributionsForPackage({
-      packageName: '@acme/nuxt-module',
-      version: '0.3.0',
-      repository: 'acme/nuxt-module',
-    }, {
-      cacheRoot,
-      githubLookupTimeoutMs: 200,
-      enableGithubLookup: true,
-    })
-
-    expect(result.contributions).toHaveLength(1)
-    expect(result.contributions[0]?.sourceKind).toBe('github')
-    expect(result.contributions[0]?.resolver).toBe('agentsField')
-    expect(result.contributions[0]?.sourcePath).toBe('skills/nuxt-module')
-    expect(defaultBranchMock).not.toHaveBeenCalled()
-  })
-
-  it('uses remote package agents.skills on fallback refs before heuristics', async () => {
-    const cacheRoot = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-remote-'))
-    const downloadMock = mockDownloadTemplate(async (input, destinationDir) => {
-      if (input === 'gh:acme/nuxt-module/.agent/skills/nuxt-module#main') {
-        await createSkillFiles(destinationDir, 'nuxt-module')
-        return
-      }
-
-      throw new Error('not found')
-    })
-    const listGitHubDirectoryMock = vi.fn(async () => ['wrong-heuristic'])
-
-    vi.resetModules()
-    vi.doMock('../src/remote-fetch', () => ({
-      parseGitHubRepo: vi.fn((input: string) => input || null),
-      fetchGitHubDefaultBranch: vi.fn(async () => 'main'),
       listGitHubDirectory: listGitHubDirectoryMock,
       fetchUrlJson: vi.fn(async () => ({ ok: false, status: 404 })),
       fetchUrlBytes: vi.fn(async () => ({ ok: false, status: 404 })),
-      fetchGitHubFileText: vi.fn(async (_repo: string, ref: string) => {
-        if (ref === 'v0.3.0' || ref === '0.3.0') {
-          return { ok: false, status: 404 }
-        }
-
-        if (ref === 'main') {
-          return {
+      fetchGitHubFileText: vi.fn(async (_repo: string, ref: string) => ref === sourceRef
+        ? {
             ok: true,
             status: 200,
-            data: JSON.stringify({
-              agents: {
-                skills: [
-                  { name: 'nuxt-module', path: '.agent/skills/nuxt-module' },
-                ],
-              },
-            }),
+            data: JSON.stringify({ agents: { skills: [{ name: 'nuxt-module', path: sourcePath }] } }),
           }
-        }
-
-        return { ok: false, status: 404 }
-      }),
+        : { ok: false, status: 404 }),
     }))
     vi.doMock('giget', () => ({
       downloadTemplate: downloadMock,
@@ -271,13 +211,21 @@ describe('resolveRemoteContributionsForPackage', () => {
       cacheRoot,
       githubLookupTimeoutMs: 200,
       enableGithubLookup: true,
+      enableGithubHeuristics: true,
     })
 
-    expect(result.contributions).toHaveLength(1)
-    expect(result.contributions[0]?.resolver).toBe('agentsField')
-    expect(result.contributions[0]?.sourceRef).toBe('main')
-    expect(result.contributions[0]?.sourcePath).toBe('.agent/skills/nuxt-module')
+    expect(result.contributions).toEqual([expect.objectContaining({
+      skillName: 'nuxt-module',
+      sourceKind: 'github',
+      resolver: 'agentsField',
+      sourceRef,
+      sourcePath,
+    })])
+    await expect(fsp.readFile(join(result.contributions[0]!.sourceDir, 'SKILL.md'), 'utf8')).resolves.toContain('name: nuxt-module')
     expect(listGitHubDirectoryMock).not.toHaveBeenCalled()
+    if (sourceRef === 'v0.3.0') {
+      expect(defaultBranchMock).not.toHaveBeenCalled()
+    }
   })
 
   it('does not probe well-known indexes on localhost homepages', async () => {
@@ -1197,20 +1145,18 @@ describe('resolveRemoteContributionsForPackage', () => {
       enableGithubLookup: true,
     })
     const skillPath = join(first.contributions[0]!.sourceDir, 'SKILL.md')
-    const firstStat = await fsp.stat(skillPath)
-
-    await new Promise(resolve => setTimeout(resolve, 25))
+    const cacheMarker = '\n<!-- cached-router -->\n'
+    await fsp.appendFile(skillPath, cacheMarker)
 
     const second = await resolveRemoteContributionsForPackage(packageInfo, {
       cacheRoot,
       githubLookupTimeoutMs: 200,
       enableGithubLookup: true,
     })
-    const secondStat = await fsp.stat(skillPath)
 
     expect(second.contributions).toHaveLength(1)
     expect(second.contributions[0]?.sourceDir).toBe(first.contributions[0]?.sourceDir)
-    expect(secondStat.mtimeMs).toBe(firstStat.mtimeMs)
+    await expect(fsp.readFile(skillPath, 'utf8')).resolves.toContain(cacheMarker)
     expect(downloadMock).not.toHaveBeenCalled()
   })
 
