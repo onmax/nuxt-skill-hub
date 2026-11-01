@@ -55,8 +55,12 @@ describe('remote fetch memoization', () => {
 
     const { fetchGitHubFileText, listGitHubDirectory } = await import('../src/remote-fetch')
 
-    await fetchGitHubFileText('onmax/nuxt-skills', 'main', 'package.json', 200)
-    await fetchGitHubFileText('onmax/nuxt-skills', 'main', 'package.json', 200)
+    await expect(fetchGitHubFileText('onmax/nuxt-skills', 'main', 'package.json', 200)).resolves.toEqual({
+      ok: true, data: '{"name":"nuxt-skills"}',
+    })
+    await expect(fetchGitHubFileText('onmax/nuxt-skills', 'main', 'package.json', 200)).resolves.toEqual({
+      ok: true, data: '{"name":"nuxt-skills"}',
+    })
     expect(await listGitHubDirectory('onmax/nuxt-skills', 'main', 'skills', 200)).toEqual(['nuxt-seo', 'nuxt-ui'])
     expect(await listGitHubDirectory('onmax/nuxt-skills', 'main', 'skills', 200)).toEqual(['nuxt-seo', 'nuxt-ui'])
     expect(ofetchMock).toHaveBeenCalledTimes(2)
@@ -82,12 +86,11 @@ describe('remote fetch memoization', () => {
 
     const { fetchUrlBytes, fetchUrlJson, fetchUrlText } = await import('../src/remote-fetch')
 
-    await fetchUrlText('https://example.com/skill.md', 200)
-    await fetchUrlText('https://example.com/skill.md', 400)
-    await fetchUrlJson<{ ok: boolean }>('https://example.com/index.json', 200)
-    await fetchUrlJson<{ ok: boolean }>('https://example.com/index.json', 400)
-    await fetchUrlBytes('https://example.com/skill.tar.gz', 200)
-    await fetchUrlBytes('https://example.com/skill.tar.gz', 400)
+    for (const timeoutMs of [200, 400]) {
+      await expect(fetchUrlText('https://example.com/skill.md', timeoutMs)).resolves.toEqual({ ok: true, data: 'hello' })
+      await expect(fetchUrlJson('https://example.com/index.json', timeoutMs)).resolves.toEqual({ ok: true, data: { ok: true } })
+      await expect(fetchUrlBytes('https://example.com/skill.tar.gz', timeoutMs)).resolves.toEqual({ ok: true, data: new Uint8Array([1, 2, 3]) })
+    }
 
     expect(ofetchMock).toHaveBeenCalledTimes(3)
   })

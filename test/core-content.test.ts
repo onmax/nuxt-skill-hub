@@ -118,16 +118,18 @@ describe('createSkillEntrypoint', () => {
   })
 
   it.each([
-    ['a plain app', {}],
-    ['module authoring', { moduleAuthoring: true }],
-    ['Nuxt UI', { installedPackages: ['@nuxt/ui'] }],
-    ['a module skill for Nuxt Content', { entries: [{ packageName: '@nuxt/content', skillName: 'nuxt-content', scriptsIncluded: false, sourceKind: 'dist', official: true, resolver: 'agentsField' }] }],
-    ['every gated pack', { moduleAuthoring: true, installedPackages: DEFAULT_NUXT_CONTENT_METADATA.packs.flatMap(pack => pack.packages || []) }],
-  ] satisfies Array<[string, SkillEntrypointOptions]>)('links exactly the packs it selects for %s', (_label, options) => {
+    ['a plain app', {}, []],
+    ['module authoring', { moduleAuthoring: true }, ['module-authoring']],
+    ['Nuxt UI', { installedPackages: ['@nuxt/ui'] }, ['nuxt-ui-primitives']],
+    ['a module skill for Nuxt Content', { entries: [{ packageName: '@nuxt/content', skillName: 'nuxt-content', scriptsIncluded: false, sourceKind: 'dist', official: true, resolver: 'agentsField' }] }, ['content-modeling-navigation']],
+    ['every gated pack', { moduleAuthoring: true, installedPackages: ['@nuxt/ui', '@nuxt/content'] }, ['module-authoring', 'nuxt-ui-primitives', 'content-modeling-navigation']],
+  ] satisfies Array<[string, SkillEntrypointOptions, string[]]>)('routes gated packs for %s', (_label, options, expectedPacks) => {
     const entry = createSkillEntrypoint('nuxt', DEFAULT_NUXT_CONTENT_METADATA, options)
     const linked = new Set(Array.from(entry.matchAll(/\]\(\.\/references\/nuxt\/([^)]+)\)/g), match => match[1]))
 
-    expect([...linked].sort()).toEqual(selectLinkedPacks(DEFAULT_NUXT_CONTENT_METADATA, options).map(pack => pack.relativePath).sort())
+    for (const pack of ['module-authoring', 'nuxt-ui-primitives', 'content-modeling-navigation']) {
+      expect(linked.has(`rules/${pack}.md`), pack).toBe(expectedPacks.includes(pack))
+    }
   })
 
   it('links every pack when all gates are open', () => {
@@ -180,6 +182,7 @@ describe('createModuleWrapperContent', () => {
     expect(content).toContain('Docs: [https://i18n.nuxtjs.org](https://i18n.nuxtjs.org)')
     expect(content).toContain('Source code: [https://github.com/nuxt-modules/i18n](https://github.com/nuxt-modules/i18n)')
     expect(content).toContain('Start with the relevant route in the parent Nuxt skill')
+    expect(content).toContain('Keep this module guidance scoped to `@nuxtjs/i18n`')
   })
 
   it('keeps the root module section compact and moves details to the module index', () => {
@@ -206,6 +209,7 @@ describe('createModuleWrapperContent', () => {
     expect(entry).toContain('1 resolved')
     expect(entry).not.toContain('### Resolved module skills')
     expect(entry).not.toContain('[@nuxthub/core](./references/modules/nuxthub/nuxthub.md)')
+    expect(entry).not.toContain('Resolved module skill. Trust: `official`.')
     expect(entry).not.toContain('GitHub-resolved')
     expect(entry).not.toContain('`unknown`')
   })
