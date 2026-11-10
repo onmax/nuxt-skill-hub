@@ -125,10 +125,12 @@ describe('module-expanded generation', () => {
     const cachedGeneratedRoot = join(cacheRoot, 'generated', 'nuxt-with-modules-fixture')
     const cacheMarker = '\n<!-- restored-from-cache -->\n'
     await fsp.appendFile(join(cachedGeneratedRoot, 'SKILL.md'), cacheMarker, 'utf8')
+    const skillRoot = join(workspaceRoot, '.claude', 'skills', 'nuxt-with-modules-fixture')
+    // Publishing skips a copy that already matches the cache, so drop it to see the cached tree restored.
+    await fsp.rm(skillRoot, { recursive: true, force: true })
 
     execSync('pnpm exec nuxt prepare', { cwd: rootDir, encoding: 'utf8', stdio: 'pipe' })
 
-    const skillRoot = join(workspaceRoot, '.claude', 'skills', 'nuxt-with-modules-fixture')
     const generatedSkillRoot = skillRoot
     const entry = await fsp.readFile(join(generatedSkillRoot, 'SKILL.md'), 'utf8')
     const moduleIndex = await fsp.readFile(join(generatedSkillRoot, 'references/modules/index.md'), 'utf8')
