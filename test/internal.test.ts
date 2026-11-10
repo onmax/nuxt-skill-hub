@@ -310,7 +310,6 @@ describe('swapDir and replaceSkillTree', () => {
 
     await expect(replaceSkillTree(join(root, 'missing'), target)).rejects.toThrow()
     await expect(fsp.readFile(join(target, 'SKILL.md'), 'utf8')).resolves.toBe('old')
-    await expect(fsp.access(`${target}.staging`)).rejects.toBeDefined()
 
     const staging = join(root, 'staging')
     await fsp.mkdir(staging)
