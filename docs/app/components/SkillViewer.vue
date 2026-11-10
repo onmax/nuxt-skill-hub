@@ -70,9 +70,8 @@ watch(
 // Rotating agent names
 const agents = [
   { prefix: '.claude' },
-  { prefix: '.cursor' },
+  { prefix: '.agents' },
   { prefix: '.gemini' },
-  { prefix: '.codex' },
 ]
 const agentIndex = ref(0)
 const currentAgent = computed(() => agents[agentIndex.value]!)

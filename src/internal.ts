@@ -707,19 +707,12 @@ export function getTargetSkillRoot(
     throw new Error(`Target "${target}" could not be resolved from unagent.`)
   }
 
-  const home = homedir()
-  const relativeConfigDir = (relative(home, targetConfig.configDir))
-  const canMirrorConfigDir = !relativeConfigDir.startsWith('..')
-    && !relativeConfigDir.includes('/../')
-    && !isAbsolute(relativeConfigDir)
-
-  if (canMirrorConfigDir) {
-    const targetDir = resolve(rootDir, relativeConfigDir, targetConfig.skillsDir)
-    const skillRoot = join(targetDir, skillName)
-    return { targetDir, skillRoot }
+  if (!targetConfig.projectSkillsDir) {
+    throw new Error(`Target "${target}" configDir "${targetConfig.configDir}" is not under home "${homedir()}".`)
   }
 
-  throw new Error(`Target "${target}" configDir "${targetConfig.configDir}" is not under home "${home}".`)
+  const targetDir = resolve(rootDir, targetConfig.projectSkillsDir)
+  return { targetDir, skillRoot: join(targetDir, skillName) }
 }
 
 // Skills from old `onmax/nuxt-skills` that nuxt-skill-hub also generates (built-in or via modules)
