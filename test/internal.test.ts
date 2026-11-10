@@ -1,8 +1,9 @@
 import { promises as fsp } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  createStagingPath,
   discoverInstalledPackageFromDirectory,
   getTargetSkillRoot,
   isValidSkillName,
@@ -297,6 +298,10 @@ describe('getTargetSkillRoot', () => {
 })
 
 describe('swapDir and replaceSkillTree', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   it('replaces a tree only once the new one is complete', async () => {
     const root = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-swap-'))
     const target = join(root, 'skill')
@@ -305,7 +310,6 @@ describe('swapDir and replaceSkillTree', () => {
 
     await expect(replaceSkillTree(join(root, 'missing'), target)).rejects.toThrow()
     await expect(fsp.readFile(join(target, 'SKILL.md'), 'utf8')).resolves.toBe('old')
-    await expect(fsp.access(`${target}.staging`)).rejects.toBeDefined()
 
     const staging = join(root, 'staging')
     await fsp.mkdir(staging)
@@ -314,6 +318,88 @@ describe('swapDir and replaceSkillTree', () => {
 
     await expect(fsp.readFile(join(target, 'SKILL.md'), 'utf8')).resolves.toBe('new')
     expect((await fsp.readdir(root)).sort()).toEqual(['skill'])
+    await fsp.rm(root, { recursive: true, force: true })
+  })
+
+  async function createSwapFixture() {
+    const root = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-swap-'))
+    const target = join(root, 'skill')
+    const staging = join(root, 'staging')
+    await fsp.mkdir(target)
+    await fsp.writeFile(join(target, 'SKILL.md'), 'old')
+    await fsp.mkdir(staging)
+    await fsp.writeFile(join(staging, 'SKILL.md'), 'new')
+    return { root, target, staging }
+  }
+
+  /** Makes `fsp.rename` fail with EPERM, as Windows does, for the first `times` moves from `from`. */
+  function denyRenames(from: string, times: number) {
+    const rename = fsp.rename.bind(fsp)
+    let denied = 0
+    return vi.spyOn(fsp, 'rename').mockImplementation(async (source, destination) => {
+      if (source === from && denied < times) {
+        denied++
+        throw Object.assign(new Error(`EPERM: operation not permitted, rename '${source}' -> '${destination}'`), { code: 'EPERM' })
+      }
+      return rename(source, destination)
+    })
+  }
+
+  it('retries a rename that Windows denies for a moment', async () => {
+    const { root, target, staging } = await createSwapFixture()
+    denyRenames(staging, 2)
+
+    await swapDir(staging, target)
+
+    await expect(fsp.readFile(join(target, 'SKILL.md'), 'utf8')).resolves.toBe('new')
+    expect((await fsp.readdir(root)).sort()).toEqual(['skill'])
+    await fsp.rm(root, { recursive: true, force: true })
+  })
+
+  it('puts the old tree back when the new one cannot move in', async () => {
+    const { root, target, staging } = await createSwapFixture()
+    denyRenames(staging, Number.POSITIVE_INFINITY)
+
+    await expect(swapDir(staging, target)).rejects.toMatchObject({ code: 'EPERM' })
+
+    await expect(fsp.readFile(join(target, 'SKILL.md'), 'utf8')).resolves.toBe('old')
+    expect((await fsp.readdir(root)).sort()).toEqual(['skill', 'staging'])
+    await fsp.rm(root, { recursive: true, force: true })
+  })
+
+  it('keeps the tree another process published while this one was swapping', async () => {
+    const { root, target, staging } = await createSwapFixture()
+    const rename = fsp.rename.bind(fsp)
+    vi.spyOn(fsp, 'rename').mockImplementation(async (source, destination) => {
+      if (source === staging) {
+        await fsp.mkdir(target, { recursive: true })
+        await fsp.writeFile(join(target, 'SKILL.md'), 'other')
+        throw Object.assign(new Error('EPERM'), { code: 'EPERM' })
+      }
+      return rename(source, destination)
+    })
+
+    await swapDir(staging, target)
+
+    await expect(fsp.readFile(join(target, 'SKILL.md'), 'utf8')).resolves.toBe('other')
+    expect((await fsp.readdir(root)).sort()).toEqual(['skill', 'staging'])
+    await fsp.rm(root, { recursive: true, force: true })
+  })
+
+  it('gives each run its own staging path and removes ones left by dead runs', async () => {
+    const root = await fsp.mkdtemp(join(tmpdir(), 'skill-hub-staging-'))
+    const target = join(root, 'skill')
+    const live = `${target}.staging-${process.pid}-live`
+    await fsp.mkdir(live)
+    await fsp.mkdir(`${target}.staging`)
+    await fsp.mkdir(`${target}.staging-2147483646-dead`)
+
+    const first = await createStagingPath(target)
+    const second = await createStagingPath(target)
+
+    expect(first).not.toBe(second)
+    expect(first.startsWith(`${target}.staging-${process.pid}-`)).toBe(true)
+    expect(await fsp.readdir(root)).toEqual([`skill.staging-${process.pid}-live`])
     await fsp.rm(root, { recursive: true, force: true })
   })
 })

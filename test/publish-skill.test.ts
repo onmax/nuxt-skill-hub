@@ -39,6 +39,24 @@ describe('publishSkill', () => {
     expect(execSync('git status --porcelain', { cwd: root, encoding: 'utf8' }).trim()).toBe('?? .gitignore')
   })
 
+  it('leaves an up-to-date copy in place and replaces it after a new generation', async () => {
+    const writeState = (generatedAt: string) => fsp.writeFile(
+      join(generatedSkillRoot, '.state.json'),
+      JSON.stringify({ fingerprint: 'abc', generatedAt, packageVersion: '0.0.0' }),
+    )
+    const skillRoot = join(root, '.claude/skills/nuxt-app')
+    await writeState('2026-01-01T00:00:00.000Z')
+    await publish(['claude-code'])
+    await fsp.writeFile(join(skillRoot, 'marker'), '')
+
+    await publish(['claude-code'])
+    await expect(fsp.access(join(skillRoot, 'marker'))).resolves.toBeUndefined()
+
+    await writeState('2026-01-02T00:00:00.000Z')
+    await publish(['claude-code'])
+    await expect(fsp.access(join(skillRoot, 'marker'))).rejects.toBeDefined()
+  })
+
   it('writes one pointer file for agents that load a rules directory', async () => {
     await publish(['windsurf'])
 
