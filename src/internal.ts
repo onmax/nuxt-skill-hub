@@ -1,4 +1,5 @@
 import { existsSync, lstatSync, promises as fsp } from 'node:fs'
+import { randomBytes } from 'node:crypto'
 import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'pathe'
 import matter from 'gray-matter'
@@ -625,23 +626,89 @@ export async function copySkillTree(sourceDir: string, destinationDir: string, i
   })
 }
 
+const RENAME_RETRY_CODES = new Set(['EPERM', 'EACCES', 'EBUSY'])
+const RENAME_RETRY_DELAYS_MS = [50, 100, 200, 400, 800]
+
 /**
- * Moves a finished `staging` tree to `target`. Readers see the old tree or the new one, never a
- * partial one, and a failure before this call leaves `target` untouched.
+ * Windows denies a rename while another process (a watcher, indexer or virus scanner) holds a
+ * handle in the tree, which clears within a few hundred milliseconds.
+ */
+async function renameWithRetry(from: string, to: string): Promise<void> {
+  for (const delay of RENAME_RETRY_DELAYS_MS) {
+    try {
+      await fsp.rename(from, to)
+      return
+    }
+    catch (error) {
+      if (!RENAME_RETRY_CODES.has((error as NodeJS.ErrnoException).code ?? '')) {
+        throw error
+      }
+      await new Promise(resolve => setTimeout(resolve, delay))
+    }
+  }
+  await fsp.rename(from, to)
+}
+
+function isProcessAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  }
+  catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'EPERM'
+  }
+}
+
+/**
+ * Returns a staging path next to `target` that no other process uses, so a dev server and
+ * `nuxt prepare` can't wipe each other's tree. Removes staging trees left by runs that crashed.
+ */
+export async function createStagingPath(target: string): Promise<string> {
+  const prefix = `${basename(target)}.staging`
+  const parent = dirname(target)
+  await ensureDir(parent)
+  for (const name of await fsp.readdir(parent)) {
+    if (!name.startsWith(prefix)) {
+      continue
+    }
+    const pid = Number(name.slice(prefix.length + 1).split('-')[0])
+    if (!pid || !isProcessAlive(pid)) {
+      await fsp.rm(join(parent, name), { recursive: true, force: true })
+    }
+  }
+  return join(parent, `${prefix}-${process.pid}-${randomBytes(4).toString('hex')}`)
+}
+
+/**
+ * Moves a finished `staging` tree to `target`. If the move fails, the old tree goes back to
+ * `target`. If another process published `target` meanwhile, its tree wins.
  */
 export async function swapDir(staging: string, target: string): Promise<void> {
   const previous = `${target}.previous`
   await fsp.rm(previous, { recursive: true, force: true })
-  if (await pathExists(target)) {
-    await fsp.rename(target, previous)
+  const hadTarget = await pathExists(target)
+  if (hadTarget) {
+    await renameWithRetry(target, previous)
   }
-  await fsp.rename(staging, target)
+  try {
+    await renameWithRetry(staging, target)
+  }
+  catch (error) {
+    if (await pathExists(target)) {
+      await fsp.rm(previous, { recursive: true, force: true })
+      return
+    }
+    if (hadTarget) {
+      await renameWithRetry(previous, target)
+    }
+    throw error
+  }
   await fsp.rm(previous, { recursive: true, force: true })
 }
 
 /** Like `copySkillTree`, but the destination switches over only once the copy is complete. */
 export async function replaceSkillTree(sourceDir: string, destinationDir: string): Promise<void> {
-  const staging = `${destinationDir}.staging`
+  const staging = await createStagingPath(destinationDir)
   try {
     await copySkillTree(sourceDir, staging, true)
     await swapDir(staging, destinationDir)

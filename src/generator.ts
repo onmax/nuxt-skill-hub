@@ -7,6 +7,7 @@ import {
   collectInstalledModulePackages,
   copySkillTree,
   createModuleDestination,
+  createStagingPath,
   buildNuxtTemplateFiles,
   buildVueTemplateFiles,
   discoverPackageSkillsFromInstalledPackage,
@@ -44,7 +45,7 @@ import {
   createLocalSourceFingerprints,
   resolveManualContribution,
 } from './generation/sources'
-import { isGeneratedSkillFreshWithOptions, writeGenerationState } from './generation/state'
+import { isGeneratedSkillFreshWithOptions, readGenerationState, writeGenerationState } from './generation/state'
 import {
   normalizeRemoteOptions,
   type ModuleOptions,
@@ -207,6 +208,21 @@ async function collectInstalledPackages(nuxt: Nuxt) {
 }
 
 /**
+ * True when `skillRoot` already holds this exact generation, so publishing can skip the folder
+ * swap that Windows sometimes refuses while the repo's watchers hold a handle on the tree.
+ */
+async function isPublishedCopyCurrent(generatedSkillRoot: string, skillRoot: string): Promise<boolean> {
+  const [generated, published, entryExists] = await Promise.all([
+    readGenerationState(generatedSkillRoot),
+    readGenerationState(skillRoot),
+    pathExists(join(skillRoot, 'SKILL.md')),
+  ])
+  return Boolean(generated && published && entryExists
+    && generated.fingerprint === published.fingerprint
+    && generated.generatedAt === published.generatedAt)
+}
+
+/**
  * Puts the generated tree where each agent loads skills. Agents that load skill folders get the
  * whole tree, written once to `.agents/skills` for the agents that read it. Agents with a rules
  * directory get one pointer file, so they don't load every reference as a rule.
@@ -242,7 +258,9 @@ export async function publishSkill(input: {
     }
 
     if (loadsSkillFolders(target)) {
-      await replaceSkillTree(generatedSkillRoot, skillRoot)
+      if (!(await isPublishedCopyCurrent(generatedSkillRoot, skillRoot))) {
+        await replaceSkillTree(generatedSkillRoot, skillRoot)
+      }
       continue
     }
 
@@ -296,12 +314,6 @@ export async function generateSkillTree(input: {
     // Older versions kept the tree in the build dir.
     await fsp.rm(join(nuxt.options.buildDir, 'skill-hub'), { recursive: true, force: true })
   }
-  // Built here, then swapped in, so a failed run keeps the previous tree.
-  const stagingRoot = `${generatedSkillRoot}.staging`
-  const referencesRoot = join(stagingRoot, 'references')
-  const nuxtRoot = join(referencesRoot, 'nuxt')
-  const vueRoot = join(referencesRoot, 'vue')
-  const modulesRoot = join(referencesRoot, 'modules')
   const monorepoScopePath = resolveMonorepoScopePath(nuxt.options.rootDir, exportRoot)
   const manualContributions: SkillHubContribution[] = []
   const remoteOptions = normalizeRemoteOptions(options.remote)
@@ -489,6 +501,12 @@ export async function generateSkillTree(input: {
     logger.warn(`[validation] ${issue.packageName}/${issue.skillName}: ${issue.reason}`)
   }
 
+  // Built here, then swapped in, so a failed run keeps the previous tree.
+  const stagingRoot = await createStagingPath(generatedSkillRoot)
+  const referencesRoot = join(stagingRoot, 'references')
+  const nuxtRoot = join(referencesRoot, 'nuxt')
+  const vueRoot = join(referencesRoot, 'vue')
+  const modulesRoot = join(referencesRoot, 'modules')
   await emptyDir(stagingRoot)
   try {
     await ensureDir(nuxtRoot)
