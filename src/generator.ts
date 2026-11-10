@@ -261,19 +261,21 @@ export async function publishSkill(input: {
   // An agent that reads `.agents/skills` would load the skill twice if the copy an older version
   // wrote to its own folder stayed. Keep that copy when the shared folder holds someone else's skill.
   for (const target of input.targets) {
-    const previousDir = resolveAgentTargetConfig(target)?.previousProjectSkillsDir
-    if (!previousDir || !(await canReplaceSkillDir(getTargetSkillRoot(input.exportRoot, target, input.skillName).skillRoot))) {
+    const previousDirs = resolveAgentTargetConfig(target)?.previousProjectSkillsDirs ?? []
+    if (!previousDirs.length || !(await canReplaceSkillDir(getTargetSkillRoot(input.exportRoot, target, input.skillName).skillRoot))) {
       continue
     }
-    const previousRoot = join(input.exportRoot, previousDir, input.skillName)
-    if (!(await pathExists(join(previousRoot, 'SKILL.md')))) {
-      continue
+    for (const previousDir of previousDirs) {
+      const previousRoot = join(input.exportRoot, previousDir, input.skillName)
+      if (!(await pathExists(join(previousRoot, 'SKILL.md')))) {
+        continue
+      }
+      const realPreviousRoot = join(await fsp.realpath(dirname(previousRoot)), basename(previousRoot))
+      if (published.has(realPreviousRoot) || !(await canReplaceSkillDir(previousRoot))) {
+        continue
+      }
+      await fsp.rm(previousRoot, { recursive: true, force: true })
     }
-    const realPreviousRoot = join(await fsp.realpath(dirname(previousRoot)), basename(previousRoot))
-    if (published.has(realPreviousRoot) || !(await canReplaceSkillDir(previousRoot))) {
-      continue
-    }
-    await fsp.rm(previousRoot, { recursive: true, force: true })
   }
 }
 

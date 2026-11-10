@@ -54,7 +54,7 @@ describe('resolveAgentTargetConfig', () => {
     expect(resolveAgentTargetConfig('cursor')).toMatchObject({
       projectSkillsDir: '.agents/skills',
       loadsSkillFolders: true,
-      previousProjectSkillsDir: '.cursor/rules',
+      previousProjectSkillsDirs: ['.cursor/rules'],
     })
     expect(resolveAgentTargetConfig('windsurf')).toMatchObject({
       projectSkillsDir: '.codeium/windsurf/rules',

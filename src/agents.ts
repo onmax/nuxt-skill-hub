@@ -25,8 +25,8 @@ export interface ResolvedAgentTargetConfig {
   /** Relative to the export root. Undefined when the agent's config dir isn't under home, so it can't be mirrored. */
   projectSkillsDir?: string
   loadsSkillFolders: boolean
-  /** Where older versions wrote this agent's skill, before it moved to `.agents/skills`. */
-  previousProjectSkillsDir?: string
+  /** Where older versions wrote the skill for the agents this target covers, before they moved to `.agents/skills`. */
+  previousProjectSkillsDirs: string[]
 }
 
 export type InvalidTargetReason = 'unknown-target' | 'missing-skills-dir'
@@ -77,6 +77,7 @@ export function resolveAgentTargetConfig(target: SkillHubTarget): ResolvedAgentT
       skillsDir: 'skills',
       projectSkillsDir: UNIVERSAL_SKILLS_DIR,
       loadsSkillFolders: true,
+      previousProjectSkillsDirs: [...UNIVERSAL_AGENTS].flatMap(agent => resolveAgentTargetConfig(agent)?.previousProjectSkillsDirs ?? []),
     }
   }
 
@@ -95,7 +96,7 @@ export function resolveAgentTargetConfig(target: SkillHubTarget): ResolvedAgentT
       skillsDir,
       projectSkillsDir: UNIVERSAL_SKILLS_DIR,
       loadsSkillFolders: true,
-      previousProjectSkillsDir: ownProjectSkillsDir,
+      previousProjectSkillsDirs: ownProjectSkillsDir ? [ownProjectSkillsDir] : [],
     }
   }
 
@@ -105,6 +106,7 @@ export function resolveAgentTargetConfig(target: SkillHubTarget): ResolvedAgentT
     skillsDir,
     projectSkillsDir: ownProjectSkillsDir,
     loadsSkillFolders: skillsDir === 'skills',
+    previousProjectSkillsDirs: [],
   }
 }
 
