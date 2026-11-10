@@ -57,7 +57,7 @@ import {
   type SkillManifestSkipped,
   type ValidationIssue,
 } from './types'
-import { loadsSkillFolders, type SkillHubTarget } from './agents'
+import { loadsSkillFolders, resolveAgentTargetConfig, type SkillHubTarget } from './agents'
 
 interface NuxtPerfProfiler {
   startPhase: (name: string) => void
@@ -208,8 +208,8 @@ async function collectInstalledPackages(nuxt: Nuxt) {
 
 /**
  * Puts the generated tree where each agent loads skills. Agents that load skill folders get the
- * whole tree. Agents with a rules directory get one pointer file, so they don't load every
- * reference as a rule.
+ * whole tree, written once to `.agents/skills` for the agents that read it. Agents with a rules
+ * directory get one pointer file, so they don't load every reference as a rule.
  */
 export async function publishSkill(input: {
   logger: SkillHubLogger
@@ -256,6 +256,24 @@ export async function publishSkill(input: {
         bundledRulesPath: hasBundledRules ? normalizeRelativePath(skillRoot, bundledRulesDir) : undefined,
       },
     ))
+  }
+
+  // An agent that reads `.agents/skills` would load the skill twice if the copy an older version
+  // wrote to its own folder stayed.
+  for (const target of input.targets) {
+    const previousDir = resolveAgentTargetConfig(target)?.previousProjectSkillsDir
+    if (!previousDir) {
+      continue
+    }
+    const previousRoot = join(input.exportRoot, previousDir, input.skillName)
+    if (!(await pathExists(join(previousRoot, 'SKILL.md')))) {
+      continue
+    }
+    const realPreviousRoot = join(await fsp.realpath(dirname(previousRoot)), basename(previousRoot))
+    if (published.has(realPreviousRoot) || !(await canReplaceSkillDir(previousRoot))) {
+      continue
+    }
+    await fsp.rm(previousRoot, { recursive: true, force: true })
   }
 }
 

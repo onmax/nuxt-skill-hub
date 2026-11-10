@@ -23,7 +23,7 @@ import {
 
 const repoBlobBase = 'https://github.com/onmax/nuxt-skill-hub/blob/main'
 const skillsRawBase = 'https://raw.githubusercontent.com/onmax/nuxt-skills/main/skills'
-const generatedSkillRoot = '.codex/skills/nuxt-nuxt-skill-hub'
+const generatedSkillRoot = '.agents/skills/nuxt-nuxt-skill-hub'
 
 interface ModuleSkillCacheEntry {
   skillName?: string
