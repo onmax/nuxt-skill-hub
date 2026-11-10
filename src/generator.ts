@@ -259,10 +259,10 @@ export async function publishSkill(input: {
   }
 
   // An agent that reads `.agents/skills` would load the skill twice if the copy an older version
-  // wrote to its own folder stayed.
+  // wrote to its own folder stayed. Keep that copy when the shared folder holds someone else's skill.
   for (const target of input.targets) {
     const previousDir = resolveAgentTargetConfig(target)?.previousProjectSkillsDir
-    if (!previousDir) {
+    if (!previousDir || !(await canReplaceSkillDir(getTargetSkillRoot(input.exportRoot, target, input.skillName).skillRoot))) {
       continue
     }
     const previousRoot = join(input.exportRoot, previousDir, input.skillName)
