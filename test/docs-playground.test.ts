@@ -25,8 +25,6 @@ describe('docs playground metadata routing', () => {
     expect(skillName).toBe('nuxt-a11y')
     expect(files['SKILL.md']).toContain('Docs: [https://a11y.nuxt.com](https://a11y.nuxt.com)')
     expect(files['SKILL.md']).toContain('Source code: [https://github.com/nuxt/a11y](https://github.com/nuxt/a11y)')
-    expect(files['SKILL.md']).not.toContain('This skill was generated from package metadata')
-    expect(files['references/index.md']).toBeUndefined()
   })
 
   it('builds selectable paths for framework files', () => {

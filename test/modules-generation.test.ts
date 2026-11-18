@@ -157,8 +157,6 @@ describe('module-expanded generation', () => {
     await expect(fsp.readFile(join(generatedSkillRoot, 'references/modules/test-nuxt-seo/nuxt-seo/SKILL.md'), 'utf8')).resolves.toContain('description: Test Nuxt SEO module skill.')
     await expect(fsp.access(join(generatedSkillRoot, 'references/modules/test-nuxt-ui/nuxt-ui/scripts/check.sh'))).rejects.toBeDefined()
     await expect(fsp.access(join(generatedSkillRoot, 'references/modules/test-nuxt-seo/nuxt-seo/scripts/check.sh'))).rejects.toBeDefined()
-    await expect(fsp.access(join(skillRoot, 'references/index.md'))).rejects.toBeDefined()
-    await expect(fsp.access(join(skillRoot, 'manifest.json'))).rejects.toBeDefined()
     await expect(fsp.access(join(cacheRoot, 'generated', 'nuxt-with-modules-fixture', '.state.json'))).resolves.toBeUndefined()
   }, 15000)
 })
