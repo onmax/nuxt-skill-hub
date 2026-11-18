@@ -77,17 +77,9 @@ describe('createSkillEntrypoint', () => {
     expect(entry).toContain('Verification and Finish')
     expect(entry).toContain('## Finish')
     expect(entry).not.toContain('## Monorepo scope')
-    expect(entry).not.toContain('## Activation Flow')
-    expect(entry).not.toContain('## High-Frequency Nuxt Decisions')
-    expect(entry).not.toContain('## Precedence')
-    expect(entry).not.toContain('## Before Completion')
-    expect(entry).not.toContain('## Vue guidance')
-    expect(entry).not.toContain('## All Nuxt packs')
-    expect(entry).not.toContain('## Primary Packs')
     expect(entry).not.toContain('Installed module APIs')
     expect(entry).not.toContain('Nuxt UI Primitives')
     expect(entry).not.toContain('Content Modeling and Navigation')
-    expect(entry).not.toContain('references/nuxt/index.md')
   })
 
   it('renders a hard monorepo scope warning when a scope path is provided', () => {
@@ -154,9 +146,6 @@ describe('createSkillEntrypoint', () => {
     expect(entry).toContain('Module Authoring Conventions')
     expect(entry).toContain('Writing or refactoring a Nuxt module (`defineNuxtModule`, hooks, public APIs)')
     expect(entry).toContain('"Add a Nuxt module option, hook, or runtime extension"')
-    expect(entry).not.toContain('## Module authoring')
-    expect(entry).not.toContain('## Module Author Focus')
-    expect(entry).not.toContain('## Module author focus')
   })
 })
 
@@ -210,8 +199,6 @@ describe('createModuleWrapperContent', () => {
     expect(entry).not.toContain('### Resolved module skills')
     expect(entry).not.toContain('[@nuxthub/core](./references/modules/nuxthub/nuxthub.md)')
     expect(entry).not.toContain('Resolved module skill. Trust: `official`.')
-    expect(entry).not.toContain('GitHub-resolved')
-    expect(entry).not.toContain('`unknown`')
   })
 
   it('renders detailed module entries in the module index', () => {

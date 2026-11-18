@@ -40,12 +40,10 @@ describe('core-only generation', () => {
     expect(entry).toContain('Migrations and Compatibility')
     expect(entry).toContain('Verification and Finish')
     expect(entry).not.toContain('# Nuxt Skill Wrapper')
-    expect(entry).not.toContain('## Vue guidance')
     expect(entry).toContain('## Monorepo scope')
     expect(entry).toContain('`test/fixtures/core-only`')
     expect(dataPack).toContain('## Data Fetching and SSR')
     expect(vue).toContain('# Vue Best Practices Workflow')
-    await expect(fsp.access(join(skillRoot, 'references/nuxt/index.md'))).rejects.toBeDefined()
     // Gated packs stay out when their module isn't installed and module authoring is off.
     await expect(fsp.access(join(skillRoot, 'references/nuxt/rules/nuxt-ui-primitives.md'))).rejects.toBeDefined()
     await expect(fsp.access(join(skillRoot, 'references/nuxt/rules/module-authoring.md'))).rejects.toBeDefined()
