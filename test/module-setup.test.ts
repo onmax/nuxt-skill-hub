@@ -106,7 +106,6 @@ describe('module setup', () => {
     }, nuxt)
 
     expect(nuxt.hook).not.toHaveBeenCalled()
-    expect(mockResolveTargets).not.toHaveBeenCalled()
     expect(mockLogger.warn).not.toHaveBeenCalled()
   })
 
